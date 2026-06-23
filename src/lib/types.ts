@@ -4,13 +4,35 @@ export interface Brand {
   name: string;
   color: string; // 品牌主题色
   accounts: Account[];
+  groups?: AccountGroup[]; // 账号分组（iQOO下有子分组）
+}
+
+export interface AccountGroup {
+  id: string;
+  name: string;
+  accounts: Account[];
 }
 
 export interface Account {
   id: string;
   brandId: string;
+  groupId?: string; // 所属分组
   name: string;
   platform: '抖音' | '快手' | '其他';
+}
+
+// ==================== 用户 & 认证 ====================
+export type UserStatus = 'pending' | 'approved' | 'rejected';
+
+export interface User {
+  id: string;
+  name: string;
+  phone: string;
+  password: string;
+  projectScope: string; // 'all' | accountId
+  role: RoleKey;
+  status: UserStatus;
+  createdAt: string;
 }
 
 // ==================== 人员 ====================

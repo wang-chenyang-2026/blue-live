@@ -5,16 +5,27 @@ import { AppSidebar, RoleSwitcher, BrandSwitcher } from '@/components/layout/App
 import { Bell } from 'lucide-react';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { isClient } = useApp();
+  const { isClient, isAuthenticated } = useApp();
 
-  // SSR 阶段渲染一个与 CSR 初始渲染一致的空壳结构
-  // 避免因 isClient 状态变化导致的 DOM 结构不匹配
+  // SSR 和 CSR 初始渲染一致的加载状态
   if (!isClient) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           <p className="text-sm text-muted-foreground">加载中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 未认证 -> 不渲染 shell，由 layout 中的 AuthGuard 处理重定向
+  if (!isAuthenticated) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p className="text-sm text-muted-foreground">正在跳转登录...</p>
         </div>
       </div>
     );
@@ -35,7 +46,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="h-5 w-px bg-border" />
             <button className="relative rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
               <Bell className="h-4 w-4" />
-              <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-destructive" />
             </button>
           </div>
         </header>

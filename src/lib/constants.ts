@@ -1,25 +1,42 @@
-import type { Brand, Role, ModuleKey, RoleKey } from './types';
+import type { Brand, Role, ModuleKey, RoleKey, User } from './types';
 
-// ==================== 品牌与账号 ====================
+// ==================== 品牌与账号（级联分组结构） ====================
 export const BRANDS: Brand[] = [
   {
     id: 'vivo',
     name: 'vivo',
     color: '#415FFF',
     accounts: [
-      { id: 'vivo-main', brandId: 'vivo', name: 'vivo', platform: '其他' },
-      { id: 'vivo-douyin', brandId: 'vivo', name: 'vivo官方旗舰店抖音', platform: '抖音' },
-      { id: 'vivo-kuaishou', brandId: 'vivo', name: 'vivo官方旗舰店快手', platform: '快手' },
+      { id: 'vivo-main', brandId: 'vivo', name: 'vivo（大号）', platform: '其他' },
+      { id: 'vivo-douyin', brandId: 'vivo', name: 'vivo官方旗舰店（抖音）', platform: '抖音' },
+      { id: 'vivo-kuaishou', brandId: 'vivo', name: 'vivo官方旗舰店（快手）', platform: '快手' },
     ],
   },
   {
     id: 'iqoo',
     name: 'iQOO',
     color: '#FF6B35',
+    groups: [
+      {
+        id: 'iqoo-douyin-group',
+        name: 'iQOO抖音',
+        accounts: [
+          { id: 'iqoo-main', brandId: 'iqoo', groupId: 'iqoo-douyin-group', name: 'iQOO手机', platform: '其他' },
+          { id: 'iqoo-douyin', brandId: 'iqoo', groupId: 'iqoo-douyin-group', name: 'iQOO官方旗舰店（抖音）', platform: '抖音' },
+        ],
+      },
+      {
+        id: 'iqoo-kuaishou-group',
+        name: 'iQOO官方旗舰店（快手）',
+        accounts: [
+          { id: 'iqoo-kuaishou', brandId: 'iqoo', groupId: 'iqoo-kuaishou-group', name: 'iQOO官方旗舰店（快手）', platform: '快手' },
+        ],
+      },
+    ],
     accounts: [
-      { id: 'iqoo-main', brandId: 'iqoo', name: 'iQOO手机', platform: '其他' },
-      { id: 'iqoo-douyin', brandId: 'iqoo', name: 'iQOO官方旗舰店抖音', platform: '抖音' },
-      { id: 'iqoo-kuaishou', brandId: 'iqoo', name: 'iQOO官方旗舰店快手', platform: '快手' },
+      { id: 'iqoo-main', brandId: 'iqoo', groupId: 'iqoo-douyin-group', name: 'iQOO手机', platform: '其他' },
+      { id: 'iqoo-douyin', brandId: 'iqoo', groupId: 'iqoo-douyin-group', name: 'iQOO官方旗舰店（抖音）', platform: '抖音' },
+      { id: 'iqoo-kuaishou', brandId: 'iqoo', groupId: 'iqoo-kuaishou-group', name: 'iQOO官方旗舰店（快手）', platform: '快手' },
     ],
   },
   {
@@ -27,10 +44,30 @@ export const BRANDS: Brand[] = [
     name: 'IOT',
     color: '#00C9A7',
     accounts: [
-      { id: 'iot-watch', brandId: 'iot', name: 'vivo智能手表直播间', platform: '其他' },
-      { id: 'iot-tablet', brandId: 'iot', name: 'iQOO平板电脑直播间', platform: '其他' },
+      { id: 'iot-tablet', brandId: 'iot', name: 'IOT平板', platform: '其他' },
+      { id: 'iot-watch', brandId: 'iot', name: 'IOT手表', platform: '其他' },
     ],
   },
+];
+
+// ==================== 默认管理员 ====================
+export const DEFAULT_ADMIN: User = {
+  id: 'admin-default',
+  name: '王晨阳',
+  phone: '18333685049',
+  password: 'wcy861937877',
+  projectScope: 'all',
+  role: 'PM',
+  status: 'approved',
+  createdAt: '2025-01-01',
+};
+
+// ==================== 岗位选项 ====================
+export const POSITION_OPTIONS: { value: RoleKey; label: string }[] = [
+  { value: 'PM', label: '项目负责人' },
+  { value: '运营', label: '运营' },
+  { value: '中控', label: '中控' },
+  { value: '主播', label: '主播' },
 ];
 
 // ==================== 角色与权限 ====================

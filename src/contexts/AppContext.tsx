@@ -1,49 +1,88 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { RoleKey } from '@/lib/types';
+import type { RoleKey, User } from '@/lib/types';
 import { BRANDS } from '@/lib/constants';
+import { getCurrentUser, logout as storeLogout, getPendingUsers } from '@/lib/store';
 
 interface AppState {
-  currentBrand: string;
+  currentBrand: string;      // 'all' | brandId
+  currentAccount: string;    // 'all' | accountId
   currentRole: RoleKey;
-  setCurrentBrand: (brandId: string) => void;
-  setCurrentRole: (role: RoleKey) => void;
+  currentUser: User | null;
+  pendingCount: number;
   isClient: boolean;
+  isAuthenticated: boolean;
+  setCurrentBrand: (brandId: string) => void;
+  setCurrentAccount: (accountId: string) => void;
+  setCurrentRole: (role: RoleKey) => void;
+  setUser: (user: User | null) => void;
+  refreshPendingCount: () => void;
+  handleLogout: () => void;
 }
 
 const AppContext = createContext<AppState | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [currentBrand, setCurrentBrand] = useState<string>('vivo');
+  const [currentBrand, setCurrentBrand] = useState<string>('all');
+  const [currentAccount, setCurrentAccount] = useState<string>('all');
   const [currentRole, setCurrentRole] = useState<RoleKey>('PM');
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
   const [isClient, setIsClient] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    // 所有 localStorage 读取只在客户端 useEffect 中执行
     setIsClient(true);
     try {
+      // 恢复认证状态
+      const user = getCurrentUser();
+      if (user) {
+        setCurrentUser(user);
+        setCurrentRole(user.role);
+        setIsAuthenticated(true);
+      }
+
+      // 恢复 UI 偏好
       const saved = localStorage.getItem('lm_app_state');
       if (saved) {
-        const parsed = JSON.parse(saved) as { brand?: string; role?: RoleKey };
-        if (parsed.brand && BRANDS.find((b) => b.id === parsed.brand)) {
-          setCurrentBrand(parsed.brand);
-        }
-        if (parsed.role) {
-          setCurrentRole(parsed.role);
-        }
+        const parsed = JSON.parse(saved) as {
+          brand?: string;
+          account?: string;
+          role?: RoleKey;
+        };
+        if (parsed.brand) setCurrentBrand(parsed.brand);
+        if (parsed.account) setCurrentAccount(parsed.account);
+        if (parsed.role && !user) setCurrentRole(parsed.role);
       }
+
+      // 待审核数量
+      setPendingCount(getPendingUsers().length);
     } catch {
-      // ignore parse errors
+      // ignore
     }
   }, []);
 
   const handleSetBrand = useCallback((brandId: string) => {
     setCurrentBrand(brandId);
+    setCurrentAccount('all'); // 切换品牌时重置账号
     try {
       const saved = localStorage.getItem('lm_app_state');
       const parsed = saved ? JSON.parse(saved) : {};
       parsed.brand = brandId;
+      parsed.account = 'all';
+      localStorage.setItem('lm_app_state', JSON.stringify(parsed));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleSetAccount = useCallback((accountId: string) => {
+    setCurrentAccount(accountId);
+    try {
+      const saved = localStorage.getItem('lm_app_state');
+      const parsed = saved ? JSON.parse(saved) : {};
+      parsed.account = accountId;
       localStorage.setItem('lm_app_state', JSON.stringify(parsed));
     } catch {
       // ignore
@@ -62,14 +101,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const handleSetUser = useCallback((user: User | null) => {
+    setCurrentUser(user);
+    setIsAuthenticated(!!user);
+    if (user) {
+      setCurrentRole(user.role);
+    }
+  }, []);
+
+  const refreshPendingCount = useCallback(() => {
+    setPendingCount(getPendingUsers().length);
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    storeLogout();
+    setCurrentUser(null);
+    setIsAuthenticated(false);
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
         currentBrand,
+        currentAccount,
         currentRole,
-        setCurrentBrand: handleSetBrand,
-        setCurrentRole: handleSetRole,
+        currentUser,
+        pendingCount,
         isClient,
+        isAuthenticated,
+        setCurrentBrand: handleSetBrand,
+        setCurrentAccount: handleSetAccount,
+        setCurrentRole: handleSetRole,
+        setUser: handleSetUser,
+        refreshPendingCount,
+        handleLogout,
       }}
     >
       {children}

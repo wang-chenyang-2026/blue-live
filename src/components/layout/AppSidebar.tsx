@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useApp } from '@/contexts/AppContext';
-import { ROLES, MODULE_LABELS } from '@/lib/constants';
+import { ROLES, MODULE_LABELS, BRANDS } from '@/lib/constants';
 import type { ModuleKey, RoleKey } from '@/lib/types';
 import {
   LayoutDashboard,
@@ -15,8 +15,20 @@ import {
   BookOpen,
   MonitorPlay,
   MessageSquareWarning,
+  UserCheck,
+  LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 
 const MODULE_ICONS: Record<ModuleKey, React.ReactNode> = {
   dashboard: <LayoutDashboard className="h-4 w-4" />,
@@ -56,11 +68,10 @@ const SIDEBAR_ORDER: ModuleKey[] = [
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { currentRole } = useApp();
+  const { currentRole, currentUser, pendingCount, handleLogout } = useApp();
 
   const roleConfig = ROLES.find((r) => r.key === currentRole);
   const allowedModules = roleConfig?.modules ?? [];
-
   const visibleModules = SIDEBAR_ORDER.filter((m) => allowedModules.includes(m));
 
   return (
@@ -71,18 +82,23 @@ export function AppSidebar() {
           <MonitorPlay className="h-4 w-4 text-primary-foreground" />
         </div>
         <div>
-          <h1 className="text-sm font-bold text-foreground">直播代运营</h1>
-          <p className="text-[10px] text-muted-foreground">管理系统 v1.0</p>
+          <h1 className="text-sm font-bold text-foreground">Blue直播</h1>
+          <p className="text-[10px] text-muted-foreground">管理平台</p>
         </div>
       </div>
 
-      {/* Role badge */}
-      <div className="px-4 py-3">
+      {/* User info */}
+      <div className="px-4 py-3 space-y-2">
         <div className="flex items-center gap-2 rounded-md bg-secondary px-2 py-1.5">
           <div className="h-2 w-2 rounded-full bg-primary" />
           <span className="text-xs text-muted-foreground">当前角色：</span>
           <span className="text-xs font-medium text-foreground">{roleConfig?.label}</span>
         </div>
+        {currentUser && (
+          <div className="text-xs text-muted-foreground truncate px-1">
+            {currentUser.name} · {currentUser.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}
+          </div>
+        )}
       </div>
 
       {/* Navigation */}
@@ -108,12 +124,40 @@ export function AppSidebar() {
             </Link>
           );
         })}
+
+        {/* 审批入口 - 仅PM可见 */}
+        {currentRole === 'PM' && (
+          <Link
+            href="/approval"
+            className={cn(
+              'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+              pathname.startsWith('/approval')
+                ? 'bg-primary/15 text-primary font-medium'
+                : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+            )}
+          >
+            <UserCheck className="h-4 w-4" />
+            <span className="flex-1">用户审批</span>
+            {pendingCount > 0 && (
+              <Badge className="h-5 min-w-[20px] flex items-center justify-center px-1 text-[10px] bg-destructive text-destructive-foreground">
+                {pendingCount}
+              </Badge>
+            )}
+          </Link>
+        )}
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-border p-4">
+      <div className="border-t border-border p-4 space-y-2">
+        <button
+          onClick={handleLogout}
+          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+        >
+          <LogOut className="h-4 w-4" />
+          退出登录
+        </button>
         <p className="text-[10px] text-muted-foreground text-center">
-          © 2025 直播代运营管理系统
+          &copy; 2025 Blue直播
         </p>
       </div>
     </aside>
@@ -144,7 +188,7 @@ export function RoleSwitcher() {
 }
 
 export function BrandSwitcher() {
-  const { currentBrand, setCurrentBrand, currentRole } = useApp();
+  const { currentBrand, currentAccount, setCurrentBrand, setCurrentAccount } = useApp();
 
   const brandColors: Record<string, string> = {
     vivo: '#415FFF',
@@ -152,20 +196,24 @@ export function BrandSwitcher() {
     iot: '#00C9A7',
   };
 
-  const isPM = currentRole === 'PM';
+  // 获取当前品牌下的账号列表（考虑分组）
+  const currentBrandData = BRANDS.find((b) => b.id === currentBrand);
 
-  const brands = [
-    { id: 'vivo', name: 'vivo' },
-    { id: 'iqoo', name: 'iQOO' },
-    { id: 'iot', name: 'IOT' },
-  ];
+  const handleBrandChange = (value: string) => {
+    setCurrentBrand(value);
+  };
+
+  const handleAccountChange = (value: string) => {
+    setCurrentAccount(value);
+  };
 
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs text-muted-foreground mr-1">品牌：</span>
-      {isPM && (
+    <div className="flex items-center gap-3">
+      {/* 品牌选择 */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs text-muted-foreground mr-1">品牌</span>
         <button
-          onClick={() => setCurrentBrand('all')}
+          onClick={() => handleBrandChange('all')}
           className={cn(
             'rounded-md px-2.5 py-1 text-xs transition-colors',
             currentBrand === 'all'
@@ -173,32 +221,67 @@ export function BrandSwitcher() {
               : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
           )}
         >
-          全部品牌
+          汇总
         </button>
+        {BRANDS.map((brand) => (
+          <button
+            key={brand.id}
+            onClick={() => handleBrandChange(brand.id)}
+            className={cn(
+              'rounded-md px-2.5 py-1 text-xs transition-colors flex items-center gap-1.5',
+              currentBrand === brand.id
+                ? 'font-medium'
+                : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+            )}
+            style={
+              currentBrand === brand.id
+                ? { backgroundColor: brandColors[brand.id] + '25', color: brandColors[brand.id] }
+                : undefined
+            }
+          >
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: brandColors[brand.id] }}
+            />
+            {brand.name}
+          </button>
+        ))}
+      </div>
+
+      {/* 账号级联选择器 - 仅选中品牌时显示 */}
+      {currentBrand !== 'all' && currentBrandData && currentBrandData.accounts.length > 1 && (
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-muted-foreground">账号</span>
+          <Select value={currentAccount} onValueChange={handleAccountChange}>
+            <SelectTrigger className="h-7 w-auto min-w-[140px] text-xs bg-card border-border">
+              <SelectValue placeholder="全部账号" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部账号</SelectItem>
+              {currentBrandData.groups && currentBrandData.groups.length > 0 ? (
+                currentBrandData.groups.map((group) => (
+                  <SelectGroup key={group.id}>
+                    <SelectLabel className="text-xs text-muted-foreground">
+                      {group.name}
+                    </SelectLabel>
+                    {group.accounts.map((account) => (
+                      <SelectItem key={account.id} value={account.id} className="text-xs">
+                        {account.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                ))
+              ) : (
+                currentBrandData.accounts.map((account) => (
+                  <SelectItem key={account.id} value={account.id} className="text-xs">
+                    {account.name}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+        </div>
       )}
-      {brands.map((brand) => (
-        <button
-          key={brand.id}
-          onClick={() => setCurrentBrand(brand.id)}
-          className={cn(
-            'rounded-md px-2.5 py-1 text-xs transition-colors flex items-center gap-1.5',
-            currentBrand === brand.id
-              ? 'font-medium'
-              : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-          )}
-          style={
-            currentBrand === brand.id
-              ? { backgroundColor: brandColors[brand.id] + '25', color: brandColors[brand.id] }
-              : undefined
-          }
-        >
-          <span
-            className="h-2 w-2 rounded-full"
-            style={{ backgroundColor: brandColors[brand.id] }}
-          />
-          {brand.name}
-        </button>
-      ))}
     </div>
   );
 }
