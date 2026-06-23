@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/contexts/AppContext';
 import { addUser, findUserByPhone, genId } from '@/lib/store';
-import { BRANDS, POSITION_OPTIONS } from '@/lib/constants';
+import { POSITION_OPTIONS, REGISTER_PROJECT_OPTIONS } from '@/lib/constants';
 import type { RoleKey } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,9 +12,7 @@ import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
@@ -197,52 +195,11 @@ export default function RegisterPage() {
                   <SelectValue placeholder="请选择项目" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">全部</SelectItem>
-                  {BRANDS.map((brand) => {
-                    // 有分组的品牌（iQOO）
-                    if (brand.groups && brand.groups.length > 0) {
-                      return (
-                        <SelectGroup key={brand.id}>
-                          <SelectLabel className="text-muted-foreground">
-                            <span
-                              className="inline-block h-2 w-2 rounded-full mr-1.5"
-                              style={{ backgroundColor: brand.color }}
-                            />
-                            {brand.name}
-                          </SelectLabel>
-                          {brand.groups.map((group) => (
-                            <SelectGroup key={group.id}>
-                              <SelectLabel className="pl-4 text-xs text-muted-foreground">
-                                {group.name}
-                              </SelectLabel>
-                              {group.accounts.map((account) => (
-                                <SelectItem key={account.id} value={account.id} className="pl-8">
-                                  {account.name}
-                                </SelectItem>
-                              ))}
-                            </SelectGroup>
-                          ))}
-                        </SelectGroup>
-                      );
-                    }
-                    // 无分组的品牌
-                    return (
-                      <SelectGroup key={brand.id}>
-                        <SelectLabel className="text-muted-foreground">
-                          <span
-                            className="inline-block h-2 w-2 rounded-full mr-1.5"
-                            style={{ backgroundColor: brand.color }}
-                          />
-                          {brand.name}
-                        </SelectLabel>
-                        {brand.accounts.map((account) => (
-                          <SelectItem key={account.id} value={account.id}>
-                            {account.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    );
-                  })}
+                  {REGISTER_PROJECT_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

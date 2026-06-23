@@ -70,6 +70,15 @@ export const POSITION_OPTIONS: { value: RoleKey; label: string }[] = [
   { value: '主播', label: '主播' },
 ];
 
+// ==================== 注册页面项目选项（平级） ====================
+export const REGISTER_PROJECT_OPTIONS: { value: string; label: string }[] = [
+  { value: 'all', label: '全部' },
+  { value: 'vivo', label: 'vivo' },
+  { value: 'iqoo-douyin', label: 'iQOO抖音' },
+  { value: 'iqoo-kuaishou', label: 'iQOO快手' },
+  { value: 'iot', label: 'IOT' },
+];
+
 // ==================== 角色与权限 ====================
 const MODULE_LABELS: Record<ModuleKey, string> = {
   dashboard: '首页概览',
