@@ -8,6 +8,7 @@ import {
   getAttendanceList,
   getStaffList,
   calcProfitRate,
+  calcProfitRateByAccount,
 } from '@/lib/store';
 import type { ScheduleItem, AttendanceItem, Staff } from '@/lib/types';
 import {
@@ -20,8 +21,19 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+interface ProfitCardData {
+  id: string;
+  name: string;
+  color: string;
+  profitRate: number;
+  revenue: number;
+  totalCost: number;
+  kpiDeducted: boolean;
+  isSummary?: boolean;
+}
+
 export default function DashboardPage() {
-  const { currentBrand, currentAccount, isClient } = useApp();
+  const { currentBrand, isClient } = useApp();
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [attendances, setAttendances] = useState<AttendanceItem[]>([]);
   const [staffList, setStaffList] = useState<Staff[]>([]);
@@ -47,6 +59,55 @@ export default function DashboardPage() {
     setStaffList(getStaffList());
   }, []);
 
+  const brandColors: Record<string, string> = {
+    vivo: '#415FFF',
+    iqoo: '#FF6B35',
+    iot: '#00C9A7',
+  };
+
+  // 构建利润卡片数据 - 必须在early return之前调用hooks
+  const profitCards: ProfitCardData[] = useMemo(() => {
+    if (!currentMonth) return [];
+
+    const cards: ProfitCardData[] = [];
+
+    if (currentBrand === 'all') {
+      BRANDS.forEach((brand) => {
+        const data = calcProfitRate(brand.id, currentMonth);
+        cards.push({
+          id: brand.id,
+          name: `${brand.name}汇总`,
+          color: brandColors[brand.id] || '#888',
+          ...data,
+        });
+      });
+    } else {
+      const brand = BRANDS.find((b) => b.id === currentBrand);
+      if (brand) {
+        const brandData = calcProfitRate(brand.id, currentMonth);
+        cards.push({
+          id: brand.id,
+          name: `${brand.name}汇总`,
+          color: brandColors[brand.id] || '#888',
+          ...brandData,
+          isSummary: true,
+        });
+
+        brand.accounts.forEach((account) => {
+          const accountData = calcProfitRateByAccount(brand.id, account.id, currentMonth);
+          cards.push({
+            id: account.id,
+            name: account.name,
+            color: brandColors[brand.id] || '#888',
+            ...accountData,
+          });
+        });
+      }
+    }
+
+    return cards;
+  }, [currentBrand, currentMonth]);
+
   if (!isClient || !currentMonth) {
     return (
       <div className="space-y-6">
@@ -63,48 +124,29 @@ export default function DashboardPage() {
     );
   }
 
-  const targetBrands = currentBrand === 'all'
-    ? BRANDS
-    : BRANDS.filter((b) => b.id === currentBrand);
-
-  // 根据品牌和账号筛选排班数据
-  const filterByBrandAccount = <T extends { brandId?: string; accountId?: string }>(items: T[]): T[] => {
-    return items.filter((item) => {
-      if (currentBrand !== 'all' && item.brandId !== currentBrand) return false;
-      if (currentAccount !== 'all' && currentBrand !== 'all' && item.accountId !== currentAccount) return false;
-      return true;
-    });
+  // 根据品牌筛选排班/考勤
+  const filterByBrand = <T extends { brandId?: string }>(items: T[]): T[] => {
+    if (currentBrand === 'all') return items;
+    return items.filter((item) => item.brandId === currentBrand);
   };
 
-  // 利润率概览 - 按品牌展示
-  const profitData = targetBrands.map((brand) => {
-    const data = calcProfitRate(brand.id, currentMonth);
-    return { brand, ...data };
-  });
-
   // 本周排班概况
-  const weekSchedules = filterByBrandAccount(
+  const weekSchedules = filterByBrand(
     schedules.filter((s) => s.date >= weekStartStr && s.date <= weekEndStr)
   );
 
   // 考勤异常
-  const abnormalAttendances = filterByBrandAccount(
+  const abnormalAttendances = filterByBrand(
     attendances.filter((a) => a.date.startsWith(currentMonth) && a.status !== '正常')
   );
 
-  // 成本预警
-  const costWarnings = profitData.filter((d) => d.totalCost > d.revenue * 0.5);
+  // 成本预警（所有可见卡片中成本超收入50%的）
+  const costWarnings = profitCards.filter((d) => d.revenue > 0 && d.totalCost > d.revenue * 0.5);
 
-  const brandColors: Record<string, string> = {
-    vivo: '#415FFF',
-    iqoo: '#FF6B35',
-    iot: '#00C9A7',
-  };
-
-  // 汇总数据
-  const totalRevenue = profitData.reduce((sum, d) => sum + d.revenue, 0);
-  const totalCost = profitData.reduce((sum, d) => sum + d.totalCost, 0);
-  const totalProfitRate = totalRevenue > 0 ? (totalRevenue - totalCost) / totalRevenue : 0;
+  // 网格列数：汇总3列，单品牌根据卡片数量自适应
+  const gridCols = currentBrand === 'all'
+    ? 'grid-cols-1 md:grid-cols-3'
+    : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4';
 
   return (
     <div className="space-y-6">
@@ -116,135 +158,16 @@ export default function DashboardPage() {
           {currentBrand !== 'all' && (
             <span className="ml-2">
               · {BRANDS.find((b) => b.id === currentBrand)?.name}
-              {currentAccount !== 'all' && currentBrand !== 'all' && (
-                <span>
-                  {' / '}
-                  {BRANDS.find((b) => b.id === currentBrand)
-                    ?.accounts.find((a) => a.id === currentAccount)?.name}
-                </span>
-              )}
             </span>
           )}
         </p>
       </div>
 
       {/* 利润率卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* 汇总卡片 - 仅在"汇总"模式下显示 */}
-        {currentBrand === 'all' && (
-          <div className="rounded-xl border border-border bg-card p-5 transition-all hover:scale-[1.01]">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full bg-foreground" />
-                <span className="text-sm font-medium text-foreground">汇总</span>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-end justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground">总利润率</p>
-                  <p
-                    className={cn(
-                      'text-3xl font-bold',
-                      totalProfitRate >= 0 ? 'text-emerald-400' : 'text-destructive'
-                    )}
-                  >
-                    {(totalProfitRate * 100).toFixed(1)}%
-                  </p>
-                </div>
-                {totalProfitRate >= 0 ? (
-                  <TrendingUp className="h-5 w-5 text-emerald-400" />
-                ) : (
-                  <TrendingDown className="h-5 w-5 text-destructive" />
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-md bg-secondary p-2">
-                  <p className="text-muted-foreground">服务费收入</p>
-                  <p className="font-medium text-foreground">
-                    ¥{totalRevenue.toLocaleString()}
-                  </p>
-                </div>
-                <div className="rounded-md bg-secondary p-2">
-                  <p className="text-muted-foreground">总成本</p>
-                  <p className="font-medium text-foreground">
-                    ¥{totalCost.toLocaleString()}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 各品牌卡片 */}
-        {profitData.map((item) => {
-          const color = brandColors[item.brand.id] || '#888';
-          const rate = (item.profitRate * 100).toFixed(1);
-          const isPositive = item.profitRate >= 0;
-
-          return (
-            <div
-              key={item.brand.id}
-              className={cn(
-                'rounded-xl border border-border bg-card p-5 transition-all hover:scale-[1.01]',
-                `brand-glow-${item.brand.id}`
-              )}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="h-3 w-3 rounded-full"
-                    style={{ backgroundColor: color }}
-                  />
-                  <span className="text-sm font-medium text-foreground">
-                    {item.brand.name}
-                  </span>
-                </div>
-                {item.kpiDeducted && (
-                  <span className="rounded bg-destructive/20 px-1.5 py-0.5 text-[10px] text-destructive">
-                    KPI扣减5%
-                  </span>
-                )}
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-end justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground">利润率</p>
-                    <p
-                      className={cn(
-                        'text-3xl font-bold',
-                        isPositive ? 'text-emerald-400' : 'text-destructive'
-                      )}
-                    >
-                      {rate}%
-                    </p>
-                  </div>
-                  {isPositive ? (
-                    <TrendingUp className="h-5 w-5 text-emerald-400" />
-                  ) : (
-                    <TrendingDown className="h-5 w-5 text-destructive" />
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-md bg-secondary p-2">
-                    <p className="text-muted-foreground">服务费收入</p>
-                    <p className="font-medium text-foreground">
-                      ¥{item.revenue.toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="rounded-md bg-secondary p-2">
-                    <p className="text-muted-foreground">总成本</p>
-                    <p className="font-medium text-foreground">
-                      ¥{item.totalCost.toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+      <div className={`grid ${gridCols} gap-4`}>
+        {profitCards.map((card) => (
+          <ProfitCard key={card.id} data={card} />
+        ))}
       </div>
 
       {/* 下方三栏 */}
@@ -374,12 +297,12 @@ export default function DashboardPage() {
                 const ratio = item.revenue > 0 ? ((item.totalCost / item.revenue) * 100).toFixed(0) : '--';
                 return (
                   <div
-                    key={item.brand.id}
+                    key={item.id}
                     className="rounded-lg border border-destructive/30 bg-destructive/5 p-3"
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-foreground">
-                        {item.brand.name}
+                        {item.name}
                       </span>
                       <span className="rounded bg-destructive/20 px-1.5 py-0.5 text-[10px] text-destructive">
                         成本占比 {ratio}%
@@ -417,6 +340,76 @@ export default function DashboardPage() {
                 <p className="text-[10px] text-muted-foreground">兼职人员</p>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 利润卡片组件
+function ProfitCard({ data }: { data: ProfitCardData }) {
+  const rate = (data.profitRate * 100).toFixed(1);
+  const isPositive = data.profitRate >= 0;
+
+  return (
+    <div
+      className={cn(
+        'rounded-xl border border-border bg-card p-5 transition-all hover:scale-[1.01]',
+        !data.isSummary && 'border-l-2'
+      )}
+      style={!data.isSummary ? { borderLeftColor: data.color } : undefined}
+    >
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <span
+            className={cn('h-3 w-3 rounded-full', data.isSummary && 'h-2.5 w-2.5')}
+            style={{ backgroundColor: data.color }}
+          />
+          <span className={cn('text-sm font-medium text-foreground', data.isSummary && 'font-semibold')}>
+            {data.name}
+          </span>
+        </div>
+        {data.kpiDeducted && (
+          <span className="rounded bg-destructive/20 px-1.5 py-0.5 text-[10px] text-destructive">
+            KPI扣减5%
+          </span>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-end justify-between">
+          <div>
+            <p className="text-xs text-muted-foreground">利润率</p>
+            <p
+              className={cn(
+                'font-bold',
+                data.isSummary ? 'text-3xl' : 'text-2xl',
+                isPositive ? 'text-emerald-400' : 'text-destructive'
+              )}
+            >
+              {rate}%
+            </p>
+          </div>
+          {isPositive ? (
+            <TrendingUp className="h-5 w-5 text-emerald-400" />
+          ) : (
+            <TrendingDown className="h-5 w-5 text-destructive" />
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="rounded-md bg-secondary p-2">
+            <p className="text-muted-foreground">服务费收入</p>
+            <p className="font-medium text-foreground">
+              ¥{data.revenue.toLocaleString()}
+            </p>
+          </div>
+          <div className="rounded-md bg-secondary p-2">
+            <p className="text-muted-foreground">总成本</p>
+            <p className="font-medium text-foreground">
+              ¥{data.totalCost.toLocaleString()}
+            </p>
           </div>
         </div>
       </div>

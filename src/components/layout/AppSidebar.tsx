@@ -19,13 +19,6 @@ import {
   LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 
 const MODULE_ICONS: Record<ModuleKey, React.ReactNode> = {
@@ -186,7 +179,7 @@ export function RoleSwitcher() {
 }
 
 export function BrandSwitcher() {
-  const { currentBrand, currentAccount, setCurrentBrand, setCurrentAccount } = useApp();
+  const { currentBrand, setCurrentBrand } = useApp();
 
   const brandColors: Record<string, string> = {
     vivo: '#415FFF',
@@ -194,79 +187,47 @@ export function BrandSwitcher() {
     iot: '#00C9A7',
   };
 
-  // 获取当前品牌下的账号列表（扁平化，不考虑分组）
-  const currentBrandData = BRANDS.find((b) => b.id === currentBrand);
-
   const handleBrandChange = (value: string) => {
     setCurrentBrand(value);
-    // 切换品牌时重置账号选择
-    setCurrentAccount('all');
-  };
-
-  const handleAccountChange = (value: string) => {
-    setCurrentAccount(value);
   };
 
   return (
-    <div className="flex items-center gap-3">
-      {/* 品牌选择 */}
-      <div className="flex items-center gap-1.5">
-        <span className="text-xs text-muted-foreground mr-1">品牌</span>
+    <div className="flex items-center gap-1.5">
+      <span className="text-xs text-muted-foreground mr-1">品牌</span>
+      <button
+        onClick={() => handleBrandChange('all')}
+        className={cn(
+          'rounded-md px-2.5 py-1 text-xs transition-colors',
+          currentBrand === 'all'
+            ? 'bg-foreground/15 text-foreground font-medium'
+            : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+        )}
+      >
+        汇总
+      </button>
+      {BRANDS.map((brand) => (
         <button
-          onClick={() => handleBrandChange('all')}
+          key={brand.id}
+          onClick={() => handleBrandChange(brand.id)}
           className={cn(
-            'rounded-md px-2.5 py-1 text-xs transition-colors',
-            currentBrand === 'all'
-              ? 'bg-foreground/15 text-foreground font-medium'
+            'rounded-md px-2.5 py-1 text-xs transition-colors flex items-center gap-1.5',
+            currentBrand === brand.id
+              ? 'font-medium'
               : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
           )}
+          style={
+            currentBrand === brand.id
+              ? { backgroundColor: brandColors[brand.id] + '25', color: brandColors[brand.id] }
+              : undefined
+          }
         >
-          汇总
+          <span
+            className="h-2 w-2 rounded-full"
+            style={{ backgroundColor: brandColors[brand.id] }}
+          />
+          {brand.name}
         </button>
-        {BRANDS.map((brand) => (
-          <button
-            key={brand.id}
-            onClick={() => handleBrandChange(brand.id)}
-            className={cn(
-              'rounded-md px-2.5 py-1 text-xs transition-colors flex items-center gap-1.5',
-              currentBrand === brand.id
-                ? 'font-medium'
-                : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-            )}
-            style={
-              currentBrand === brand.id
-                ? { backgroundColor: brandColors[brand.id] + '25', color: brandColors[brand.id] }
-                : undefined
-            }
-          >
-            <span
-              className="h-2 w-2 rounded-full"
-              style={{ backgroundColor: brandColors[brand.id] }}
-            />
-            {brand.name}
-          </button>
-        ))}
-      </div>
-
-      {/* 账号级联选择器 - 仅选中品牌时显示 */}
-      {currentBrand !== 'all' && currentBrandData && currentBrandData.accounts.length > 1 && (
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-muted-foreground">账号</span>
-          <Select value={currentAccount} onValueChange={handleAccountChange}>
-            <SelectTrigger className="h-7 w-auto min-w-[140px] text-xs bg-card border-border">
-              <SelectValue placeholder="全部账号" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部账号</SelectItem>
-              {currentBrandData.accounts.map((account) => (
-                <SelectItem key={account.id} value={account.id} className="text-xs">
-                  {account.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+      ))}
     </div>
   );
 }
