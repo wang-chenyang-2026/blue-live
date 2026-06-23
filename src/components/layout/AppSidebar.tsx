@@ -1,0 +1,204 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useApp } from '@/contexts/AppContext';
+import { ROLES, MODULE_LABELS } from '@/lib/constants';
+import type { ModuleKey, RoleKey } from '@/lib/types';
+import {
+  LayoutDashboard,
+  CalendarDays,
+  BarChart3,
+  DollarSign,
+  ClipboardCheck,
+  Palette,
+  BookOpen,
+  MonitorPlay,
+  MessageSquareWarning,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+const MODULE_ICONS: Record<ModuleKey, React.ReactNode> = {
+  dashboard: <LayoutDashboard className="h-4 w-4" />,
+  schedule: <CalendarDays className="h-4 w-4" />,
+  'data-report': <BarChart3 className="h-4 w-4" />,
+  cost: <DollarSign className="h-4 w-4" />,
+  attendance: <ClipboardCheck className="h-4 w-4" />,
+  visual: <Palette className="h-4 w-4" />,
+  sop: <BookOpen className="h-4 w-4" />,
+  workstation: <MonitorPlay className="h-4 w-4" />,
+  'problem-feedback': <MessageSquareWarning className="h-4 w-4" />,
+};
+
+const MODULE_PATHS: Record<ModuleKey, string> = {
+  dashboard: '/',
+  schedule: '/schedule',
+  'data-report': '/data-report',
+  cost: '/cost',
+  attendance: '/attendance',
+  visual: '/visual',
+  sop: '/sop',
+  workstation: '/workstation',
+  'problem-feedback': '/feedback',
+};
+
+const SIDEBAR_ORDER: ModuleKey[] = [
+  'dashboard',
+  'schedule',
+  'cost',
+  'attendance',
+  'data-report',
+  'visual',
+  'sop',
+  'workstation',
+  'problem-feedback',
+];
+
+export function AppSidebar() {
+  const pathname = usePathname();
+  const { currentRole } = useApp();
+
+  const roleConfig = ROLES.find((r) => r.key === currentRole);
+  const allowedModules = roleConfig?.modules ?? [];
+
+  const visibleModules = SIDEBAR_ORDER.filter((m) => allowedModules.includes(m));
+
+  return (
+    <aside className="flex h-screen w-60 flex-col border-r border-border bg-sidebar">
+      {/* Logo */}
+      <div className="flex h-14 items-center gap-2 border-b border-border px-4">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+          <MonitorPlay className="h-4 w-4 text-primary-foreground" />
+        </div>
+        <div>
+          <h1 className="text-sm font-bold text-foreground">直播代运营</h1>
+          <p className="text-[10px] text-muted-foreground">管理系统 v1.0</p>
+        </div>
+      </div>
+
+      {/* Role badge */}
+      <div className="px-4 py-3">
+        <div className="flex items-center gap-2 rounded-md bg-secondary px-2 py-1.5">
+          <div className="h-2 w-2 rounded-full bg-primary" />
+          <span className="text-xs text-muted-foreground">当前角色：</span>
+          <span className="text-xs font-medium text-foreground">{roleConfig?.label}</span>
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 space-y-0.5 overflow-y-auto px-2">
+        {visibleModules.map((mod) => {
+          const path = MODULE_PATHS[mod];
+          const isActive =
+            mod === 'dashboard' ? pathname === '/' : pathname.startsWith(path);
+
+          return (
+            <Link
+              key={mod}
+              href={path}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+                isActive
+                  ? 'bg-primary/15 text-primary font-medium'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+              )}
+            >
+              {MODULE_ICONS[mod]}
+              {MODULE_LABELS[mod]}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Footer */}
+      <div className="border-t border-border p-4">
+        <p className="text-[10px] text-muted-foreground text-center">
+          © 2025 直播代运营管理系统
+        </p>
+      </div>
+    </aside>
+  );
+}
+
+export function RoleSwitcher() {
+  const { currentRole, setCurrentRole } = useApp();
+
+  return (
+    <div className="flex items-center gap-1">
+      {ROLES.map((role) => (
+        <button
+          key={role.key}
+          onClick={() => setCurrentRole(role.key as RoleKey)}
+          className={cn(
+            'rounded-md px-2.5 py-1 text-xs transition-colors',
+            currentRole === role.key
+              ? 'bg-primary text-primary-foreground font-medium'
+              : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+          )}
+        >
+          {role.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function BrandSwitcher() {
+  const { currentBrand, setCurrentBrand, currentRole } = useApp();
+
+  const brandColors: Record<string, string> = {
+    vivo: '#415FFF',
+    iqoo: '#FF6B35',
+    iot: '#00C9A7',
+  };
+
+  const isPM = currentRole === 'PM';
+
+  const brands = [
+    { id: 'vivo', name: 'vivo' },
+    { id: 'iqoo', name: 'iQOO' },
+    { id: 'iot', name: 'IOT' },
+  ];
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-muted-foreground mr-1">品牌：</span>
+      {isPM && (
+        <button
+          onClick={() => setCurrentBrand('all')}
+          className={cn(
+            'rounded-md px-2.5 py-1 text-xs transition-colors',
+            currentBrand === 'all'
+              ? 'bg-foreground/15 text-foreground font-medium'
+              : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+          )}
+        >
+          全部品牌
+        </button>
+      )}
+      {brands.map((brand) => (
+        <button
+          key={brand.id}
+          onClick={() => setCurrentBrand(brand.id)}
+          className={cn(
+            'rounded-md px-2.5 py-1 text-xs transition-colors flex items-center gap-1.5',
+            currentBrand === brand.id
+              ? 'font-medium'
+              : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+          )}
+          style={
+            currentBrand === brand.id
+              ? { backgroundColor: brandColors[brand.id] + '25', color: brandColors[brand.id] }
+              : undefined
+          }
+        >
+          <span
+            className="h-2 w-2 rounded-full"
+            style={{ backgroundColor: brandColors[brand.id] }}
+          />
+          {brand.name}
+        </button>
+      ))}
+    </div>
+  );
+}

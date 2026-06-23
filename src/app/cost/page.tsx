@@ -1,0 +1,765 @@
+'use client';
+
+import { useEffect, useState, useCallback } from 'react';
+import { useApp } from '@/contexts/AppContext';
+import { BRANDS, HOURLY_RATES, LIVE_TYPES, COST_CATEGORIES } from '@/lib/constants';
+import {
+  getCostList,
+  addCostItem,
+  updateCostItem,
+  deleteCostItem,
+  getRevenueList,
+  addRevenueItem,
+  deleteRevenueItem,
+  getKPIList,
+  addKPIItem,
+  updateKPIItem,
+  calcProfitRate,
+  genId,
+} from '@/lib/store';
+import type { CostItem, RevenueItem, KPIItem, LiveType, CostCategory } from '@/lib/types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import {
+  Plus,
+  Trash2,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  PieChart,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+} from 'recharts';
+
+export default function CostPage() {
+  const { currentBrand, isClient } = useApp();
+  const [costs, setCosts] = useState<CostItem[]>([]);
+  const [revenues, setRevenues] = useState<RevenueItem[]>([]);
+  const [kpis, setKpis] = useState<KPIItem[]>([]);
+  // 月份初始值用空字符串，在 useEffect 中用客户端实际月份填充
+  const [selectedMonth, setSelectedMonth] = useState<string>('');
+  const [activeBrand, setActiveBrand] = useState<string>('vivo');
+  const [showCostDialog, setShowCostDialog] = useState(false);
+  const [showRevenueDialog, setShowRevenueDialog] = useState(false);
+  const [showKPIDialog, setShowKPIDialog] = useState(false);
+
+  const [newCost, setNewCost] = useState({
+    category: '兼职主播成本' as CostCategory,
+    amount: 0,
+    remark: '',
+  });
+  const [newRevenue, setNewRevenue] = useState({
+    accountId: '',
+    liveType: '日常直播' as LiveType,
+    hours: 0,
+    remark: '',
+  });
+  const [newKPI, setNewKPI] = useState({
+    accountId: '',
+    exposureEnterRate: 0,
+    exposureEnterRateCount: 0,
+    gpm: 0,
+    avgStayDuration: 0,
+    followRate: 0,
+    targetExposureEnterRate: 0,
+    targetExposureEnterRateCount: 0,
+    targetGpm: 0,
+    targetAvgStayDuration: 0,
+    targetFollowRate: 0,
+  });
+
+  const loadData = useCallback(() => {
+    setCosts(getCostList());
+    setRevenues(getRevenueList());
+    setKpis(getKPIList());
+  }, []);
+
+  useEffect(() => {
+    // 所有依赖 Date/localStorage 的初始化只在客户端执行
+    const now = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    setSelectedMonth(month);
+    loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    if (currentBrand !== 'all') setActiveBrand(currentBrand);
+  }, [currentBrand]);
+
+  // 客户端数据未就绪时返回骨架屏，确保 SSR/CSR 结构一致
+  if (!isClient || !selectedMonth) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">成本核算</h1>
+          <p className="text-sm text-muted-foreground mt-1">加载中...</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card h-48 animate-pulse" />
+      </div>
+    );
+  }
+
+  const brandAccounts = BRANDS.find((b) => b.id === activeBrand)?.accounts ?? [];
+
+  // 当前品牌当月数据
+  const brandCosts = costs.filter((c) => c.brandId === activeBrand && c.month === selectedMonth);
+  const brandRevenues = revenues.filter((r) => r.brandId === activeBrand && r.month === selectedMonth);
+  const brandKPIs = kpis.filter((k) => k.brandId === activeBrand && k.month === selectedMonth);
+
+  // 利润率计算
+  const profitData = calcProfitRate(activeBrand, selectedMonth);
+
+  // 利润率看板数据 - 所有品牌当月
+  const allBrandProfit = BRANDS.map((b) => ({
+    brand: b.name,
+    ...calcProfitRate(b.id, selectedMonth),
+  }));
+
+  // 月度对比数据（近6个月）
+  const monthlyComparison = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const data = calcProfitRate(activeBrand, month);
+    return {
+      month: month.slice(5),
+      利润率: Number((data.profitRate * 100).toFixed(1)),
+      收入: data.revenue,
+      成本: data.totalCost,
+    };
+  }).reverse();
+
+  // 添加成本
+  function handleAddCost() {
+    const item: CostItem = {
+      id: genId(),
+      brandId: activeBrand,
+      month: selectedMonth,
+      category: newCost.category,
+      amount: newCost.amount,
+      remark: newCost.remark,
+    };
+    addCostItem(item);
+    loadData();
+    setShowCostDialog(false);
+    setNewCost({ category: '兼职主播成本', amount: 0, remark: '' });
+  }
+
+  // 添加收入
+  function handleAddRevenue() {
+    const rate = HOURLY_RATES[newRevenue.liveType];
+    const item: RevenueItem = {
+      id: genId(),
+      brandId: activeBrand,
+      month: selectedMonth,
+      accountId: newRevenue.accountId,
+      liveType: newRevenue.liveType,
+      hours: newRevenue.hours,
+      hourlyRate: rate,
+      revenue: newRevenue.hours * rate,
+      remark: newRevenue.remark,
+    };
+    addRevenueItem(item);
+    loadData();
+    setShowRevenueDialog(false);
+    setNewRevenue({ accountId: '', liveType: '日常直播', hours: 0, remark: '' });
+  }
+
+  // 添加KPI
+  function handleAddKPI() {
+    // 检查是否达标
+    const isDeducted =
+      newKPI.exposureEnterRate < newKPI.targetExposureEnterRate ||
+      newKPI.exposureEnterRateCount < newKPI.targetExposureEnterRateCount ||
+      newKPI.gpm < newKPI.targetGpm ||
+      newKPI.avgStayDuration < newKPI.targetAvgStayDuration ||
+      newKPI.followRate < newKPI.targetFollowRate;
+
+    const item: KPIItem = {
+      id: genId(),
+      brandId: activeBrand,
+      month: selectedMonth,
+      accountId: newKPI.accountId,
+      metrics: {
+        exposureEnterRate: newKPI.exposureEnterRate,
+        exposureEnterRateCount: newKPI.exposureEnterRateCount,
+        gpm: newKPI.gpm,
+        avgStayDuration: newKPI.avgStayDuration,
+        followRate: newKPI.followRate,
+      },
+      targetMetrics: {
+        exposureEnterRate: newKPI.targetExposureEnterRate,
+        exposureEnterRateCount: newKPI.targetExposureEnterRateCount,
+        gpm: newKPI.targetGpm,
+        avgStayDuration: newKPI.targetAvgStayDuration,
+        followRate: newKPI.targetFollowRate,
+      },
+      isDeducted,
+    };
+    addKPIItem(item);
+    loadData();
+    setShowKPIDialog(false);
+  }
+
+  const brandColors: Record<string, string> = {
+    vivo: '#415FFF',
+    iqoo: '#FF6B35',
+    iot: '#00C9A7',
+  };
+
+  const isPositive = profitData.profitRate >= 0;
+  const costRatio = profitData.revenue > 0 ? (profitData.totalCost / profitData.revenue * 100).toFixed(1) : '0';
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">成本核算</h1>
+          <p className="text-sm text-muted-foreground mt-1">六大成本项、收入计算、KPI扣减与利润率分析</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Input
+            type="month"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="h-8 w-40 bg-secondary border-border text-xs"
+          />
+        </div>
+      </div>
+
+      {/* Brand tabs */}
+      <div className="flex items-center gap-2">
+        {BRANDS.map((b) => (
+          <button
+            key={b.id}
+            onClick={() => setActiveBrand(b.id)}
+            className={cn(
+              'rounded-md px-3 py-1.5 text-xs transition-colors',
+              activeBrand === b.id ? 'font-medium' : 'text-muted-foreground hover:text-foreground'
+            )}
+            style={
+              activeBrand === b.id
+                ? { backgroundColor: brandColors[b.id] + '25', color: brandColors[b.id] }
+                : undefined
+            }
+          >
+            {b.name}
+          </button>
+        ))}
+      </div>
+
+      {/* 利润率总览卡 */}
+      <div className={cn(
+        'rounded-xl border border-border bg-card p-6',
+        `brand-glow-${activeBrand}`
+      )}>
+        <div className="grid grid-cols-4 gap-6">
+          <div>
+            <p className="text-xs text-muted-foreground">利润率</p>
+            <p className={cn('text-4xl font-bold mt-1', isPositive ? 'text-emerald-400' : 'text-destructive')}>
+              {(profitData.profitRate * 100).toFixed(1)}%
+            </p>
+            <div className="flex items-center gap-1 mt-1">
+              {isPositive ? (
+                <TrendingUp className="h-3 w-3 text-emerald-400" />
+              ) : (
+                <TrendingDown className="h-3 w-3 text-destructive" />
+              )}
+              <span className={cn('text-xs', isPositive ? 'text-emerald-400' : 'text-destructive')}>
+                {isPositive ? '盈利' : '亏损'}
+              </span>
+              {profitData.kpiDeducted && (
+                <Badge variant="outline" className="text-[10px] h-4 ml-1 border-destructive text-destructive">
+                  KPI扣减5%
+                </Badge>
+              )}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">品牌服务费收入</p>
+            <p className="text-2xl font-bold mt-1 text-foreground">
+              ¥{profitData.revenue.toLocaleString()}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {brandRevenues.length} 条记录
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">总成本</p>
+            <p className="text-2xl font-bold mt-1 text-foreground">
+              ¥{profitData.totalCost.toLocaleString()}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              成本占比 {costRatio}%
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">毛利</p>
+            <p className={cn(
+              'text-2xl font-bold mt-1',
+              profitData.revenue - profitData.totalCost >= 0 ? 'text-emerald-400' : 'text-destructive'
+            )}>
+              ¥{(profitData.revenue - profitData.totalCost).toLocaleString()}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              利润率 = (收入-成本)/收入
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs for costs, revenues, KPIs */}
+      <Tabs defaultValue="costs">
+        <TabsList className="bg-secondary">
+          <TabsTrigger value="costs" className="text-xs">成本明细</TabsTrigger>
+          <TabsTrigger value="revenues" className="text-xs">收入明细</TabsTrigger>
+          <TabsTrigger value="kpi" className="text-xs">KPI管理</TabsTrigger>
+          <TabsTrigger value="dashboard" className="text-xs">利润率看板</TabsTrigger>
+        </TabsList>
+
+        {/* 成本明细 */}
+        <TabsContent value="costs" className="mt-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-foreground">成本明细</h3>
+            <Dialog open={showCostDialog} onOpenChange={setShowCostDialog}>
+              <DialogTrigger asChild>
+                <Button size="sm"><Plus className="h-4 w-4 mr-1" />添加成本</Button>
+              </DialogTrigger>
+              <DialogContent className="bg-card border-border">
+                <DialogHeader><DialogTitle>添加成本项</DialogTitle></DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">成本类别</Label>
+                    <Select value={newCost.category} onValueChange={(v) => setNewCost({ ...newCost, category: v as CostCategory })}>
+                      <SelectTrigger className="bg-secondary border-border mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover border-border">
+                        {COST_CATEGORIES.map((c) => (
+                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">金额（元）</Label>
+                    <Input
+                      type="number"
+                      value={newCost.amount || ''}
+                      onChange={(e) => setNewCost({ ...newCost, amount: Number(e.target.value) })}
+                      placeholder="输入金额"
+                      className="bg-secondary border-border mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">备注</Label>
+                    <Input
+                      value={newCost.remark}
+                      onChange={(e) => setNewCost({ ...newCost, remark: e.target.value })}
+                      placeholder="可选备注"
+                      className="bg-secondary border-border mt-1"
+                    />
+                  </div>
+                  <Button onClick={handleAddCost} className="w-full" disabled={newCost.amount <= 0}>
+                    确认添加
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* 成本分类汇总 */}
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-4">
+            {COST_CATEGORIES.map((cat) => {
+              const total = brandCosts.filter((c) => c.category === cat).reduce((s, c) => s + c.amount, 0);
+              return (
+                <div key={cat} className="rounded-lg bg-secondary p-3 text-center">
+                  <p className="text-sm font-bold text-foreground">¥{total.toLocaleString()}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{cat.replace('成本', '')}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 成本列表 */}
+          <div className="rounded-lg border border-border overflow-hidden">
+            <table className="w-full text-xs">
+              <thead className="bg-secondary/50">
+                <tr>
+                  <th className="text-left p-2.5 text-muted-foreground font-medium">类别</th>
+                  <th className="text-right p-2.5 text-muted-foreground font-medium">金额</th>
+                  <th className="text-left p-2.5 text-muted-foreground font-medium">备注</th>
+                  <th className="text-right p-2.5 text-muted-foreground font-medium">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {brandCosts.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="text-center py-6 text-muted-foreground">暂无成本数据</td>
+                  </tr>
+                ) : (
+                  brandCosts.map((c) => (
+                    <tr key={c.id} className="border-t border-border hover:bg-secondary/30">
+                      <td className="p-2.5 text-foreground">{c.category}</td>
+                      <td className="p-2.5 text-right text-foreground font-medium">¥{c.amount.toLocaleString()}</td>
+                      <td className="p-2.5 text-muted-foreground">{c.remark || '-'}</td>
+                      <td className="p-2.5 text-right">
+                        <button
+                          onClick={() => { deleteCostItem(c.id); loadData(); }}
+                          className="text-destructive hover:text-destructive/80"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </TabsContent>
+
+        {/* 收入明细 */}
+        <TabsContent value="revenues" className="mt-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-foreground">收入明细</h3>
+            <Dialog open={showRevenueDialog} onOpenChange={setShowRevenueDialog}>
+              <DialogTrigger asChild>
+                <Button size="sm"><Plus className="h-4 w-4 mr-1" />添加收入</Button>
+              </DialogTrigger>
+              <DialogContent className="bg-card border-border">
+                <DialogHeader><DialogTitle>添加收入项</DialogTitle></DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">账号</Label>
+                    <Select value={newRevenue.accountId} onValueChange={(v) => setNewRevenue({ ...newRevenue, accountId: v })}>
+                      <SelectTrigger className="bg-secondary border-border mt-1">
+                        <SelectValue placeholder="选择账号" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover border-border">
+                        {brandAccounts.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">直播类型</Label>
+                      <Select value={newRevenue.liveType} onValueChange={(v) => setNewRevenue({ ...newRevenue, liveType: v as LiveType })}>
+                        <SelectTrigger className="bg-secondary border-border mt-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-popover border-border">
+                          {LIVE_TYPES.map((t) => (
+                            <SelectItem key={t} value={t}>{t} (¥{HOURLY_RATES[t]}/h)</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">时长（小时）</Label>
+                      <Input
+                        type="number"
+                        value={newRevenue.hours || ''}
+                        onChange={(e) => setNewRevenue({ ...newRevenue, hours: Number(e.target.value) })}
+                        placeholder="0"
+                        className="bg-secondary border-border mt-1"
+                      />
+                    </div>
+                  </div>
+                  <div className="rounded-md bg-secondary p-3 text-xs">
+                    <p className="text-muted-foreground">
+                      小时费率：¥{HOURLY_RATES[newRevenue.liveType]}/小时
+                    </p>
+                    <p className="font-medium text-foreground mt-1">
+                      预计收入：¥{(newRevenue.hours * HOURLY_RATES[newRevenue.liveType]).toLocaleString()}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">备注</Label>
+                    <Input
+                      value={newRevenue.remark}
+                      onChange={(e) => setNewRevenue({ ...newRevenue, remark: e.target.value })}
+                      placeholder="可选备注"
+                      className="bg-secondary border-border mt-1"
+                    />
+                  </div>
+                  <Button onClick={handleAddRevenue} className="w-full" disabled={!newRevenue.accountId || newRevenue.hours <= 0}>
+                    确认添加
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          <div className="rounded-lg border border-border overflow-hidden">
+            <table className="w-full text-xs">
+              <thead className="bg-secondary/50">
+                <tr>
+                  <th className="text-left p-2.5 text-muted-foreground font-medium">账号</th>
+                  <th className="text-left p-2.5 text-muted-foreground font-medium">直播类型</th>
+                  <th className="text-right p-2.5 text-muted-foreground font-medium">时长</th>
+                  <th className="text-right p-2.5 text-muted-foreground font-medium">小时费</th>
+                  <th className="text-right p-2.5 text-muted-foreground font-medium">收入</th>
+                  <th className="text-right p-2.5 text-muted-foreground font-medium">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {brandRevenues.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-6 text-muted-foreground">暂无收入数据</td>
+                  </tr>
+                ) : (
+                  brandRevenues.map((r) => {
+                    const account = BRANDS.flatMap((b) => b.accounts).find((a) => a.id === r.accountId);
+                    return (
+                      <tr key={r.id} className="border-t border-border hover:bg-secondary/30">
+                        <td className="p-2.5 text-foreground">{account?.name || '-'}</td>
+                        <td className="p-2.5 text-foreground">{r.liveType}</td>
+                        <td className="p-2.5 text-right text-foreground">{r.hours}h</td>
+                        <td className="p-2.5 text-right text-foreground">¥{r.hourlyRate}</td>
+                        <td className="p-2.5 text-right text-foreground font-medium">¥{r.revenue.toLocaleString()}</td>
+                        <td className="p-2.5 text-right">
+                          <button
+                            onClick={() => { deleteRevenueItem(r.id); loadData(); }}
+                            className="text-destructive hover:text-destructive/80"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </TabsContent>
+
+        {/* KPI管理 */}
+        <TabsContent value="kpi" className="mt-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-foreground">KPI管理</h3>
+            <Dialog open={showKPIDialog} onOpenChange={setShowKPIDialog}>
+              <DialogTrigger asChild>
+                <Button size="sm"><Plus className="h-4 w-4 mr-1" />添加KPI</Button>
+              </DialogTrigger>
+              <DialogContent className="bg-card border-border max-w-lg">
+                <DialogHeader><DialogTitle>添加KPI指标</DialogTitle></DialogHeader>
+                <div className="space-y-4 pt-2 max-h-[60vh] overflow-y-auto">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">账号</Label>
+                    <Select value={newKPI.accountId} onValueChange={(v) => setNewKPI({ ...newKPI, accountId: v })}>
+                      <SelectTrigger className="bg-secondary border-border mt-1">
+                        <SelectValue placeholder="选择账号" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover border-border">
+                        {brandAccounts.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <p className="text-xs text-muted-foreground">实际值 / 目标值</p>
+                  {[
+                    { key: 'exposureEnterRate', label: '曝光进入率（人数）', unit: '%' },
+                    { key: 'exposureEnterRateCount', label: '曝光进入率（次数）', unit: '%' },
+                    { key: 'gpm', label: 'GPM', unit: '' },
+                    { key: 'avgStayDuration', label: '停留时长', unit: '秒' },
+                    { key: 'followRate', label: '转粉率', unit: '%' },
+                  ].map(({ key, label, unit }) => (
+                    <div key={key} className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">实际{label}</Label>
+                        <Input
+                          type="number"
+                          value={(newKPI as unknown as Record<string, number>)[key] || ''}
+                          onChange={(e) => setNewKPI({ ...newKPI, [key]: Number(e.target.value) })}
+                          placeholder="实际值"
+                          className="bg-secondary border-border mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">目标{label}</Label>
+                        <Input
+                          type="number"
+                          value={(newKPI as unknown as Record<string, number>)[`target${key.charAt(0).toUpperCase()}${key.slice(1)}`] || ''}
+                          onChange={(e) => {
+                            const targetKey = `target${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+                            setNewKPI({ ...newKPI, [targetKey]: Number(e.target.value) });
+                          }}
+                          placeholder="目标值"
+                          className="bg-secondary border-border mt-1"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  <Button onClick={handleAddKPI} className="w-full" disabled={!newKPI.accountId}>
+                    确认添加
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          <div className="space-y-3">
+            {brandKPIs.length === 0 ? (
+              <div className="rounded-lg border border-border py-8 text-center text-xs text-muted-foreground">
+                暂无KPI数据
+              </div>
+            ) : (
+              brandKPIs.map((kpi) => {
+                const account = BRANDS.flatMap((b) => b.accounts).find((a) => a.id === kpi.accountId);
+                const metrics = [
+                  { label: '曝光进入率(人数)', actual: kpi.metrics.exposureEnterRate, target: kpi.targetMetrics.exposureEnterRate, unit: '%' },
+                  { label: '曝光进入率(次数)', actual: kpi.metrics.exposureEnterRateCount, target: kpi.targetMetrics.exposureEnterRateCount, unit: '%' },
+                  { label: 'GPM', actual: kpi.metrics.gpm, target: kpi.targetMetrics.gpm, unit: '' },
+                  { label: '停留时长', actual: kpi.metrics.avgStayDuration, target: kpi.targetMetrics.avgStayDuration, unit: 's' },
+                  { label: '转粉率', actual: kpi.metrics.followRate, target: kpi.targetMetrics.followRate, unit: '%' },
+                ];
+
+                return (
+                  <div key={kpi.id} className="rounded-lg border border-border bg-card p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-foreground">{account?.name}</span>
+                        {kpi.isDeducted ? (
+                          <Badge className="bg-destructive/20 text-destructive text-[10px]">
+                            <XCircle className="h-3 w-3 mr-0.5" />KPI未达标 扣减5%
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-emerald-500/20 text-emerald-400 text-[10px]">
+                            <CheckCircle2 className="h-3 w-3 mr-0.5" />KPI达标
+                          </Badge>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => {
+                          const updated = { ...kpi, isDeducted: !kpi.isDeducted };
+                          updateKPIItem(updated);
+                          loadData();
+                        }}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        切换达标状态
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-5 gap-2">
+                      {metrics.map((m) => {
+                        const passed = m.actual >= m.target;
+                        return (
+                          <div key={m.label} className="rounded-md bg-secondary p-2 text-center">
+                            <p className="text-[10px] text-muted-foreground">{m.label}</p>
+                            <p className={cn('text-sm font-bold', passed ? 'text-emerald-400' : 'text-destructive')}>
+                              {m.actual}{m.unit}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">目标 {m.target}{m.unit}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </TabsContent>
+
+        {/* 利润率看板 */}
+        <TabsContent value="dashboard" className="mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* 品牌利润率对比 */}
+            <div className="rounded-xl border border-border bg-card p-5">
+              <h3 className="text-sm font-medium text-foreground mb-4">品牌利润率对比 ({selectedMonth})</h3>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={allBrandProfit}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0 0)" />
+                  <XAxis dataKey="brand" tick={{ fill: 'oklch(0.6 0 0)', fontSize: 12 }} />
+                  <YAxis tick={{ fill: 'oklch(0.6 0 0)', fontSize: 12 }} unit="%" />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: 'oklch(0.2 0 0)', border: '1px solid oklch(0.3 0 0)', borderRadius: 8 }}
+                    labelStyle={{ color: 'oklch(0.9 0 0)' }}
+                    formatter={(value: number) => [`${value.toFixed(1)}%`, '利润率']}
+                  />
+                  <Bar dataKey="profitRate" name="利润率" fill="oklch(0.65 0.2 260)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* 月度趋势 */}
+            <div className="rounded-xl border border-border bg-card p-5">
+              <h3 className="text-sm font-medium text-foreground mb-4">
+                {BRANDS.find((b) => b.id === activeBrand)?.name} 月度利润率趋势
+              </h3>
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={monthlyComparison}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0 0)" />
+                  <XAxis dataKey="month" tick={{ fill: 'oklch(0.6 0 0)', fontSize: 12 }} />
+                  <YAxis tick={{ fill: 'oklch(0.6 0 0)', fontSize: 12 }} unit="%" />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: 'oklch(0.2 0 0)', border: '1px solid oklch(0.3 0 0)', borderRadius: 8 }}
+                    labelStyle={{ color: 'oklch(0.9 0 0)' }}
+                  />
+                  <Legend />
+                  <Line type="monotone" dataKey="利润率" stroke="oklch(0.65 0.2 260)" strokeWidth={2} dot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* 品牌利润率卡片 */}
+          <div className="grid grid-cols-3 gap-4 mt-4">
+            {allBrandProfit.map((item) => {
+              const brand = BRANDS.find((b) => b.name === item.brand)!;
+              const rate = (item.profitRate * 100).toFixed(1);
+              const positive = item.profitRate >= 0;
+              return (
+                <div key={brand.id} className="rounded-xl border border-border bg-card p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: brandColors[brand.id] }} />
+                    <span className="text-sm font-medium text-foreground">{brand.name}</span>
+                  </div>
+                  <p className={cn('text-2xl font-bold', positive ? 'text-emerald-400' : 'text-destructive')}>
+                    {rate}%
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
+                    <div className="rounded bg-secondary p-2">
+                      <p className="text-muted-foreground">收入</p>
+                      <p className="font-medium text-foreground">¥{item.revenue.toLocaleString()}</p>
+                    </div>
+                    <div className="rounded bg-secondary p-2">
+                      <p className="text-muted-foreground">成本</p>
+                      <p className="font-medium text-foreground">¥{item.totalCost.toLocaleString()}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
