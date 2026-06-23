@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { useApp } from '@/contexts/AppContext';
 import { BRANDS, HOURLY_RATES, LIVE_TYPES, COST_CATEGORIES } from '@/lib/constants';
 import {
@@ -38,21 +39,58 @@ import {
   XCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-} from 'recharts';
+import { useSafeMonth } from '@/lib/hooks';
+
+// recharts 动态导入，禁用 SSR 以避免 window/document 访问导致 hydration 错误
+const RechartsBarChart = dynamic(
+  () => import('recharts').then((mod) => {
+    const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = mod;
+    return function DynamicBarChart(props: React.ComponentProps<typeof BarChart> & { data: unknown[]; bars: { dataKey: string; fill: string; name: string }[] }) {
+      return (
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={props.data}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+            <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" fontSize={12} />
+            <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} />
+            <Tooltip />
+            <Legend />
+            {props.bars.map((bar) => (
+              <Bar key={bar.dataKey} dataKey={bar.dataKey} fill={bar.fill} name={bar.name} />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      );
+    };
+  }),
+  { ssr: false, loading: () => <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">图表加载中...</div> }
+);
+
+const RechartsLineChart = dynamic(
+  () => import('recharts').then((mod) => {
+    const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = mod;
+    return function DynamicLineChart(props: React.ComponentProps<typeof LineChart> & { data: unknown[]; lines: { dataKey: string; stroke: string; name: string }[] }) {
+      return (
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={props.data}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+            <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" fontSize={12} />
+            <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} />
+            <Tooltip />
+            <Legend />
+            {props.lines.map((line) => (
+              <Line key={line.dataKey} type="monotone" dataKey={line.dataKey} stroke={line.stroke} name={line.name} strokeWidth={2} dot={{ r: 3 }} />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      );
+    };
+  }),
+  { ssr: false, loading: () => <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">图表加载中...</div> }
+);
 
 export default function CostPage() {
   const { currentBrand, isClient } = useApp();
+  const safeMonth = useSafeMonth();
   const [costs, setCosts] = useState<CostItem[]>([]);
   const [revenues, setRevenues] = useState<RevenueItem[]>([]);
   const [kpis, setKpis] = useState<KPIItem[]>([]);
@@ -95,12 +133,10 @@ export default function CostPage() {
   }, []);
 
   useEffect(() => {
-    // 所有依赖 Date/localStorage 的初始化只在客户端执行
-    const now = new Date();
-    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    setSelectedMonth(month);
+    // 使用 useSafeMonth hook 提供的安全月份值
+    if (safeMonth) setSelectedMonth(safeMonth);
     loadData();
-  }, [loadData]);
+  }, [loadData, safeMonth]);
 
   useEffect(() => {
     if (currentBrand !== 'all') setActiveBrand(currentBrand);
@@ -135,11 +171,13 @@ export default function CostPage() {
     ...calcProfitRate(b.id, selectedMonth),
   }));
 
-  // 月度对比数据（近6个月）
+  // 月度对比数据（近6个月）- 使用 selectedMonth 作为锚点避免 new Date()
   const monthlyComparison = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - i);
-    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const [y, m] = selectedMonth.split('-').map(Number);
+    const targetMonth = m - i;
+    const adjustedYear = targetMonth <= 0 ? y - 1 : y;
+    const adjustedMonth = targetMonth <= 0 ? targetMonth + 12 : targetMonth;
+    const month = `${adjustedYear}-${String(adjustedMonth).padStart(2, '0')}`;
     const data = calcProfitRate(activeBrand, month);
     return {
       month: month.slice(5),
@@ -693,19 +731,10 @@ export default function CostPage() {
             {/* 品牌利润率对比 */}
             <div className="rounded-xl border border-border bg-card p-5">
               <h3 className="text-sm font-medium text-foreground mb-4">品牌利润率对比 ({selectedMonth})</h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={allBrandProfit}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0 0)" />
-                  <XAxis dataKey="brand" tick={{ fill: 'oklch(0.6 0 0)', fontSize: 12 }} />
-                  <YAxis tick={{ fill: 'oklch(0.6 0 0)', fontSize: 12 }} unit="%" />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: 'oklch(0.2 0 0)', border: '1px solid oklch(0.3 0 0)', borderRadius: 8 }}
-                    labelStyle={{ color: 'oklch(0.9 0 0)' }}
-                    formatter={(value: number) => [`${value.toFixed(1)}%`, '利润率']}
-                  />
-                  <Bar dataKey="profitRate" name="利润率" fill="oklch(0.65 0.2 260)" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <RechartsBarChart
+                data={allBrandProfit}
+                bars={[{ dataKey: 'profitRate', fill: 'oklch(0.65 0.2 260)', name: '利润率' }]}
+              />
             </div>
 
             {/* 月度趋势 */}
@@ -713,19 +742,10 @@ export default function CostPage() {
               <h3 className="text-sm font-medium text-foreground mb-4">
                 {BRANDS.find((b) => b.id === activeBrand)?.name} 月度利润率趋势
               </h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={monthlyComparison}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0 0)" />
-                  <XAxis dataKey="month" tick={{ fill: 'oklch(0.6 0 0)', fontSize: 12 }} />
-                  <YAxis tick={{ fill: 'oklch(0.6 0 0)', fontSize: 12 }} unit="%" />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: 'oklch(0.2 0 0)', border: '1px solid oklch(0.3 0 0)', borderRadius: 8 }}
-                    labelStyle={{ color: 'oklch(0.9 0 0)' }}
-                  />
-                  <Legend />
-                  <Line type="monotone" dataKey="利润率" stroke="oklch(0.65 0.2 260)" strokeWidth={2} dot={{ r: 4 }} />
-                </LineChart>
-              </ResponsiveContainer>
+              <RechartsLineChart
+                data={monthlyComparison}
+                lines={[{ dataKey: '利润率', stroke: 'oklch(0.65 0.2 260)', name: '利润率' }]}
+              />
             </div>
           </div>
 

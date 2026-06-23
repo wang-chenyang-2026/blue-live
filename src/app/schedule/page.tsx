@@ -34,9 +34,11 @@ import {
   Edit,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useSafeDate } from '@/lib/hooks';
 
 export default function SchedulePage() {
   const { currentBrand, isClient } = useApp();
+  const todayStr = useSafeDate();
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [staffList, setStaffState] = useState<Staff[]>([]);
   const [viewMode, setViewMode] = useState<'day' | 'week'>('week');
@@ -170,7 +172,7 @@ export default function SchedulePage() {
     setConflictWarning('');
     setNewSchedule({
       accountId: accounts[0]?.id || '',
-      date: new Date().toISOString().split('T')[0],
+      date: todayStr || new Date().toISOString().split('T')[0],
       startTime: '09:00',
       endTime: '12:00',
       staffId: '',
@@ -507,7 +509,7 @@ export default function SchedulePage() {
           </div>
           {viewMode === 'week' ? (
             weekDates.map((date, i) => {
-              const isToday = date === new Date().toISOString().split('T')[0];
+              const isToday = date === todayStr;
               return (
                 <div
                   key={date}
