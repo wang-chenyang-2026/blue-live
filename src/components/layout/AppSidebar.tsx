@@ -22,9 +22,7 @@ import { cn } from '@/lib/utils';
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
@@ -196,11 +194,13 @@ export function BrandSwitcher() {
     iot: '#00C9A7',
   };
 
-  // 获取当前品牌下的账号列表（考虑分组）
+  // 获取当前品牌下的账号列表（扁平化，不考虑分组）
   const currentBrandData = BRANDS.find((b) => b.id === currentBrand);
 
   const handleBrandChange = (value: string) => {
     setCurrentBrand(value);
+    // 切换品牌时重置账号选择
+    setCurrentAccount('all');
   };
 
   const handleAccountChange = (value: string) => {
@@ -258,26 +258,11 @@ export function BrandSwitcher() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部账号</SelectItem>
-              {currentBrandData.groups && currentBrandData.groups.length > 0 ? (
-                currentBrandData.groups.map((group) => (
-                  <SelectGroup key={group.id}>
-                    <SelectLabel className="text-xs text-muted-foreground">
-                      {group.name}
-                    </SelectLabel>
-                    {group.accounts.map((account) => (
-                      <SelectItem key={account.id} value={account.id} className="text-xs">
-                        {account.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                ))
-              ) : (
-                currentBrandData.accounts.map((account) => (
-                  <SelectItem key={account.id} value={account.id} className="text-xs">
-                    {account.name}
-                  </SelectItem>
-                ))
-              )}
+              {currentBrandData.accounts.map((account) => (
+                <SelectItem key={account.id} value={account.id} className="text-xs">
+                  {account.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
