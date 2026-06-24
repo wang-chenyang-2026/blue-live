@@ -60,7 +60,7 @@ export interface Role {
 export type ModuleKey =
   | 'dashboard'
   | 'schedule'
-  | 'data-report'
+  | 'data-overview'
   | 'cost'
   | 'attendance'
   | 'visual'

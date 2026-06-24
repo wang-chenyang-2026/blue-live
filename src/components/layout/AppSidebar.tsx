@@ -24,7 +24,7 @@ import { Badge } from '@/components/ui/badge';
 const MODULE_ICONS: Record<ModuleKey, React.ReactNode> = {
   dashboard: <LayoutDashboard className="h-4 w-4" />,
   schedule: <CalendarDays className="h-4 w-4" />,
-  'data-report': <BarChart3 className="h-4 w-4" />,
+  'data-overview': <BarChart3 className="h-4 w-4" />,
   cost: <DollarSign className="h-4 w-4" />,
   attendance: <ClipboardCheck className="h-4 w-4" />,
   visual: <Palette className="h-4 w-4" />,
@@ -36,7 +36,7 @@ const MODULE_ICONS: Record<ModuleKey, React.ReactNode> = {
 const MODULE_PATHS: Record<ModuleKey, string> = {
   dashboard: '/',
   schedule: '/schedule',
-  'data-report': '/data-report',
+  'data-overview': '/data-overview',
   cost: '/cost',
   attendance: '/attendance',
   visual: '/visual',
@@ -50,7 +50,7 @@ const SIDEBAR_ORDER: ModuleKey[] = [
   'schedule',
   'cost',
   'attendance',
-  'data-report',
+  'data-overview',
   'visual',
   'sop',
   'workstation',

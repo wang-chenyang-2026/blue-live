@@ -83,7 +83,7 @@ export const REGISTER_PROJECT_OPTIONS: { value: string; label: string }[] = [
 const MODULE_LABELS: Record<ModuleKey, string> = {
   dashboard: '首页概览',
   schedule: '排班管理',
-  'data-report': '数据报表',
+  'data-overview': '数据概览',
   cost: '成本核算',
   attendance: '考勤管理',
   visual: '视觉对接',
@@ -101,7 +101,7 @@ export const ROLES: Role[] = [
     modules: [
       'dashboard',
       'schedule',
-      'data-report',
+      'data-overview',
       'cost',
       'attendance',
       'visual',
@@ -113,7 +113,7 @@ export const ROLES: Role[] = [
   {
     key: '运营',
     label: '运营',
-    modules: ['schedule', 'data-report', 'cost', 'attendance', 'visual', 'sop'],
+    modules: ['schedule', 'data-overview', 'cost', 'attendance', 'visual', 'sop'],
   },
   {
     key: '中控',
