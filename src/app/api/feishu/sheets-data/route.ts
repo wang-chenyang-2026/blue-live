@@ -31,7 +31,10 @@ async function getSheetValues(
   sheetId: string,
   range: string
 ): Promise<string[][]> {
-  const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${SPREADSHEET_TOKEN}/values/${range}?sheetId=${sheetId}`;
+  // Range format: {sheetId}!{cellRange} (e.g. 0a2100!A1:G39)
+  const fullRange = `${sheetId}!${range}`;
+  const encodedRange = encodeURIComponent(fullRange);
+  const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${SPREADSHEET_TOKEN}/values/${encodedRange}`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -63,10 +66,13 @@ export async function GET(request: NextRequest) {
     const accessToken = await getTenantAccessToken();
 
     // Read all three sheets in parallel
-    const [sheet1Raw, sheet2Raw, sheet3Raw] = await Promise.all([
+    // Read Sheet2 daily KPI data (columns H to AL) for computing averages
+    // since the "6月达成" column contains AVERAGE formulas that API returns as strings
+    const [sheet1Raw, sheet2Raw, sheet3Raw, sheet2DailyRaw] = await Promise.all([
       getSheetValues(accessToken, '0a2100', 'A1:G39'),
       getSheetValues(accessToken, '204xjT', 'A1:G6'),
       getSheetValues(accessToken, 'vcgTtP', 'A1:F3'),
+      getSheetValues(accessToken, '204xjT', 'H1:AL6'),
     ]);
 
     // Process Sheet1 - daily data
@@ -131,6 +137,16 @@ export async function GET(request: NextRequest) {
     });
 
     // Process Sheet2 - vivo（大号）KPI
+    // Calculate "6月达成" from daily raw data (H:AL columns) instead of formula strings
+    function calcAverageFromRow(dailyRow: (string | number | null)[]): number {
+      const nums = dailyRow
+        .slice(1) // skip H1 header row if present
+        .map((v) => (v === null || v === undefined ? NaN : parseFloat(String(v))))
+        .filter((v) => !isNaN(v));
+      if (nums.length === 0) return 0;
+      return nums.reduce((s, v) => s + v, 0) / nums.length;
+    }
+
     const kpiData: Array<{
       dimension: string;
       target: string;
@@ -141,11 +157,14 @@ export async function GET(request: NextRequest) {
 
     for (let i = 1; i < sheet2Raw.length; i++) {
       const row = sheet2Raw[i];
-      if (!row || row.length < 6) continue;
+      if (!row || row.length < 5) continue;
 
       const dimension = row[2] || '';
       const targetVal = parseFloat(row[4]) || 0;
-      const achievedVal = parseFloat(row[5]) || 0;
+
+      // Use daily raw data to calculate achieved value
+      const dailyRow = sheet2DailyRaw[i] || [];
+      const achievedVal = calcAverageFromRow(dailyRow);
 
       let rate = 0;
       if (targetVal > 0) {
