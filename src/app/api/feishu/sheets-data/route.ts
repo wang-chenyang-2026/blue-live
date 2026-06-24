@@ -31,7 +31,6 @@ async function getSheetValues(
   sheetId: string,
   range: string
 ): Promise<string[][]> {
-  // Range format: {sheetId}!{cellRange} (e.g. 0a2100!A1:G39)
   const fullRange = `${sheetId}!${range}`;
   const encodedRange = encodeURIComponent(fullRange);
   const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${SPREADSHEET_TOKEN}/values/${encodedRange}`;
@@ -48,11 +47,17 @@ async function getSheetValues(
 function excelSerialToDate(serial: number | string): string {
   const num = typeof serial === 'string' ? parseFloat(serial) : serial;
   if (isNaN(num)) return String(serial);
-  // Excel serial number to JS Date
   const date = new Date((num - 25569) * 86400 * 1000);
   const month = date.getMonth() + 1;
   const day = date.getDate();
   return `${month}月${day}日`;
+}
+
+function excelSerialToISO(serial: number | string): string {
+  const num = typeof serial === 'string' ? parseFloat(serial) : serial;
+  if (isNaN(num)) return '';
+  const date = new Date((num - 25569) * 86400 * 1000);
+  return date.toISOString().split('T')[0]; // "2026-06-01"
 }
 
 function formatNumber(num: number | string): string {
@@ -66,8 +71,6 @@ export async function GET(request: NextRequest) {
     const accessToken = await getTenantAccessToken();
 
     // Read all three sheets in parallel
-    // Read Sheet2 daily KPI data (columns H to AL) for computing averages
-    // since the "6月达成" column contains AVERAGE formulas that API returns as strings
     const [sheet1Raw, sheet2Raw, sheet3Raw, sheet2DailyRaw] = await Promise.all([
       getSheetValues(accessToken, '0a2100', 'A1:G39'),
       getSheetValues(accessToken, '204xjT', 'A1:G6'),
@@ -78,6 +81,7 @@ export async function GET(request: NextRequest) {
     // Process Sheet1 - daily data
     const dailyData: Array<{
       date: string;
+      rawDate: string; // ISO format for sorting/filtering
       accountName: string;
       duration: string;
       gmv: string;
@@ -101,6 +105,7 @@ export async function GET(request: NextRequest) {
 
       dailyData.push({
         date: excelSerialToDate(dateSerial),
+        rawDate: excelSerialToISO(dateSerial),
         accountName,
         duration: String(duration),
         gmv: formatNumber(gmv),
@@ -137,10 +142,9 @@ export async function GET(request: NextRequest) {
     });
 
     // Process Sheet2 - vivo（大号）KPI
-    // Calculate "6月达成" from daily raw data (H:AL columns) instead of formula strings
     function calcAverageFromRow(dailyRow: (string | number | null)[]): number {
       const nums = dailyRow
-        .slice(1) // skip H1 header row if present
+        .slice(1)
         .map((v) => (v === null || v === undefined ? NaN : parseFloat(String(v))))
         .filter((v) => !isNaN(v));
       if (nums.length === 0) return 0;
@@ -152,6 +156,7 @@ export async function GET(request: NextRequest) {
       target: string;
       achieved: string;
       rate: string;
+      rawRate: number; // raw ratio for frontend calculations
       isLow: boolean;
     }> = [];
 
@@ -162,7 +167,6 @@ export async function GET(request: NextRequest) {
       const dimension = row[2] || '';
       const targetVal = parseFloat(row[4]) || 0;
 
-      // Use daily raw data to calculate achieved value
       const dailyRow = sheet2DailyRaw[i] || [];
       const achievedVal = calcAverageFromRow(dailyRow);
 
@@ -171,7 +175,6 @@ export async function GET(request: NextRequest) {
         rate = achievedVal / targetVal;
       }
 
-      // Format target and achieved based on dimension
       let targetDisplay: string;
       let achievedDisplay: string;
 
@@ -180,7 +183,6 @@ export async function GET(request: NextRequest) {
         dimension.includes('转粉') ||
         dimension.includes('观看')
       ) {
-        // Percentage values
         targetDisplay = `${(targetVal * 100).toFixed(0)}%`;
         achievedDisplay = `${(achievedVal * 100).toFixed(2)}%`;
       } else if (dimension.includes('GPM')) {
@@ -199,6 +201,7 @@ export async function GET(request: NextRequest) {
         target: targetDisplay,
         achieved: achievedDisplay,
         rate: `${(rate * 100).toFixed(1)}%`,
+        rawRate: rate,
         isLow: rate < 1,
       });
     }
@@ -210,6 +213,7 @@ export async function GET(request: NextRequest) {
       target: string;
       achieved: string;
       rate: string;
+      rawRate: number;
       isLow: boolean;
     }> = [];
 
@@ -222,7 +226,6 @@ export async function GET(request: NextRequest) {
       const targetVal = parseFloat(row[4]) || 0;
       const achievedVal = parseFloat(row[5]) || 0;
 
-      // For violation counts: 0 violations = 100%, otherwise 0%
       const rate =
         dimension.includes('违规') || targetVal === 0
           ? achievedVal === 0
@@ -238,6 +241,7 @@ export async function GET(request: NextRequest) {
         target: `${targetVal}次`,
         achieved: `${achievedVal}次`,
         rate: `${(rate * 100).toFixed(0)}%`,
+        rawRate: rate,
         isLow: rate < 1,
       });
     }
@@ -245,11 +249,18 @@ export async function GET(request: NextRequest) {
     // Calculate summary row for daily data
     const summaryDuration = dailyData.reduce((s, d) => s + d.rawDuration, 0);
     const summaryGmv = dailyData.reduce((s, d) => s + d.rawGmv, 0);
-    const summarySalesBefore = dailyData.reduce(
-      (s, d) => s + (parseFloat(String(d.salesBeforeReturn).replace(/,/g, '')) || d.rawGmv),
-      0
-    );
     const summarySalesAfter = dailyData.reduce((s, d) => s + d.rawSalesAfter, 0);
+
+    // Return raw KPI data for frontend date-filtered recalculation
+    // sheet2DailyRaw: row 0 = headers (H1:AL1), rows 1-5 = KPI dimensions daily data
+    const kpiDailyRaw: number[][] = [];
+    for (let i = 1; i < sheet2DailyRaw.length; i++) {
+      const row = sheet2DailyRaw[i] || [];
+      const nums = row
+        .slice(1) // skip the header column
+        .map((v) => (v === null || v === undefined ? NaN : parseFloat(String(v))));
+      kpiDailyRaw.push(nums);
+    }
 
     return NextResponse.json({
       success: true,
@@ -260,11 +271,16 @@ export async function GET(request: NextRequest) {
         dailySummary: {
           duration: `${summaryDuration}小时`,
           gmv: formatNumber(summaryGmv),
-          salesBeforeReturn: formatNumber(summarySalesBefore),
+          salesBeforeReturn: formatNumber(summaryGmv), // approximate
           salesAfterReturn: formatNumber(summarySalesAfter),
         },
         kpiData,
         subAccountKpi,
+        kpiDailyRaw,
+        // Include sheet2 header row dates mapping for KPI daily data columns
+        kpiDailyDates: (sheet2DailyRaw[0] || [])
+          .slice(1)
+          .map((v) => excelSerialToISO(v)),
       },
     });
   } catch (error: unknown) {
