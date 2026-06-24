@@ -545,24 +545,33 @@ export default function DataOverviewPage() {
           <CardTitle className="text-base text-zinc-200">vivo品牌基础数据汇总</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[500px] overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-zinc-800 [&::-webkit-scrollbar-thumb]:bg-zinc-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500">
             <table className="w-full text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-zinc-900">
                 <tr className="border-b border-zinc-700 text-zinc-400">
                   <th
-                    className="text-left py-2 px-3 cursor-pointer hover:text-zinc-200"
+                    className="text-left py-2 px-3 cursor-pointer hover:text-zinc-200 bg-zinc-900"
                     onClick={() => setSortDir(sortDir === 'desc' ? 'asc' : 'desc')}
                   >
                     日期 {sortDir === 'desc' ? '↓' : '↑'}
                   </th>
-                  <th className="text-left py-2 px-3">账号名称</th>
-                  <th className="text-right py-2 px-3">直播时长(h)</th>
-                  <th className="text-right py-2 px-3">GMV</th>
-                  <th className="text-right py-2 px-3">销售台数(退货前)</th>
-                  <th className="text-right py-2 px-3">实销台数(退货后)</th>
+                  <th className="text-left py-2 px-3 bg-zinc-900">账号名称</th>
+                  <th className="text-right py-2 px-3 bg-zinc-900">直播时长(h)</th>
+                  <th className="text-right py-2 px-3 bg-zinc-900">GMV</th>
+                  <th className="text-right py-2 px-3 bg-zinc-900">销售台数(退货前)</th>
+                  <th className="text-right py-2 px-3 bg-zinc-900">实销台数(退货后)</th>
                 </tr>
               </thead>
               <tbody>
+                {/* Summary Row - sticky at top */}
+                <tr className="sticky top-[41px] z-[5] bg-blue-900/30 font-bold border-b border-blue-500/30">
+                  <td className="py-2 px-3 text-white">汇总</td>
+                  <td className="py-2 px-3 text-zinc-400">—</td>
+                  <td className="py-2 px-3 text-right text-white">{tableSummary.duration}</td>
+                  <td className="py-2 px-3 text-right text-white">{fmt(tableSummary.gmv)}</td>
+                  <td className="py-2 px-3 text-right text-white">{fmt(tableSummary.salesBefore)}</td>
+                  <td className="py-2 px-3 text-right text-white">{fmt(tableSummary.salesAfter)}</td>
+                </tr>
                 {filteredDaily.map((row, idx) => (
                   <tr key={idx} className="border-b border-zinc-800 hover:bg-zinc-800/50">
                     <td className="py-2 px-3 text-zinc-300">{row.date}</td>
@@ -573,15 +582,6 @@ export default function DataOverviewPage() {
                     <td className="py-2 px-3 text-right text-zinc-300">{row.salesAfterReturn}</td>
                   </tr>
                 ))}
-                {/* Summary Row */}
-                <tr className="bg-zinc-800/70 font-bold">
-                  <td className="py-2 px-3 text-white">汇总</td>
-                  <td className="py-2 px-3 text-zinc-400">—</td>
-                  <td className="py-2 px-3 text-right text-white">{tableSummary.duration}</td>
-                  <td className="py-2 px-3 text-right text-white">{fmt(tableSummary.gmv)}</td>
-                  <td className="py-2 px-3 text-right text-white">{fmt(tableSummary.salesBefore)}</td>
-                  <td className="py-2 px-3 text-right text-white">{fmt(tableSummary.salesAfter)}</td>
-                </tr>
               </tbody>
             </table>
           </div>
