@@ -64,6 +64,7 @@ interface BrandData {
   accounts: string[];
   brandLabel: string;
   color: string;
+  mainKpiLabel: string;
   hasData: boolean;
 }
 
@@ -349,10 +350,10 @@ export default function DataOverviewPage() {
 
   const accountKpiRates = useMemo(() => {
     const rates: Record<string, number> = {};
+    const mainAccount = currentBrandData?.accounts?.[0] || '';
     filteredAccountSummaries.forEach((a) => {
-      // For vivo: vivo（大号） uses overallKpiRate, sub-accounts use subKpiRates
-      // For other brands: all accounts use subKpiRates or default to 1 if no data
-      if (activeBrand === 'vivo' && a.accountName === 'vivo（大号）') {
+      // Main account (first in list) uses overallKpiRate, sub-accounts use subKpiRates
+      if (a.accountName === mainAccount) {
         rates[a.accountName] = overallKpiRate;
       } else {
         rates[a.accountName] = subKpiRates[a.accountName] ?? (currentBrandData?.hasData ? 1 : 0);
@@ -361,7 +362,7 @@ export default function DataOverviewPage() {
     const allRates = Object.values(rates);
     rates['汇总'] = allRates.length > 0 ? allRates.reduce((s, v) => s + v, 0) / allRates.length : 0;
     return rates;
-  }, [filteredAccountSummaries, overallKpiRate, subKpiRates, activeBrand, currentBrandData]);
+  }, [filteredAccountSummaries, overallKpiRate, subKpiRates, currentBrandData]);
 
   const tableSummary = useMemo(() => ({
     duration: filteredDaily.reduce((s, d) => s + d.rawDuration, 0),
@@ -763,7 +764,7 @@ export default function DataOverviewPage() {
                       className={kpiTab === 'main' ? 'bg-[#415FFF]' : 'border-zinc-600 text-zinc-300'}
                       onClick={() => setKpiTab('main')}
                     >
-                      {currentBrandData.brandLabel}（大号）KPI
+                      {currentBrandData.mainKpiLabel || `${currentBrandData.brandLabel}（大号）KPI`}
                     </Button>
                   )}
                   {currentBrandData.subAccountKpi && currentBrandData.subAccountKpi.length > 0 && (

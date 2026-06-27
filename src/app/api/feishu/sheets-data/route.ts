@@ -26,6 +26,7 @@ interface BrandSheetConfig {
   accounts: string[];
   brandLabel: string;
   color: string;
+  mainKpiLabel: string;                  // Label for main KPI tab, e.g. "vivo（大号）KPI"
 }
 
 const BRAND_SHEET_MAP: Record<string, BrandSheetConfig> = {
@@ -41,6 +42,7 @@ const BRAND_SHEET_MAP: Record<string, BrandSheetConfig> = {
     accounts: ['vivo（大号）', 'vivo官方旗舰店（抖音）', 'vivo官方旗舰店（快手）'],
     brandLabel: 'vivo',
     color: '#415FFF',
+    mainKpiLabel: 'vivo（大号）KPI',
   },
   iqoo: {
     // iQOO抖音数据 + iQOO快手数据
@@ -59,6 +61,7 @@ const BRAND_SHEET_MAP: Record<string, BrandSheetConfig> = {
     accounts: ['iQOO手机', 'iQOO官方旗舰店（抖音）', 'iQOO官方旗舰店（快手）'],
     brandLabel: 'iQOO',
     color: '#FF6B35',
+    mainKpiLabel: 'iQOO手机（抖音）KPI',
   },
   iot: {
     // IOT平板数据 + IOT手表数据
@@ -76,14 +79,15 @@ const BRAND_SHEET_MAP: Record<string, BrandSheetConfig> = {
     accounts: ['IOT平板', 'IOT手表'],
     brandLabel: 'IOT',
     color: '#00C9A7',
+    mainKpiLabel: 'IOT平板KPI',
   },
 };
 
 // Brand metadata fallback
-const BRAND_META: Record<string, { accounts: string[]; brandLabel: string; color: string }> = {
-  vivo: { accounts: ['vivo（大号）', 'vivo官方旗舰店（抖音）', 'vivo官方旗舰店（快手）'], brandLabel: 'vivo', color: '#415FFF' },
-  iqoo: { accounts: ['iQOO手机', 'iQOO官方旗舰店（抖音）', 'iQOO官方旗舰店（快手）'], brandLabel: 'iQOO', color: '#FF6B35' },
-  iot: { accounts: ['IOT平板', 'IOT手表'], brandLabel: 'IOT', color: '#00C9A7' },
+const BRAND_META: Record<string, { accounts: string[]; brandLabel: string; color: string; mainKpiLabel: string }> = {
+  vivo: { accounts: ['vivo（大号）', 'vivo官方旗舰店（抖音）', 'vivo官方旗舰店（快手）'], brandLabel: 'vivo', color: '#415FFF', mainKpiLabel: 'vivo（大号）KPI' },
+  iqoo: { accounts: ['iQOO手机', 'iQOO官方旗舰店（抖音）', 'iQOO官方旗舰店（快手）'], brandLabel: 'iQOO', color: '#FF6B35', mainKpiLabel: 'iQOO手机（抖音）KPI' },
+  iot: { accounts: ['IOT平板', 'IOT手表'], brandLabel: 'IOT', color: '#00C9A7', mainKpiLabel: 'IOT平板KPI' },
 };
 
 /* ========== Feishu API Helpers ========== */
@@ -353,6 +357,7 @@ function emptyBrandData(brandKey: string) {
     accounts: meta.accounts,
     brandLabel: meta.brandLabel,
     color: meta.color,
+    mainKpiLabel: meta.mainKpiLabel,
     hasData: false,
   };
 }
@@ -467,6 +472,7 @@ async function fetchBrandData(accessToken: string, brandKey: string) {
     accounts: config.accounts,
     brandLabel: config.brandLabel,
     color: config.color,
+    mainKpiLabel: config.mainKpiLabel,
     hasData: true,
   };
 }
