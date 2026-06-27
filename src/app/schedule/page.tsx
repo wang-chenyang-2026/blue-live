@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 
 // ===== 类型定义 =====
 interface PersonSummary {
@@ -18,7 +18,7 @@ interface AccountData {
 
 interface DateData {
   date: string;
-  display: string;
+  display?: string;
   accounts: AccountData[];
 }
 
@@ -65,6 +65,7 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedDates, setExpandedDates] = useState<Record<string, string>>({});
+  const [selectedPerson, setSelectedPerson] = useState('全部主播');
 
   // 客户端挂载后设置今天日期
   useEffect(() => {
@@ -100,6 +101,61 @@ export default function SchedulePage() {
     }
   }, [startDate, endDate, mounted, fetchSchedule]);
 
+  const rawDates = scheduleData?.data?.dates || [];
+
+  // 提取去重人员名单（必须在early return之前调用hook）
+  const allPersons = useMemo(() => {
+    const nameSet = new Set<string>();
+    rawDates.forEach((d: { accounts?: { personSummary?: { name: string }[] }[] }) => {
+      (d.accounts || []).forEach((a: { personSummary?: { name: string }[] }) => {
+        (a.personSummary || []).forEach((p: { name: string }) => {
+          if (p.name) nameSet.add(p.name);
+        });
+      });
+    });
+    return Array.from(nameSet).sort();
+  }, [rawDates]);
+
+  // 按选中主播筛选
+  const dates = useMemo(() => {
+    if (selectedPerson === '全部主播') return rawDates;
+    return rawDates.map((d: { date: string; accounts?: { accountName: string; personSummary?: { name: string; totalHours: number; earlyMorningHours: number; timeSlots: string[] }[]; stats?: { personCount: number; totalHours: number; earlyMorningHours: number } }[] }) => ({
+      ...d,
+      accounts: (d.accounts || []).map((a: { accountName: string; personSummary?: { name: string; totalHours: number; earlyMorningHours: number; timeSlots: string[] }[]; stats?: { personCount: number; totalHours: number; earlyMorningHours: number } }) => {
+        const filtered = (a.personSummary || []).filter((p: { name: string }) => p.name === selectedPerson);
+        const personCount = filtered.length;
+        const totalHours = filtered.reduce((s: number, p: { totalHours: number }) => s + (p.totalHours || 0), 0);
+        const earlyMorningHours = filtered.reduce((s: number, p: { earlyMorningHours: number }) => s + (p.earlyMorningHours || 0), 0);
+        return {
+          ...a,
+          personSummary: filtered,
+          stats: { personCount, totalHours, earlyMorningHours },
+        };
+      }),
+    }));
+  }, [rawDates, selectedPerson]);
+
+  // 根据筛选结果计算汇总
+  const globalStats = useMemo(() => {
+    if (selectedPerson === '全部主播' && scheduleData?.data?.globalStats) {
+      return scheduleData.data.globalStats;
+    }
+    let totalDays = 0;
+    let totalPersonDays = 0;
+    let totalHours = 0;
+    let totalEarlyMorning = 0;
+    dates.forEach((d: { accounts?: { personSummary?: unknown[]; stats?: { personCount: number; totalHours: number; earlyMorningHours: number } }[] }) => {
+      const hasPerson = (d.accounts || []).some((a: { personSummary?: unknown[] }) => (a.personSummary || []).length > 0);
+      if (hasPerson) totalDays++;
+      (d.accounts || []).forEach((a: { stats?: { personCount: number; totalHours: number; earlyMorningHours: number } }) => {
+        totalPersonDays += (a.stats?.personCount || 0);
+        totalHours += (a.stats?.totalHours || 0);
+        totalEarlyMorning += (a.stats?.earlyMorningHours || 0);
+      });
+    });
+    return { totalDays, totalPersonDays, totalHours, totalEarlyMorning };
+  }, [dates, selectedPerson, scheduleData]);
+
   // 切换日期展开的账号Tab
   const toggleAccount = (dateStr: string, accountName: string) => {
     setExpandedDates(prev => ({
@@ -111,9 +167,6 @@ export default function SchedulePage() {
   if (!mounted) {
     return <div className="p-8 text-center text-zinc-500">加载中...</div>;
   }
-
-  const dates = scheduleData?.data?.dates || [];
-  const globalStats = scheduleData?.data?.globalStats;
 
   return (
     <div className="min-h-screen bg-[#09090b] text-zinc-100 p-6">
@@ -153,6 +206,21 @@ export default function SchedulePage() {
           onClick={() => fetchSchedule(startDate, endDate)}
           className="px-4 py-2 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition font-medium"
         >刷新</button>
+
+        {/* 主播筛选 */}
+        <div className="flex items-center gap-2 ml-4">
+          <span className="text-sm text-zinc-400">主播筛选</span>
+          <select
+            value={selectedPerson}
+            onChange={e => setSelectedPerson(e.target.value)}
+            className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none min-w-[140px]"
+          >
+            <option value="全部主播">全部主播</option>
+            {allPersons.map((name: string) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* ===== 全局汇总卡片 ===== */}
@@ -172,7 +240,7 @@ export default function SchedulePage() {
       {/* ===== 按日期分组展示 ===== */}
       {!loading && !error && dates.length > 0 && (
         <div className="space-y-4">
-          {dates.map(dateItem => (
+          {dates.map((dateItem: DateData) => (
             <DateGroup
               key={dateItem.date}
               dateItem={dateItem}
@@ -224,7 +292,7 @@ function DateGroup({
       <div className={`px-4 py-3 flex items-center justify-between border-b border-zinc-700/30 ${isWeekend ? 'bg-orange-900/10' : ''}`}>
         <div className="flex items-center gap-3">
           <span className={`text-sm font-semibold ${isWeekend ? 'text-orange-400' : 'text-zinc-200'}`}>
-            {dateItem.display}
+            {dateItem.display || dateItem.date}
           </span>
           {totalEarly > 0 && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400">
