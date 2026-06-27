@@ -384,10 +384,10 @@ export default function SchedulePage() {
   // 汇总统计
   const totalStats = useMemo(() => {
     if (!data?.data?.accounts) return { personCount: 0, totalHours: 0, earlyMorningHours: 0 };
-    return data.data.accounts.reduce((acc, cur) => ({
-      personCount: acc.personCount + cur.stats.personCount,
-      totalHours: acc.totalHours + cur.stats.totalHours,
-      earlyMorningHours: acc.earlyMorningHours + cur.stats.earlyMorningHours,
+    return (data.data.accounts || []).reduce((acc, cur) => ({
+      personCount: acc.personCount + (cur.stats?.personCount || 0),
+      totalHours: acc.totalHours + (cur.stats?.totalHours || 0),
+      earlyMorningHours: acc.earlyMorningHours + (cur.stats?.earlyMorningHours || 0),
     }), { personCount: 0, totalHours: 0, earlyMorningHours: 0 });
   }, [data]);
 
@@ -592,9 +592,9 @@ export default function SchedulePage() {
 
           {/* 账号Tab */}
           <AccountTabs
-            accounts={data.data.accounts.map(acc => ({
+            accounts={(data?.data?.accounts || []).map(acc => ({
               name: acc.accountName,
-              schedules: acc.schedules,
+              schedules: acc.schedules || [],
             }))}
             activeAccount={activeAccount}
             onAccountChange={setActiveAccount}
@@ -608,7 +608,7 @@ export default function SchedulePage() {
           }}>
             {filteredAccounts.map(account => (
               <React.Fragment key={account.accountName}>
-                {account.schedules.map((schedule, idx) => (
+                {(account.schedules || []).map((schedule, idx) => (
                   <PersonCard
                     key={`${account.accountName}-${schedule.person}`}
                     schedule={schedule}
