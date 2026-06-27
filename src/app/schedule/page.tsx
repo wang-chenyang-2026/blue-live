@@ -1,430 +1,624 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CalendarDays, Clock, Users, Moon, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 
-interface DateInfo {
-  iso: string;
-  display: string;
-  weekday: string;
-}
-
-interface PersonSegment {
-  date: string;
-  display: string;
-  timeRange: string;
-  hours: number;
-}
-
-interface PersonSummary {
-  name: string;
+// 数据类型定义
+interface PersonSchedule {
+  person: string;
+  timeSlots: string[];
   totalHours: number;
-  lateNightHours: number;
-  segments: PersonSegment[];
+  earlyMorningHours: number;
 }
 
 interface AccountSchedule {
+  name: string;
+  schedules: PersonSchedule[];
+}
+
+interface DayStats {
+  personCount: number;
+  totalHours: number;
+  earlyMorningHours: number;
+}
+
+interface AccountData {
   accountName: string;
-  dateRange: DateInfo[];
-  timeSlots: string[];
-  scheduleData: string[][];
-  personSummary: PersonSummary[];
+  personSummary: PersonSchedule[];
+  dateRange: { iso: string; display: string; weekday: string }[];
+  gridData: Record<string, Record<string, string[]>>;
+  stats: {
+    personCount: number;
+    totalHours: number;
+    earlyMorningHours: number;
+    coveredDays: number;
+  };
 }
 
-interface ScheduleData {
-  accounts: AccountSchedule[];
-  dateCount: number;
-  dateRange: DateInfo[];
+interface ApiResponseRange {
+  success: boolean;
+  data: {
+    dateRange: { iso: string; display: string; weekday: string }[];
+    accounts: AccountData[];
+  };
 }
 
-type ViewMode = 'schedule' | 'person';
+interface ApiResponseDay {
+  success: boolean;
+  data: {
+    date: string;
+    brand: string;
+    accounts: {
+      accountName: string;
+      schedules: PersonSchedule[];
+      stats: DayStats;
+    }[];
+  };
+}
 
+// 账号Tab组件
+const AccountTabs: React.FC<{
+  accounts: { name: string; schedules: PersonSchedule[] }[];
+  activeAccount: string;
+  onAccountChange: (account: string) => void;
+}> = ({ accounts, activeAccount, onAccountChange }) => {
+  const tabs = [
+    { id: 'all', label: '全部账号' },
+    ...accounts.map(acc => ({ id: acc.name, label: acc.name })),
+  ];
+
+  return (
+    <div style={{
+      display: 'flex',
+      gap: '12px',
+      marginBottom: '24px',
+      borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+      paddingBottom: '12px',
+      flexWrap: 'wrap',
+    }}>
+      {tabs.map(tab => (
+        <button
+          key={tab.id}
+          onClick={() => onAccountChange(tab.id)}
+          style={{
+            padding: '10px 20px',
+            borderRadius: '8px',
+            border: 'none',
+            background: activeAccount === tab.id
+              ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+              : 'rgba(255, 255, 255, 0.05)',
+            color: activeAccount === tab.id ? '#fff' : 'rgba(255, 255, 255, 0.6)',
+            fontSize: '14px',
+            fontWeight: activeAccount === tab.id ? '600' : '400',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+            boxShadow: activeAccount === tab.id
+              ? '0 4px 15px rgba(102, 126, 234, 0.4)'
+              : 'none',
+          }}
+        >
+          {tab.label}
+          {tab.id !== 'all' && (
+            <span style={{
+              marginLeft: '8px',
+              padding: '2px 8px',
+              borderRadius: '10px',
+              background: activeAccount === tab.id
+                ? 'rgba(255, 255, 255, 0.2)'
+                : 'rgba(102, 126, 234, 0.3)',
+              fontSize: '12px',
+            }}>
+              {accounts.find(a => a.name === tab.id)?.schedules.length || 0}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+};
+
+// 人员排班卡片
+const PersonCard: React.FC<{
+  schedule: PersonSchedule;
+  accountColor: string;
+}> = ({ schedule, accountColor }) => {
+  const getHoursColor = (hours: number) => {
+    if (hours >= 8) return '#66df7c';
+    if (hours >= 4) return '#4facfe';
+    if (hours >= 2) return '#ffb84d';
+    return '#ff6b6b';
+  };
+
+  return (
+    <div style={{
+      background: 'rgba(255, 255, 255, 0.03)',
+      borderRadius: '16px',
+      padding: '20px',
+      border: '1px solid rgba(255, 255, 255, 0.08)',
+      transition: 'all 0.3s ease',
+    }}
+    onMouseOver={(e) => {
+      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+      e.currentTarget.style.borderColor = accountColor;
+      e.currentTarget.style.transform = 'translateY(-2px)';
+    }}
+    onMouseOut={(e) => {
+      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+      e.currentTarget.style.transform = 'translateY(0)';
+    }}
+    >
+      {/* 人员名称 */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '16px',
+        paddingBottom: '12px',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{
+            width: '44px',
+            height: '44px',
+            borderRadius: '50%',
+            background: `linear-gradient(135deg, ${accountColor} 0%, ${accountColor}66 100%)`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '18px',
+            fontWeight: '700',
+            color: '#fff',
+          }}>
+            {schedule.person.slice(0, 1)}
+          </div>
+          <div>
+            <h3 style={{
+              color: '#fff',
+              fontSize: '16px',
+              fontWeight: '600',
+              margin: '0 0 2px 0',
+            }}>
+              {schedule.person}
+            </h3>
+            <span style={{
+              color: 'rgba(255, 255, 255, 0.5)',
+              fontSize: '12px',
+            }}>
+              {schedule.timeSlots.length} 个时间段
+            </span>
+          </div>
+        </div>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-end',
+          gap: '4px',
+        }}>
+          <span style={{
+            background: `${getHoursColor(schedule.totalHours)}22`,
+            color: getHoursColor(schedule.totalHours),
+            padding: '6px 12px',
+            borderRadius: '20px',
+            fontSize: '14px',
+            fontWeight: '600',
+          }}>
+            {schedule.totalHours} 小时
+          </span>
+        </div>
+      </div>
+
+      {/* 时间段展示 */}
+      <div style={{ marginBottom: '16px' }}>
+        <div style={{
+          color: 'rgba(255, 255, 255, 0.6)',
+          fontSize: '12px',
+          marginBottom: '8px',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px',
+        }}>
+          直播时间段
+        </div>
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '6px',
+        }}>
+          {schedule.timeSlots.map((slot, index) => (
+            <span
+              key={index}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '6px',
+                background: slot.includes('2-') || slot.includes('3-') || slot.includes('4-') || slot.includes('5-') || slot.includes('6-') || slot.includes('7-')
+                  ? 'rgba(147, 130, 220, 0.25)'
+                  : 'rgba(79, 172, 254, 0.15)',
+                color: slot.includes('2-') || slot.includes('3-') || slot.includes('4-') || slot.includes('5-') || slot.includes('6-') || slot.includes('7-')
+                  ? '#b8a9e8'
+                  : '#7ec8f8',
+                fontSize: '12px',
+                border: '1px solid ' + (slot.includes('2-') || slot.includes('3-') || slot.includes('4-') || slot.includes('5-') || slot.includes('6-') || slot.includes('7-')
+                  ? 'rgba(147, 130, 220, 0.3)'
+                  : 'rgba(79, 172, 254, 0.2)'),
+              }}
+            >
+              {slot}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* 凌晨班统计 */}
+      {schedule.earlyMorningHours > 0 && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '8px 12px',
+          borderRadius: '8px',
+          background: 'rgba(147, 130, 220, 0.1)',
+          border: '1px solid rgba(147, 130, 220, 0.2)',
+        }}>
+          <span style={{ fontSize: '16px' }}>🌙</span>
+          <span style={{
+            color: '#b8a9e8',
+            fontSize: '13px',
+          }}>
+            凌晨班 {schedule.earlyMorningHours} 小时
+          </span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// 统计卡片
+const StatCard: React.FC<{
+  label: string;
+  value: string | number;
+  icon: string;
+  color: string;
+}> = ({ label, value, icon, color }) => (
+  <div style={{
+    background: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: '12px',
+    padding: '16px 20px',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px',
+  }}>
+    <div style={{
+      width: '48px',
+      height: '48px',
+      borderRadius: '12px',
+      background: `${color}15`,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '22px',
+    }}>
+      {icon}
+    </div>
+    <div>
+      <div style={{
+        color: 'rgba(255, 255, 255, 0.5)',
+        fontSize: '12px',
+        marginBottom: '4px',
+      }}>
+        {label}
+      </div>
+      <div style={{
+        color: color,
+        fontSize: '22px',
+        fontWeight: '700',
+      }}>
+        {value}
+      </div>
+    </div>
+  </div>
+);
+
+// 主页面组件
 export default function SchedulePage() {
-  const [isClient, setIsClient] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [data, setData] = useState<ScheduleData | null>(null);
-  const [activeAccount, setActiveAccount] = useState(0);
-  const [viewMode, setViewMode] = useState<ViewMode>('schedule');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [weekOffset, setWeekOffset] = useState(0);
+  const [selectedDate, setSelectedDate] = useState('2026-06-23');
+  const [activeAccount, setActiveAccount] = useState('all');
+  const [data, setData] = useState<ApiResponseDay | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Initialize dates on client
-  useEffect(() => {
-    setIsClient(true);
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const today = now.toISOString().split('T')[0];
-    const firstDay = monthStart.toISOString().split('T')[0];
-    setStartDate(firstDay);
-    setEndDate(today);
-  }, []);
-
-  const fetchData = useCallback(async (sd?: string, ed?: string) => {
+  // 加载数据
+  const fetchData = useCallback(async (date: string) => {
     setLoading(true);
-    setError('');
+    setError(null);
     try {
-      const params = new URLSearchParams();
-      if (sd) params.set('startDate', sd);
-      if (ed) params.set('endDate', ed);
-      const res = await fetch(`/api/schedule?${params.toString()}`);
-      const json = await res.json();
-      if (json.success) {
-        setData(json.data);
-      } else {
-        setError(json.error || '获取数据失败');
+      const response = await fetch(`/api/schedule?date=${date}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : '网络错误');
+      const result: ApiResponseDay = await response.json();
+      setData(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch schedule data');
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (isClient && startDate && endDate) {
-      fetchData(startDate, endDate);
-    }
-  }, [isClient, startDate, endDate, fetchData]);
+    fetchData(selectedDate);
+  }, [selectedDate, fetchData]);
 
-  // Quick date selectors
-  const setThisWeek = () => {
-    const now = new Date();
-    const day = now.getDay() || 7;
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - day + 1);
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    setStartDate(monday.toISOString().split('T')[0]);
-    setEndDate(sunday.toISOString().split('T')[0]);
-    setWeekOffset(0);
+  // 日期导航
+  const navigateDate = (direction: number) => {
+    const current = new Date(selectedDate);
+    current.setDate(current.getDate() + direction);
+    const newDate = current.toISOString().split('T')[0];
+    setSelectedDate(newDate);
   };
 
-  const setThisMonth = () => {
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    setStartDate(monthStart.toISOString().split('T')[0]);
-    setEndDate(now.toISOString().split('T')[0]);
-    setWeekOffset(0);
+  // 格式化日期显示
+  const formatDateDisplay = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+    return `${date.getMonth() + 1}月${date.getDate()}日 周${weekdays[date.getDay()]}`;
   };
 
-  const setLastMonth = () => {
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const monthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-    setStartDate(monthStart.toISOString().split('T')[0]);
-    setEndDate(monthEnd.toISOString().split('T')[0]);
-    setWeekOffset(0);
+  // 过滤账号数据
+  const filteredAccounts = useMemo(() => {
+    if (!data?.data?.accounts) return [];
+    if (activeAccount === 'all') return data.data.accounts;
+    return data.data.accounts.filter(acc => acc.accountName === activeAccount);
+  }, [data, activeAccount]);
+
+  // 汇总统计
+  const totalStats = useMemo(() => {
+    if (!data?.data?.accounts) return { personCount: 0, totalHours: 0, earlyMorningHours: 0 };
+    return data.data.accounts.reduce((acc, cur) => ({
+      personCount: acc.personCount + cur.stats.personCount,
+      totalHours: acc.totalHours + cur.stats.totalHours,
+      earlyMorningHours: acc.earlyMorningHours + cur.stats.earlyMorningHours,
+    }), { personCount: 0, totalHours: 0, earlyMorningHours: 0 });
+  }, [data]);
+
+  const accountColors: Record<string, string> = {
+    'vivo（大号）': '#415FFF',
+    'vivo官方旗舰店（抖音）': '#FF6B35',
+    'vivo官方旗舰店（快手）': '#00C9A7',
   };
-
-  const navigateWeek = (direction: number) => {
-    const base = new Date();
-    const day = base.getDay() || 7;
-    const thisMonday = new Date(base);
-    thisMonday.setDate(base.getDate() - day + 1 + direction * 7);
-    const sunday = new Date(thisMonday);
-    sunday.setDate(thisMonday.getDate() + 6);
-    setWeekOffset(direction);
-    setStartDate(thisMonday.toISOString().split('T')[0]);
-    setEndDate(sunday.toISOString().split('T')[0]);
-  };
-
-  const currentAccount = data?.accounts[activeAccount];
-
-  // Color map for persons
-  const personColors: Record<string, string> = {};
-  const colorPalette = [
-    'bg-blue-500/30 text-blue-300',
-    'bg-emerald-500/30 text-emerald-300',
-    'bg-amber-500/30 text-amber-300',
-    'bg-purple-500/30 text-purple-300',
-    'bg-rose-500/30 text-rose-300',
-    'bg-cyan-500/30 text-cyan-300',
-    'bg-orange-500/30 text-orange-300',
-    'bg-teal-500/30 text-teal-300',
-    'bg-pink-500/30 text-pink-300',
-    'bg-indigo-500/30 text-indigo-300',
-    'bg-lime-500/30 text-lime-300',
-    'bg-fuchsia-500/30 text-fuchsia-300',
-  ];
-  let colorIndex = 0;
-  const getPersonColor = (name: string) => {
-    if (!personColors[name]) {
-      personColors[name] = colorPalette[colorIndex % colorPalette.length];
-      colorIndex++;
-    }
-    return personColors[name];
-  };
-
-  if (!isClient) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-zinc-500">加载中...</div>
-      </div>
-    );
-  }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-100">排班管理</h1>
-          <p className="text-sm text-zinc-400 mt-1">直播排班数据来自飞书表格，实时同步</p>
+    <div style={{
+      padding: '24px',
+      maxWidth: '1400px',
+      margin: '0 auto',
+      color: '#fff',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    }}>
+      {/* 页面标题 */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '32px',
+      }}>
+        <h1 style={{
+          fontSize: '28px',
+          fontWeight: '700',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          margin: 0,
+        }}>
+          排班管理
+        </h1>
+        <div style={{
+          color: 'rgba(255, 255, 255, 0.5)',
+          fontSize: '14px',
+        }}>
+          数据来源：飞书电子表格
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => fetchData(startDate, endDate)}
-          disabled={loading}
-          className="border-zinc-700 text-zinc-300 hover:bg-zinc-800"
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          刷新
-        </Button>
       </div>
 
-      {/* Date Selector */}
-      <Card className="bg-zinc-900 border-zinc-800">
-        <CardContent className="pt-4 pb-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="h-4 w-4 text-zinc-400" />
-              <span className="text-sm text-zinc-400">日期范围：</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" onClick={setThisMonth} className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 h-8 text-xs">
-                本月
-              </Button>
-              <Button variant="outline" size="sm" onClick={setLastMonth} className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 h-8 text-xs">
-                上月
-              </Button>
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" onClick={() => navigateWeek(-1)} className="text-zinc-400 hover:text-zinc-200 h-8 w-8 p-0">
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="sm" onClick={setThisWeek} className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 h-8 text-xs">
-                  本周
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => navigateWeek(1)} className="text-zinc-400 hover:text-zinc-200 h-8 w-8 p-0">
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-zinc-800 border-zinc-700 text-zinc-200 h-8 text-xs w-36"
-                />
-                <span className="text-zinc-500">至</span>
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-zinc-800 border-zinc-700 text-zinc-200 h-8 text-xs w-36"
-                />
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* 日期选择器 */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '16px',
+        marginBottom: '28px',
+        padding: '16px 24px',
+        background: 'rgba(255, 255, 255, 0.03)',
+        borderRadius: '16px',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+      }}>
+        <button
+          onClick={() => navigateDate(-1)}
+          style={{
+            width: '40px',
+            height: '40px',
+            borderRadius: '10px',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            background: 'rgba(255, 255, 255, 0.05)',
+            color: '#fff',
+            fontSize: '18px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          ‹
+        </button>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          flex: 1,
+          justifyContent: 'center',
+        }}>
+          <span style={{
+            fontSize: '18px',
+            fontWeight: '600',
+            color: '#fff',
+          }}>
+            {formatDateDisplay(selectedDate)}
+          </span>
+        </div>
+        <button
+          onClick={() => navigateDate(1)}
+          style={{
+            width: '40px',
+            height: '40px',
+            borderRadius: '10px',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            background: 'rgba(255, 255, 255, 0.05)',
+            color: '#fff',
+            fontSize: '18px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          ›
+        </button>
+        <input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          style={{
+            padding: '8px 16px',
+            borderRadius: '10px',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            background: 'rgba(255, 255, 255, 0.05)',
+            color: '#fff',
+            fontSize: '14px',
+            cursor: 'pointer',
+          }}
+        />
+        <button
+          onClick={() => fetchData(selectedDate)}
+          disabled={loading}
+          style={{
+            padding: '8px 20px',
+            borderRadius: '10px',
+            border: 'none',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: '#fff',
+            fontSize: '14px',
+            fontWeight: '600',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            opacity: loading ? 0.7 : 1,
+          }}
+        >
+          {loading ? '加载中...' : '刷新数据'}
+        </button>
+      </div>
 
-      {/* Error */}
+      {/* 错误提示 */}
       {error && (
-        <Card className="bg-red-950/30 border-red-900/50">
-          <CardContent className="pt-4 text-red-400 text-sm">{error}</CardContent>
-        </Card>
-      )}
-
-      {/* Loading */}
-      {loading && !data && (
-        <div className="flex items-center justify-center h-64">
-          <RefreshCw className="h-6 w-6 animate-spin text-zinc-500" />
-          <span className="ml-3 text-zinc-500">加载排班数据...</span>
+        <div style={{
+          padding: '16px',
+          borderRadius: '12px',
+          background: 'rgba(255, 107, 107, 0.1)',
+          border: '1px solid rgba(255, 107, 107, 0.3)',
+          color: '#ff6b6b',
+          marginBottom: '24px',
+        }}>
+          {error}
         </div>
       )}
 
-      {/* Main Content */}
-      {data && data.accounts.length > 0 && (
-        <>
-          {/* Account Tabs */}
-          <Tabs value={String(activeAccount)} onValueChange={(v) => { setActiveAccount(Number(v)); setViewMode('schedule'); }}>
-            <TabsList className="bg-zinc-900 border border-zinc-800">
-              {data.accounts.map((acc, idx) => (
-                <TabsTrigger key={idx} value={String(idx)} className="data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100 text-zinc-400">
-                  {acc.accountName}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
+      {/* 加载状态 */}
+      {loading && (
+        <div style={{
+          textAlign: 'center',
+          padding: '60px',
+          color: 'rgba(255, 255, 255, 0.5)',
+        }}>
+          <div style={{
+            width: '40px',
+            height: '40px',
+            border: '3px solid rgba(102, 126, 234, 0.3)',
+            borderTopColor: '#667eea',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 16px',
+          }} />
+          加载排班数据...
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      )}
 
-          {/* View Mode Toggle */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant={viewMode === 'schedule' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setViewMode('schedule')}
-              className={viewMode === 'schedule' ? 'bg-blue-600 hover:bg-blue-700' : 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'}
-            >
-              <Clock className="h-4 w-4 mr-1" />
-              排班表
-            </Button>
-            <Button
-              variant={viewMode === 'person' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setViewMode('person')}
-              className={viewMode === 'person' ? 'bg-blue-600 hover:bg-blue-700' : 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'}
-            >
-              <Users className="h-4 w-4 mr-1" />
-              人员汇总
-            </Button>
+      {/* 数据内容 */}
+      {!loading && data && (
+        <>
+          {/* 统计概览 */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '16px',
+            marginBottom: '28px',
+          }}>
+            <StatCard
+              label="排班人数"
+              value={totalStats.personCount}
+              icon="👥"
+              color="#4facfe"
+            />
+            <StatCard
+              label="总时长"
+              value={`${totalStats.totalHours}h`}
+              icon="⏱️"
+              color="#66df7c"
+            />
+            <StatCard
+              label="凌晨班时长"
+              value={`${totalStats.earlyMorningHours}h`}
+              icon="🌙"
+              color="#b8a9e8"
+            />
           </div>
 
-          {currentAccount && (
-            <>
-              {viewMode === 'schedule' ? (
-                /* Schedule Grid */
-                <Card className="bg-zinc-900 border-zinc-800">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg text-zinc-100">
-                      {currentAccount.accountName} 排班表
-                    </CardTitle>
-                    <p className="text-xs text-zinc-500">
-                      {currentAccount.dateRange[0]?.display} - {currentAccount.dateRange[currentAccount.dateRange.length - 1]?.display}，共 {currentAccount.dateRange.length} 天
-                    </p>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="overflow-x-auto" style={{ maxHeight: '70vh' }}>
-                      <table className="w-full text-xs border-collapse min-w-[800px]">
-                        <thead>
-                          <tr className="sticky top-0 z-10">
-                            <th className="bg-zinc-800 text-zinc-300 font-medium px-2 py-2 text-left border border-zinc-700 sticky left-0 z-20 min-w-[60px]">
-                              时段
-                            </th>
-                            {currentAccount.dateRange.map((d, i) => (
-                              <th key={i} className="bg-zinc-800 text-zinc-300 font-medium px-1 py-2 text-center border border-zinc-700 min-w-[50px]">
-                                <div>{d.display}</div>
-                                <div className="text-zinc-500 font-normal">{d.weekday}</div>
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {currentAccount.timeSlots.map((slot, rowIdx) => {
-                            const isLateNight = rowIdx < 6; // 0-5点
-                            const isDaytime = rowIdx >= 8 && rowIdx < 20; // 8-19点
-                            return (
-                              <tr key={rowIdx} className={isLateNight ? 'bg-indigo-950/20' : isDaytime ? '' : 'bg-zinc-800/30'}>
-                                <td className={`px-2 py-1.5 border border-zinc-700 sticky left-0 z-10 font-medium whitespace-nowrap ${
-                                  isLateNight ? 'bg-indigo-950/40 text-indigo-300' : 'bg-zinc-800 text-zinc-300'
-                                }`}>
-                                  {slot}
-                                </td>
-                                {currentAccount.scheduleData[rowIdx]?.map((person, colIdx) => (
-                                  <td key={colIdx} className={`px-1 py-1.5 border border-zinc-700 text-center ${
-                                    person ? getPersonColor(person) : 'text-zinc-600'
-                                  }`}>
-                                    <span className="text-[11px] leading-tight">{person || '-'}</span>
-                                  </td>
-                                ))}
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="flex items-center gap-4 mt-3 text-xs text-zinc-500">
-                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-indigo-950/40 inline-block"></span> 凌晨班 (0-6点)</span>
-                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-zinc-800/30 inline-block"></span> 晚间班 (20-24点)</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                /* Person Summary */
-                <div className="space-y-4">
-                  {/* Stats Overview */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <Card className="bg-zinc-900 border-zinc-800">
-                      <CardContent className="pt-4 pb-3">
-                        <div className="flex items-center gap-2 text-zinc-400 text-xs mb-1">
-                          <Users className="h-3.5 w-3.5" />
-                          <span>排班人数</span>
-                        </div>
-                        <div className="text-2xl font-bold text-zinc-100">{currentAccount.personSummary.length}</div>
-                      </CardContent>
-                    </Card>
-                    <Card className="bg-zinc-900 border-zinc-800">
-                      <CardContent className="pt-4 pb-3">
-                        <div className="flex items-center gap-2 text-zinc-400 text-xs mb-1">
-                          <Clock className="h-3.5 w-3.5" />
-                          <span>总排班时长</span>
-                        </div>
-                        <div className="text-2xl font-bold text-zinc-100">
-                          {currentAccount.personSummary.reduce((s, p) => s + p.totalHours, 0)}h
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card className="bg-zinc-900 border-zinc-800">
-                      <CardContent className="pt-4 pb-3">
-                        <div className="flex items-center gap-2 text-zinc-400 text-xs mb-1">
-                          <Moon className="h-3.5 w-3.5" />
-                          <span>凌晨班总时长</span>
-                        </div>
-                        <div className="text-2xl font-bold text-indigo-300">
-                          {currentAccount.personSummary.reduce((s, p) => s + p.lateNightHours, 0)}h
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card className="bg-zinc-900 border-zinc-800">
-                      <CardContent className="pt-4 pb-3">
-                        <div className="flex items-center gap-2 text-zinc-400 text-xs mb-1">
-                          <CalendarDays className="h-3.5 w-3.5" />
-                          <span>覆盖天数</span>
-                        </div>
-                        <div className="text-2xl font-bold text-zinc-100">{currentAccount.dateRange.length}天</div>
-                      </CardContent>
-                    </Card>
-                  </div>
+          {/* 账号Tab */}
+          <AccountTabs
+            accounts={data.data.accounts.map(acc => ({
+              name: acc.accountName,
+              schedules: acc.schedules,
+            }))}
+            activeAccount={activeAccount}
+            onAccountChange={setActiveAccount}
+          />
 
-                  {/* Person Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {currentAccount.personSummary.map((person) => (
-                      <Card key={person.name} className="bg-zinc-900 border-zinc-800">
-                        <CardHeader className="pb-2 pt-3 px-4">
-                          <div className="flex items-center justify-between">
-                            <CardTitle className="text-sm text-zinc-100">{person.name}</CardTitle>
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${getPersonColor(person.name)}`}>
-                              {person.totalHours}h
-                            </span>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="px-4 pb-3">
-                          <div className="flex items-center gap-3 mb-2 text-xs">
-                            <span className="text-zinc-400">总时长: <span className="text-zinc-200 font-medium">{person.totalHours}h</span></span>
-                            <span className="text-indigo-400">凌晨班: <span className="text-indigo-300 font-medium">{person.lateNightHours}h</span></span>
-                          </div>
-                          <div className="space-y-1 max-h-40 overflow-y-auto">
-                            {person.segments.map((seg, idx) => (
-                              <div key={idx} className="flex items-center justify-between text-xs py-0.5">
-                                <span className="text-zinc-400">{seg.display}</span>
-                                <span className="text-zinc-300">{seg.timeRange}</span>
-                                <span className="text-zinc-500">{seg.hours}h</span>
-                              </div>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
+          {/* 人员排班卡片 */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))',
+            gap: '16px',
+          }}>
+            {filteredAccounts.map(account => (
+              <React.Fragment key={account.accountName}>
+                {account.schedules.map((schedule, idx) => (
+                  <PersonCard
+                    key={`${account.accountName}-${schedule.person}`}
+                    schedule={schedule}
+                    accountColor={accountColors[account.accountName] || '#667eea'}
+                  />
+                ))}
+              </React.Fragment>
+            ))}
+          </div>
+
+          {/* 空状态 */}
+          {filteredAccounts.length === 0 && (
+            <div style={{
+              textAlign: 'center',
+              padding: '80px 20px',
+              color: 'rgba(255, 255, 255, 0.4)',
+            }}>
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>📋</div>
+              <div style={{ fontSize: '16px', marginBottom: '8px' }}>该日期暂无排班数据</div>
+              <div style={{ fontSize: '14px' }}>请选择其他日期查看</div>
+            </div>
           )}
         </>
       )}
