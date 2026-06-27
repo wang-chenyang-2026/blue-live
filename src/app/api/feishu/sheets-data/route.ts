@@ -16,6 +16,8 @@ interface KpiSheetSource {
   spreadsheetToken: string;
   sheetId: string;
   range: string;
+  accountName?: string; // Override account name (for merged cells or copied sheets)
+  dailyRange?: string;  // If set, read H:AL daily data to calculate achieved value
 }
 
 interface BrandSheetConfig {
@@ -37,7 +39,7 @@ const BRAND_SHEET_MAP: Record<string, BrandSheetConfig> = {
     kpiMainSheet: { spreadsheetToken: VIVO_TOKEN, sheetId: '204xjT', range: 'A1:G6' },
     kpiMainDailySheet: { spreadsheetToken: VIVO_TOKEN, sheetId: '204xjT', range: 'H1:AL6' },
     kpiSubSheets: [
-      { spreadsheetToken: VIVO_TOKEN, sheetId: 'vcgTtP', range: 'A1:F3' },
+      { spreadsheetToken: VIVO_TOKEN, sheetId: 'vcgTtP', range: 'A1:F10' },
     ],
     accounts: ['vivo（大号）', 'vivo官方旗舰店（抖音）', 'vivo官方旗舰店（快手）'],
     brandLabel: 'vivo',
@@ -55,8 +57,8 @@ const BRAND_SHEET_MAP: Record<string, BrandSheetConfig> = {
     kpiMainDailySheet: { spreadsheetToken: IQOO_TOKEN, sheetId: '204xjT', range: 'H1:AL6' },
     // Sub-account KPI: iQOO官方旗舰店抖音 + iQOO官方旗舰店快手
     kpiSubSheets: [
-      { spreadsheetToken: IQOO_TOKEN, sheetId: 'vcgTtP', range: 'A1:F3' },     // iQOO官方旗舰店抖音KPI
-      { spreadsheetToken: IQOO_TOKEN, sheetId: 'XXnMYT', range: 'A1:F3' },     // iQOO官方旗舰店快手KPI
+      { spreadsheetToken: IQOO_TOKEN, sheetId: 'vcgTtP', range: 'A1:G10', accountName: 'iQOO官方旗舰店（抖音）' },
+      { spreadsheetToken: IQOO_TOKEN, sheetId: 'XXnMYT', range: 'A1:G10', accountName: 'iQOO官方旗舰店（快手）', dailyRange: 'H1:AL10' },
     ],
     accounts: ['iQOO手机', 'iQOO官方旗舰店（抖音）', 'iQOO官方旗舰店（快手）'],
     brandLabel: 'iQOO',
@@ -74,7 +76,7 @@ const BRAND_SHEET_MAP: Record<string, BrandSheetConfig> = {
     kpiMainDailySheet: { spreadsheetToken: IOT_TOKEN, sheetId: '204xjT', range: 'H1:AL6' },
     // Sub-account KPI: IOT手表
     kpiSubSheets: [
-      { spreadsheetToken: IOT_TOKEN, sheetId: 'XXnMYT', range: 'A1:F3' },      // IOT手表KPI
+      { spreadsheetToken: IOT_TOKEN, sheetId: 'XXnMYT', range: 'A1:G10', accountName: 'IOT手表', dailyRange: 'H1:AL10' },
     ],
     accounts: ['IOT平板', 'IOT手表'],
     brandLabel: 'IOT',
@@ -285,7 +287,10 @@ function parseKpiData(sheet2Raw: string[][], sheet2DailyRaw: string[][]): Array<
 }
 
 /* ========== Parse Sub-Account KPI from Raw Sheet ========== */
-function parseSubAccountKpi(raw: string[][]): Array<{
+function parseSubAccountKpi(
+  raw: string[][],
+  accountOverride?: string
+): Array<{
   account: string;
   dimension: string;
   target: string;
@@ -304,29 +309,150 @@ function parseSubAccountKpi(raw: string[][]): Array<{
     isLow: boolean;
   }> = [];
 
+  let lastAccount = accountOverride || '';
+
   for (let i = 1; i < raw.length; i++) {
     const row = raw[i];
     if (!row || row.length < 3) continue;
 
-    const account = row[0] || '';
-    const dimension = row[2] || '违规次数';
+    // Handle merged cells: inherit account name from previous row
+    const rawAccount = (row[0] || '').trim();
+    if (rawAccount) lastAccount = rawAccount;
+    const account = accountOverride || lastAccount;
+
+    const dimension = (row[2] || '').trim();
+    // Skip rows with empty dimension (empty rows after data)
+    if (!dimension) continue;
+
+    // Columns: A=账号, B=月份, C=维度, D=整体单项完成率, E=6月目标, F=6月达成, G=达成率
     const targetVal = parseFloat(row[4]) || 0;
+    // Use column F (6月达成) directly; if it's a formula, Feishu API returns computed value
     const achievedVal = parseFloat(row[5]) || 0;
 
-    const rate =
-      dimension.includes('违规') || targetVal === 0
-        ? achievedVal === 0
-          ? 1
-          : 0
-        : targetVal > 0
-          ? achievedVal / targetVal
-          : 0;
+    let rate: number;
+    if (dimension.includes('违规') || dimension.includes('失误')) {
+      // For violation/mistake KPIs: target=0, achieved=0 → 100%; otherwise 0%
+      rate = achievedVal === 0 ? 1 : 0;
+    } else if (targetVal === 0) {
+      rate = achievedVal === 0 ? 1 : 0;
+    } else {
+      rate = achievedVal / targetVal;
+    }
+
+    // Format display based on dimension type
+    let targetDisplay: string;
+    let achievedDisplay: string;
+
+    if (dimension.includes('率') || dimension.includes('转粉') || dimension.includes('观看')) {
+      targetDisplay = `${(targetVal * 100).toFixed(0)}%`;
+      achievedDisplay = `${(achievedVal * 100).toFixed(2)}%`;
+    } else if (dimension.includes('GPM')) {
+      targetDisplay = formatNumber(targetVal);
+      achievedDisplay = formatNumber(Math.round(achievedVal));
+    } else if (dimension.includes('停留')) {
+      targetDisplay = `${targetVal}秒`;
+      achievedDisplay = `${achievedVal.toFixed(1)}秒`;
+    } else {
+      // Violation/mistake counts
+      targetDisplay = `${targetVal}次`;
+      achievedDisplay = `${achievedVal}次`;
+    }
 
     result.push({
       account,
       dimension,
-      target: `${targetVal}次`,
-      achieved: `${achievedVal}次`,
+      target: targetDisplay,
+      achieved: achievedDisplay,
+      rate: `${(rate * 100).toFixed(0)}%`,
+      rawRate: rate,
+      isLow: rate < 1,
+    });
+  }
+  return result;
+}
+
+/* ========== Parse Sub-Account KPI with Daily Data ========== */
+function parseSubAccountKpiWithDaily(
+  raw: string[][],
+  dailyRaw: string[][],
+  accountOverride?: string
+): Array<{
+  account: string;
+  dimension: string;
+  target: string;
+  achieved: string;
+  rate: string;
+  rawRate: number;
+  isLow: boolean;
+}> {
+  const result: Array<{
+    account: string;
+    dimension: string;
+    target: string;
+    achieved: string;
+    rate: string;
+    rawRate: number;
+    isLow: boolean;
+  }> = [];
+
+  let lastAccount = accountOverride || '';
+
+  for (let i = 1; i < raw.length; i++) {
+    const row = raw[i];
+    if (!row || row.length < 3) continue;
+
+    // Handle merged cells: inherit account name from previous row
+    const rawAccount = (row[0] || '').trim();
+    if (rawAccount) lastAccount = rawAccount;
+    const account = accountOverride || lastAccount;
+
+    const dimension = (row[2] || '').trim();
+    // Skip rows with empty dimension (empty rows after data)
+    if (!dimension) continue;
+
+    const targetVal = parseFloat(row[4]) || 0;
+
+    // If we have daily raw data, calculate achieved from daily values
+    let achievedVal: number;
+    if (dailyRaw.length > i && dailyRaw[i]) {
+      achievedVal = calcAverageFromRow(dailyRaw[i]);
+    } else {
+      // Fallback: use column F (6月达成) directly
+      achievedVal = parseFloat(row[5]) || 0;
+    }
+
+    let rate: number;
+    if (dimension.includes('违规') || dimension.includes('失误')) {
+      rate = achievedVal === 0 ? 1 : 0;
+    } else if (targetVal === 0) {
+      rate = achievedVal === 0 ? 1 : 0;
+    } else {
+      rate = achievedVal / targetVal;
+    }
+
+    // Format display based on dimension type
+    let targetDisplay: string;
+    let achievedDisplay: string;
+
+    if (dimension.includes('率') || dimension.includes('转粉') || dimension.includes('观看')) {
+      targetDisplay = `${(targetVal * 100).toFixed(0)}%`;
+      achievedDisplay = `${(achievedVal * 100).toFixed(2)}%`;
+    } else if (dimension.includes('GPM')) {
+      targetDisplay = formatNumber(targetVal);
+      achievedDisplay = formatNumber(Math.round(achievedVal));
+    } else if (dimension.includes('停留')) {
+      targetDisplay = `${targetVal}秒`;
+      achievedDisplay = `${achievedVal.toFixed(1)}秒`;
+    } else {
+      targetDisplay = `${targetVal}次`;
+      achievedDisplay = `${achievedVal}次`;
+    }
+
+    result.push({
+      account,
+      dimension,
+      target: targetDisplay,
+      achieved: achievedDisplay,
       rate: `${(rate * 100).toFixed(0)}%`,
       rawRate: rate,
       isLow: rate < 1,
@@ -421,12 +547,24 @@ async function fetchBrandData(accessToken: string, brandKey: string) {
   }
 
   // 3. Fetch all sub-account KPI sheets in parallel, then merge
-  const subKpiRawResults = await Promise.all(
-    config.kpiSubSheets.map((src) =>
-      getSheetValues(accessToken, src.spreadsheetToken, src.sheetId, src.range)
-    )
+  const subKpiFetchResults = await Promise.all(
+    config.kpiSubSheets.map(async (src) => {
+      const kpiRaw = await getSheetValues(accessToken, src.spreadsheetToken, src.sheetId, src.range);
+
+      // If dailyRange is set, fetch daily raw data for achieved value calculation
+      let dailyRaw: string[][] = [];
+      if (src.dailyRange) {
+        try {
+          dailyRaw = await getSheetValues(accessToken, src.spreadsheetToken, src.sheetId, src.dailyRange);
+        } catch {
+          dailyRaw = [];
+        }
+      }
+
+      return parseSubAccountKpiWithDaily(kpiRaw, dailyRaw, src.accountName);
+    })
   );
-  const subAccountKpi = subKpiRawResults.flatMap((raw) => parseSubAccountKpi(raw));
+  const subAccountKpi = subKpiFetchResults.flatMap((arr) => arr);
 
   // 4. Calculate summaries
   const totalGmv = dailyData.reduce((s, d) => s + d.rawGmv, 0);
