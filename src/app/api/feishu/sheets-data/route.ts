@@ -16,9 +16,10 @@ interface KpiSheetSource {
   spreadsheetToken: string;
   sheetId: string;
   range: string;         // Main data range (A:H)
-  dailyRange: string;    // Daily data range (H:AL) for calculating achieved values
+  dailyRange: string;    // Daily data range for calculating achieved values
   accountName?: string;  // Override account name (for merged cells)
   label?: string;        // Tab label for frontend display
+  hasOverallRate?: boolean; // Whether column D is "整体完成率" (shifts target/achieved/rate columns by 1)
 }
 
 interface BrandSheetConfig {
@@ -36,7 +37,7 @@ const BRAND_SHEET_MAP: Record<string, BrandSheetConfig> = {
     ],
     kpiSheets: [
       { spreadsheetToken: VIVO_TOKEN, sheetId: '204xjT', range: 'A1:H6', dailyRange: 'H1:AL6', label: 'vivo（大号）KPI' },
-      { spreadsheetToken: VIVO_TOKEN, sheetId: 'vcgTtP', range: 'A1:H10', dailyRange: 'H1:AL10', label: '子账号KPI' },
+      { spreadsheetToken: VIVO_TOKEN, sheetId: 'vcgTtP', range: 'A1:H10', dailyRange: 'G1:AK10', label: '子账号KPI', hasOverallRate: false },
     ],
     accounts: ['vivo（大号）', 'vivo官方旗舰店（抖音）', 'vivo官方旗舰店（快手）'],
     brandLabel: 'vivo',
@@ -49,7 +50,7 @@ const BRAND_SHEET_MAP: Record<string, BrandSheetConfig> = {
     ],
     kpiSheets: [
       { spreadsheetToken: IQOO_TOKEN, sheetId: '204xjT', range: 'A1:H6', dailyRange: 'H1:AL6', label: 'iQOO手机（抖音）KPI' },
-      { spreadsheetToken: IQOO_TOKEN, sheetId: 'vcgTtP', range: 'A1:H10', dailyRange: 'H1:AL10', label: 'iQOO官方旗舰店（抖音）KPI', accountName: 'iQOO官方旗舰店（抖音）' },
+      { spreadsheetToken: IQOO_TOKEN, sheetId: 'vcgTtP', range: 'A1:H10', dailyRange: 'G1:AK10', label: 'iQOO官方旗舰店（抖音）KPI', accountName: 'iQOO官方旗舰店（抖音）', hasOverallRate: false },
       { spreadsheetToken: IQOO_TOKEN, sheetId: 'XXnMYT', range: 'A1:H10', dailyRange: 'H1:AL10', label: 'iQOO官方旗舰店（快手）KPI', accountName: 'iQOO官方旗舰店（快手）' },
     ],
     accounts: ['iQOO手机', 'iQOO官方旗舰店（抖音）', 'iQOO官方旗舰店（快手）'],
@@ -204,37 +205,40 @@ function parseDailyData(raw: string[][]): Array<{
  * The dailyRaw rows are aligned with the main KPI rows (same row index).
  */
 function calcAverageFromDaily(dailyRow: string[]): number {
+  // dailyRow contains actual daily data values from H:AL columns.
+  // All cells are numeric values (or empty/None for future dates).
+  // Do NOT skip any cells — every numeric value is a valid daily data point.
   const nums = dailyRow
-    .slice(1) // skip the first cell which may be a date or empty
     .map((v) => parseFloat(String(v)))
     .filter((v) => !isNaN(v));
   return nums.length === 0 ? 0 : nums.reduce((s, v) => s + v, 0) / nums.length;
 }
 
 /**
- * Parse KPI Sheet using both main data (A:H) and daily data (H:AL).
+ * Parse KPI Sheet using both main data and daily data.
  * 
- * Sheet structure (0-indexed columns):
- *   A (0): 账号
- *   B (1): 月份
- *   C (2): 维度
- *   D (3): 整体完成率 (COUNTIF formula → cannot read, need to calculate)
- *   E (4): 6月目标 (actual number)
- *   F (5): 6月达成 (AVERAGE formula → cannot read, calculate from H:AL)
- *   G (6): 达成率 (F/E formula → cannot read, calculate from achieved/target)
- *   H (7): First daily data column
+ * Two possible sheet structures:
+ * 
+ * Structure A (hasOverallRate = true, default):
+ *   A (0): 账号, B (1): 月份, C (2): 维度, D (3): 整体完成率,
+ *   E (4): 6月目标, F (5): 6月达成, G (6): 达成率, H (7+): 每日数据
+ * 
+ * Structure B (hasOverallRate = false):
+ *   A (0): 账号, B (1): 月份, C (2): 维度,
+ *   D (3): 6月目标, E (4): 6月达成, F (5): 达成率, G (6+): 每日数据
  * 
  * Since Feishu API returns formula strings (e.g. "AVERAGE(H2:AL2)") instead of
  * computed values, we must:
- * 1. Read target from column E (actual number)
- * 2. Calculate achieved from H:AL daily columns (AVERAGE)
+ * 1. Read target from the target column (E for A, D for B — actual number)
+ * 2. Calculate achieved from daily columns (AVERAGE)
  * 3. Calculate rate = achieved / target
  * 4. Calculate overallRate = count(rate >= 100%) / total items
  */
 function parseKpiSheet(
   mainRaw: string[][],
   dailyRaw: string[][],
-  _accountOverride?: string
+  _accountOverride?: string,
+  hasOverallRate: boolean = true
 ): {
   items: Array<{
     dimension: string;
@@ -246,6 +250,10 @@ function parseKpiSheet(
   }>;
   overallRate: number | null;
 } {
+  // Column offsets based on sheet structure
+  // Structure A: target=E(4), Structure B: target=D(3)
+  const targetIdx = hasOverallRate ? 4 : 3;
+
   const items: Array<{
     dimension: string;
     target: string;
@@ -258,13 +266,13 @@ function parseKpiSheet(
   // Skip header row (index 0), process data rows starting from index 1
   for (let i = 1; i < mainRaw.length; i++) {
     const row = mainRaw[i];
-    if (!row || row.length < 5) continue; // Need at least column E (index 4)
+    if (!row || row.length < targetIdx + 1) continue;
 
     const dimension = (row[2] || '').trim();
     if (!dimension) continue;
 
-    // Column E (index 4) = 6月目标 (actual number, not formula)
-    const targetVal = parseFloat(row[4]);
+    // Read target from the correct column based on structure
+    const targetVal = parseFloat(row[targetIdx]);
     if (isNaN(targetVal) && targetVal !== 0) continue;
 
     // Calculate achieved from daily data (H:AL columns)
@@ -368,7 +376,7 @@ async function fetchBrandData(accessToken: string, brandKey: string) {
         getSheetValues(accessToken, src.spreadsheetToken, src.sheetId, src.range),
         getSheetValues(accessToken, src.spreadsheetToken, src.sheetId, src.dailyRange),
       ]);
-      const parsed = parseKpiSheet(mainRaw, dailyRaw, src.accountName);
+      const parsed = parseKpiSheet(mainRaw, dailyRaw, src.accountName, src.hasOverallRate !== false);
       return {
         label: src.label || 'KPI',
         items: parsed.items,
