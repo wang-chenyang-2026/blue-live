@@ -320,11 +320,22 @@ const StatCard: React.FC<{
 
 // 主页面组件
 export default function SchedulePage() {
-  const [selectedDate, setSelectedDate] = useState('2026-06-23');
+  const [selectedDate, setSelectedDate] = useState('2026-06-01');
+  const [isClient, setIsClient] = useState(false);
   const [activeAccount, setActiveAccount] = useState('all');
   const [data, setData] = useState<ApiResponseDay | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 修复hydration: 客户端挂载后设置为今天日期
+  useEffect(() => {
+    setIsClient(true);
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    setSelectedDate(`${yyyy}-${mm}-${dd}`);
+  }, []);
 
   // 加载数据
   const fetchData = useCallback(async (date: string) => {
