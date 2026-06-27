@@ -36,14 +36,10 @@ interface KpiRow {
   isLow: boolean;
 }
 
-interface SubKpiRow {
-  account: string;
-  dimension: string;
-  target: string;
-  achieved: string;
-  rate: string;
-  rawRate: number;
-  isLow: boolean;
+interface KpiTab {
+  label: string;
+  items: KpiRow[];
+  overallRate: number | null;
 }
 
 interface BrandData {
@@ -57,14 +53,10 @@ interface BrandData {
   }>;
   dailyData: DailyRow[];
   dailySummary: { duration: string; gmv: string; salesBeforeReturn: string; salesAfterReturn: string };
-  kpiData: KpiRow[];
-  subAccountKpi: SubKpiRow[];
-  kpiDailyRaw: number[][];
-  kpiDailyDates: string[];
+  kpiTabs: KpiTab[];
   accounts: string[];
   brandLabel: string;
   color: string;
-  mainKpiLabel: string;
   hasData: boolean;
 }
 
@@ -165,7 +157,9 @@ export default function DataOverviewPage() {
 
   // Table filter
   const [accountFilter, setAccountFilter] = useState('全部');
-  const [kpiTab, setKpiTab] = useState<'main' | 'sub'>('main');
+
+  // KPI tab - index into kpiTabs array
+  const [kpiTabIndex, setKpiTabIndex] = useState(0);
 
   // Sort
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -216,9 +210,10 @@ export default function DataOverviewPage() {
     }
   }, [activeBrand, isClient, brandDataMap, fetchData]);
 
-  // Reset account filter when switching brand
+  // Reset account filter and kpi tab when switching brand
   useEffect(() => {
     setAccountFilter('全部');
+    setKpiTabIndex(0);
   }, [activeBrand]);
 
   // Get current brand data
@@ -282,87 +277,65 @@ export default function DataOverviewPage() {
     };
   }, [currentBrandData, dateRange]);
 
-  // KPI calculation for single brand
-  const filteredKpiData = useMemo(() => {
-    if (!currentBrandData) return [];
-    const kpiDailyRaw = currentBrandData.kpiDailyRaw;
-    const kpiDailyDates = currentBrandData.kpiDailyDates;
-    const originalKpi = currentBrandData.kpiData;
-    if (!kpiDailyRaw.length || !kpiDailyDates.length) return originalKpi;
+  // Current KPI tab data
+  const currentKpiTab = useMemo((): KpiTab | null => {
+    if (!currentBrandData?.kpiTabs) return null;
+    return currentBrandData.kpiTabs[kpiTabIndex] || null;
+  }, [currentBrandData, kpiTabIndex]);
 
-    const validIndices: number[] = [];
-    kpiDailyDates.forEach((date, idx) => {
-      if (date >= dateRange.start && date <= dateRange.end) {
-        validIndices.push(idx);
-      }
-    });
-
-    if (validIndices.length === 0 || validIndices.length === kpiDailyDates.length) {
-      return originalKpi;
-    }
-
-    return originalKpi.map((kpi, i) => {
-      const dailyRow = kpiDailyRaw[i] || [];
-      const validValues = validIndices
-        .map((idx) => dailyRow[idx])
-        .filter((v) => !isNaN(v));
-      const achievedVal = validValues.length > 0 ? validValues.reduce((s, v) => s + v, 0) / validValues.length : 0;
-
-      const targetNum = parseFloat(kpi.target.replace(/[^0-9.]/g, ''));
-      let rate = targetNum > 0 ? achievedVal / targetNum : 0;
-
-      let achievedDisplay: string;
-      const dim = kpi.dimension;
-      if (dim.includes('率') || dim.includes('转粉') || dim.includes('观看')) {
-        achievedDisplay = `${(achievedVal * 100).toFixed(2)}%`;
-      } else if (dim.includes('GPM')) {
-        achievedDisplay = Math.round(achievedVal).toLocaleString('zh-CN');
-      } else if (dim.includes('停留')) {
-        achievedDisplay = `${achievedVal.toFixed(1)}秒`;
-      } else {
-        achievedDisplay = String(achievedVal);
-      }
-
-      return {
-        ...kpi,
-        achieved: achievedDisplay,
-        rate: `${(rate * 100).toFixed(1)}%`,
-        rawRate: rate,
-        isLow: rate < 1,
-      };
-    });
-  }, [currentBrandData, dateRange]);
-
+  // Overall KPI rate from current tab (use server-provided value)
   const overallKpiRate = useMemo(() => {
-    if (!filteredKpiData.length) return 0;
-    const passed = filteredKpiData.filter((k) => k.rawRate >= 1).length;
-    return passed / filteredKpiData.length;
-  }, [filteredKpiData]);
+    if (!currentKpiTab) return 0;
+    // Use server-provided overallRate if available, otherwise calculate from items
+    if (currentKpiTab.overallRate !== null) {
+      return currentKpiTab.overallRate;
+    }
+    // Fallback: count items where rawRate >= 1
+    const items = currentKpiTab.items;
+    if (!items.length) return 0;
+    const passed = items.filter((k) => k.rawRate >= 1).length;
+    return passed / items.length;
+  }, [currentKpiTab]);
 
-  const subKpiRates = useMemo(() => {
-    if (!currentBrandData?.subAccountKpi) return {} as Record<string, number>;
-    const rates: Record<string, number> = {};
-    currentBrandData.subAccountKpi.forEach((k) => {
-      rates[k.account] = k.rawRate;
-    });
-    return rates;
-  }, [currentBrandData]);
-
+  // KPI rates per account for data cards
   const accountKpiRates = useMemo(() => {
     const rates: Record<string, number> = {};
-    const mainAccount = currentBrandData?.accounts?.[0] || '';
-    filteredAccountSummaries.forEach((a) => {
-      // Main account (first in list) uses overallKpiRate, sub-accounts use subKpiRates
-      if (a.accountName === mainAccount) {
-        rates[a.accountName] = overallKpiRate;
-      } else {
-        rates[a.accountName] = subKpiRates[a.accountName] ?? (currentBrandData?.hasData ? 1 : 0);
+    if (!currentBrandData?.kpiTabs) return rates;
+
+    // First KPI tab is the "main" account KPI
+    const mainTab = currentBrandData.kpiTabs[0];
+    const mainAccount = currentBrandData.accounts?.[0] || '';
+
+    if (mainTab && mainAccount) {
+      const mainRate = mainTab.overallRate !== null
+        ? mainTab.overallRate
+        : (mainTab.items.length > 0
+          ? mainTab.items.filter((k) => k.rawRate >= 1).length / mainTab.items.length
+          : 0);
+      rates[mainAccount] = mainRate;
+    }
+
+    // Sub-account KPI tabs (index 1+)
+    for (let i = 1; i < currentBrandData.kpiTabs.length; i++) {
+      const tab = currentBrandData.kpiTabs[i];
+      // Try to match tab label to account name
+      const matchAccount = currentBrandData.accounts.find((a) => tab.label.includes(a));
+      if (matchAccount && tab.items.length > 0) {
+        // For sub-accounts, use overallRate if available, else calculate
+        if (tab.overallRate !== null) {
+          rates[matchAccount] = tab.overallRate;
+        } else {
+          const passed = tab.items.filter((k) => k.rawRate >= 1).length;
+          rates[matchAccount] = passed / tab.items.length;
+        }
       }
-    });
+    }
+
+    // Brand summary rate
     const allRates = Object.values(rates);
     rates['汇总'] = allRates.length > 0 ? allRates.reduce((s, v) => s + v, 0) / allRates.length : 0;
     return rates;
-  }, [filteredAccountSummaries, overallKpiRate, subKpiRates, currentBrandData]);
+  }, [currentBrandData]);
 
   const tableSummary = useMemo(() => ({
     duration: filteredDaily.reduce((s, d) => s + d.rawDuration, 0),
@@ -406,6 +379,10 @@ export default function DataOverviewPage() {
       const sales = filtered.reduce((s, d) => s + d.rawSalesAfter, 0);
       const duration = filtered.reduce((s, d) => s + d.rawDuration, 0);
 
+      // Get KPI rate from first tab's overallRate
+      const mainKpiTab = bd.kpiTabs?.[0];
+      const kpiRate = mainKpiTab?.overallRate ?? 0;
+
       summaries.push({
         brandKey: bt.id,
         brandLabel: bd.brandLabel || bt.label,
@@ -413,7 +390,7 @@ export default function DataOverviewPage() {
         gmv,
         sales,
         duration,
-        kpiRate: bd.hasData ? 0 : 0,
+        kpiRate,
         hasData: bd.hasData,
       });
     }
@@ -751,37 +728,28 @@ export default function DataOverviewPage() {
         </Card>
 
         {/* KPI Section */}
-        {(filteredKpiData.length > 0 || (currentBrandData.subAccountKpi && currentBrandData.subAccountKpi.length > 0)) && (
+        {currentBrandData.kpiTabs && currentBrandData.kpiTabs.length > 0 && (
           <Card className="bg-zinc-900/80 border-zinc-700/50">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base text-zinc-200">KPI完成情况</CardTitle>
                 <div className="flex gap-2">
-                  {filteredKpiData.length > 0 && (
+                  {currentBrandData.kpiTabs.map((tab, idx) => (
                     <Button
-                      variant={kpiTab === 'main' ? 'default' : 'outline'}
+                      key={idx}
+                      variant={kpiTabIndex === idx ? 'default' : 'outline'}
                       size="sm"
-                      className={kpiTab === 'main' ? 'bg-[#415FFF]' : 'border-zinc-600 text-zinc-300'}
-                      onClick={() => setKpiTab('main')}
+                      className={kpiTabIndex === idx ? 'bg-[#415FFF]' : 'border-zinc-600 text-zinc-300'}
+                      onClick={() => setKpiTabIndex(idx)}
                     >
-                      {currentBrandData.mainKpiLabel || `${currentBrandData.brandLabel}（大号）KPI`}
+                      {tab.label}
                     </Button>
-                  )}
-                  {currentBrandData.subAccountKpi && currentBrandData.subAccountKpi.length > 0 && (
-                    <Button
-                      variant={kpiTab === 'sub' ? 'default' : 'outline'}
-                      size="sm"
-                      className={kpiTab === 'sub' ? 'bg-[#415FFF]' : 'border-zinc-600 text-zinc-300'}
-                      onClick={() => setKpiTab('sub')}
-                    >
-                      子账号KPI
-                    </Button>
-                  )}
+                  ))}
                 </div>
               </div>
             </CardHeader>
             <CardContent>
-              {kpiTab === 'main' && filteredKpiData.length > 0 && (
+              {currentKpiTab && currentKpiTab.items.length > 0 && (
                 <>
                   {/* Overall Completion Rate Card */}
                   <div className="mb-4 flex items-center gap-4 bg-zinc-800/50 rounded-lg p-4">
@@ -794,11 +762,11 @@ export default function DataOverviewPage() {
                         {(overallKpiRate * 100).toFixed(0)}%
                       </div>
                       <div className="text-xs text-zinc-500">
-                        {filteredKpiData.filter((k) => k.rawRate >= 1).length}/{filteredKpiData.length} 项达标
+                        {currentKpiTab.items.filter((k) => k.rawRate >= 1).length}/{currentKpiTab.items.length} 项达标
                       </div>
                     </div>
                     <div className="ml-auto flex flex-wrap gap-2">
-                      {filteredKpiData.map((kpi, idx) => (
+                      {currentKpiTab.items.map((kpi, idx) => (
                         <Badge
                           key={idx}
                           variant="outline"
@@ -823,7 +791,7 @@ export default function DataOverviewPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredKpiData.map((kpi, idx) => (
+                        {currentKpiTab.items.map((kpi, idx) => (
                           <tr key={idx} className="border-b border-zinc-800 hover:bg-zinc-800/50">
                             <td className="py-2 px-3 text-zinc-300">{kpi.dimension}</td>
                             <td className="py-2 px-3 text-right text-zinc-300">{kpi.target}</td>
@@ -847,34 +815,8 @@ export default function DataOverviewPage() {
                   </div>
                 </>
               )}
-
-              {kpiTab === 'sub' && currentBrandData.subAccountKpi && currentBrandData.subAccountKpi.length > 0 && (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-zinc-700 text-zinc-400">
-                        <th className="text-left py-2 px-3">账号</th>
-                        <th className="text-left py-2 px-3">维度</th>
-                        <th className="text-right py-2 px-3">6月目标</th>
-                        <th className="text-right py-2 px-3">6月达成</th>
-                        <th className="text-right py-2 px-3">达成率</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {currentBrandData.subAccountKpi.map((kpi, idx) => (
-                        <tr key={idx} className="border-b border-zinc-800 hover:bg-zinc-800/50">
-                          <td className="py-2 px-3 text-zinc-300">{kpi.account}</td>
-                          <td className="py-2 px-3 text-zinc-300">{kpi.dimension}</td>
-                          <td className="py-2 px-3 text-right text-zinc-300">{kpi.target}</td>
-                          <td className="py-2 px-3 text-right text-zinc-300">{kpi.achieved}</td>
-                          <td className={`py-2 px-3 text-right font-medium ${kpi.isLow ? 'text-red-400' : 'text-emerald-400'}`}>
-                            {kpi.rate}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              {currentKpiTab && currentKpiTab.items.length === 0 && (
+                <div className="text-center py-8 text-zinc-500">暂无KPI数据</div>
               )}
             </CardContent>
           </Card>
