@@ -1,45 +1,92 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const SPREADSHEET_TOKEN = 'LdEIsmpHUhzGrXttf6gcYjWBnEN';
+/* ========== Spreadsheet Tokens ========== */
+const VIVO_TOKEN = 'LdEIsmpHUhzGrXttf6gcYjWBnEN';
+const IQOO_TOKEN = 'H9X8sWoVghiibztwTJYcLcFKnZe';
+const IOT_TOKEN = 'Q2yhsobZvh32JptLPlNc0RMWnTc';
 
-// Brand → Feishu sheet mapping. Only vivo has real sheets for now.
-const BRAND_SHEET_MAP: Record<string, {
-  dataSheet: string;
-  dataRange: string;
-  kpiSheet: string;
-  kpiRange: string;
-  kpiDailySheet: string;
-  kpiDailyRange: string;
-  subKpiSheet: string;
-  subKpiRange: string;
+/* ========== Brand Config ========== */
+interface DailySheetSource {
+  spreadsheetToken: string;
+  sheetId: string;
+  range: string;
+}
+
+interface KpiSheetSource {
+  spreadsheetToken: string;
+  sheetId: string;
+  range: string;
+}
+
+interface BrandSheetConfig {
+  dailySheets: DailySheetSource[];       // Multiple daily data sheets to merge
+  kpiMainSheet: KpiSheetSource | null;   // Main account KPI (like vivo大号)
+  kpiMainDailySheet: KpiSheetSource | null; // Daily raw data for main KPI calc
+  kpiSubSheets: KpiSheetSource[];        // Sub-account KPI sheets
   accounts: string[];
   brandLabel: string;
   color: string;
-} | null> = {
+}
+
+const BRAND_SHEET_MAP: Record<string, BrandSheetConfig> = {
   vivo: {
-    dataSheet: '0a2100',
-    dataRange: 'A1:G200',
-    kpiSheet: '204xjT',
-    kpiRange: 'A1:G6',
-    kpiDailySheet: '204xjT',
-    kpiDailyRange: 'H1:AL6',
-    subKpiSheet: 'vcgTtP',
-    subKpiRange: 'A1:F3',
+    dailySheets: [
+      { spreadsheetToken: VIVO_TOKEN, sheetId: '0a2100', range: 'A1:G200' },
+    ],
+    kpiMainSheet: { spreadsheetToken: VIVO_TOKEN, sheetId: '204xjT', range: 'A1:G6' },
+    kpiMainDailySheet: { spreadsheetToken: VIVO_TOKEN, sheetId: '204xjT', range: 'H1:AL6' },
+    kpiSubSheets: [
+      { spreadsheetToken: VIVO_TOKEN, sheetId: 'vcgTtP', range: 'A1:F3' },
+    ],
     accounts: ['vivo（大号）', 'vivo官方旗舰店（抖音）', 'vivo官方旗舰店（快手）'],
     brandLabel: 'vivo',
     color: '#415FFF',
   },
-  iqoo: null, // No Feishu sheets yet
-  iot: null,  // No Feishu sheets yet
+  iqoo: {
+    // iQOO抖音数据 + iQOO快手数据
+    dailySheets: [
+      { spreadsheetToken: IQOO_TOKEN, sheetId: '0a2100', range: 'A1:G200' },   // 数据iQOO抖音
+      { spreadsheetToken: IQOO_TOKEN, sheetId: 'RYPvqw', range: 'A1:G200' },   // 数据iQOO快手
+    ],
+    // iQOO手机抖音KPI
+    kpiMainSheet: { spreadsheetToken: IQOO_TOKEN, sheetId: '204xjT', range: 'A1:G6' },
+    kpiMainDailySheet: { spreadsheetToken: IQOO_TOKEN, sheetId: '204xjT', range: 'H1:AL6' },
+    // Sub-account KPI: iQOO官方旗舰店抖音 + iQOO官方旗舰店快手
+    kpiSubSheets: [
+      { spreadsheetToken: IQOO_TOKEN, sheetId: 'vcgTtP', range: 'A1:F3' },     // iQOO官方旗舰店抖音KPI
+      { spreadsheetToken: IQOO_TOKEN, sheetId: 'XXnMYT', range: 'A1:F3' },     // iQOO官方旗舰店快手KPI
+    ],
+    accounts: ['iQOO手机', 'iQOO官方旗舰店（抖音）', 'iQOO官方旗舰店（快手）'],
+    brandLabel: 'iQOO',
+    color: '#FF6B35',
+  },
+  iot: {
+    // IOT平板数据 + IOT手表数据
+    dailySheets: [
+      { spreadsheetToken: IOT_TOKEN, sheetId: '0a2100', range: 'A1:G200' },    // 数据IOT平板
+      { spreadsheetToken: IOT_TOKEN, sheetId: 'RYPvqw', range: 'A1:G200' },    // 数据IOT手表
+    ],
+    // IOT平板KPI
+    kpiMainSheet: { spreadsheetToken: IOT_TOKEN, sheetId: '204xjT', range: 'A1:G6' },
+    kpiMainDailySheet: { spreadsheetToken: IOT_TOKEN, sheetId: '204xjT', range: 'H1:AL6' },
+    // Sub-account KPI: IOT手表
+    kpiSubSheets: [
+      { spreadsheetToken: IOT_TOKEN, sheetId: 'XXnMYT', range: 'A1:F3' },      // IOT手表KPI
+    ],
+    accounts: ['IOT平板', 'IOT手表'],
+    brandLabel: 'IOT',
+    color: '#00C9A7',
+  },
 };
 
-// Brand metadata for brands without Feishu data
+// Brand metadata fallback
 const BRAND_META: Record<string, { accounts: string[]; brandLabel: string; color: string }> = {
   vivo: { accounts: ['vivo（大号）', 'vivo官方旗舰店（抖音）', 'vivo官方旗舰店（快手）'], brandLabel: 'vivo', color: '#415FFF' },
   iqoo: { accounts: ['iQOO手机', 'iQOO官方旗舰店（抖音）', 'iQOO官方旗舰店（快手）'], brandLabel: 'iQOO', color: '#FF6B35' },
   iot: { accounts: ['IOT平板', 'IOT手表'], brandLabel: 'IOT', color: '#00C9A7' },
 };
 
+/* ========== Feishu API Helpers ========== */
 async function getTenantAccessToken(): Promise<string> {
   const appId = process.env.FEISHU_APP_ID || 'cli_aab083b6c2b99be3';
   const appSecret = process.env.FEISHU_APP_SECRET || '';
@@ -66,22 +113,24 @@ async function getTenantAccessToken(): Promise<string> {
 
 async function getSheetValues(
   token: string,
+  spreadsheetToken: string,
   sheetId: string,
   range: string
 ): Promise<string[][]> {
   const fullRange = `${sheetId}!${range}`;
   const encodedRange = encodeURIComponent(fullRange);
-  const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${SPREADSHEET_TOKEN}/values/${encodedRange}`;
+  const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${encodedRange}`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await res.json();
   if (data.code !== 0) {
-    throw new Error(`Feishu sheet read failed: ${data.msg}`);
+    throw new Error(`Feishu sheet read failed (${spreadsheetToken}/${sheetId}): ${data.msg}`);
   }
   return data.data?.valueRange?.values || [];
 }
 
+/* ========== Data Helpers ========== */
 function excelSerialToDate(serial: number | string): string {
   const num = typeof serial === 'string' ? parseFloat(serial) : serial;
   if (isNaN(num)) return String(serial);
@@ -104,46 +153,29 @@ function formatNumber(num: number | string): string {
   return n.toLocaleString('zh-CN');
 }
 
-// Return empty data structure for brands without Feishu sheets
-function emptyBrandData(brandKey: string) {
-  const meta = BRAND_META[brandKey];
-  if (!meta) return null;
-  return {
-    brandSummary: { gmv: '0', salesCount: '0', rawGmv: 0, rawSales: 0 },
-    accountSummaries: meta.accounts.map((name) => ({
-      accountName: name,
-      gmv: '0',
-      salesCount: '0',
-      rawGmv: 0,
-      rawSales: 0,
-    })),
-    dailyData: [],
-    dailySummary: { duration: '0小时', gmv: '0', salesBeforeReturn: '0', salesAfterReturn: '0' },
-    kpiData: [],
-    subAccountKpi: [],
-    kpiDailyRaw: [],
-    kpiDailyDates: [],
-    accounts: meta.accounts,
-    brandLabel: meta.brandLabel,
-    color: meta.color,
-    hasData: false,
-  };
+function calcAverageFromRow(dailyRow: (string | number | null | undefined)[]): number {
+  const nums = dailyRow
+    .slice(1)
+    .map((v) => (v === null || v === undefined ? NaN : parseFloat(String(v))))
+    .filter((v) => !isNaN(v));
+  if (nums.length === 0) return 0;
+  return nums.reduce((s, v) => s + v, 0) / nums.length;
 }
 
-// Fetch data for a single brand that has Feishu sheets
-async function fetchBrandData(accessToken: string, brandKey: string) {
-  const sheetConfig = BRAND_SHEET_MAP[brandKey];
-  if (!sheetConfig) return emptyBrandData(brandKey);
-
-  const [sheet1Raw, sheet2Raw, sheet3Raw, sheet2DailyRaw] = await Promise.all([
-    getSheetValues(accessToken, sheetConfig.dataSheet, sheetConfig.dataRange),
-    getSheetValues(accessToken, sheetConfig.kpiSheet, sheetConfig.kpiRange),
-    getSheetValues(accessToken, sheetConfig.subKpiSheet, sheetConfig.subKpiRange),
-    getSheetValues(accessToken, sheetConfig.kpiDailySheet, sheetConfig.kpiDailyRange),
-  ]);
-
-  // Process Sheet1 - daily data
-  const dailyData: Array<{
+/* ========== Parse Daily Data from Raw Sheet ========== */
+function parseDailyData(raw: string[][]): Array<{
+  date: string;
+  rawDate: string;
+  accountName: string;
+  duration: string;
+  gmv: string;
+  salesBeforeReturn: string;
+  salesAfterReturn: string;
+  rawGmv: number;
+  rawSalesAfter: number;
+  rawDuration: number;
+}> {
+  const result: Array<{
     date: string;
     rawDate: string;
     accountName: string;
@@ -156,8 +188,8 @@ async function fetchBrandData(accessToken: string, brandKey: string) {
     rawDuration: number;
   }> = [];
 
-  for (let i = 1; i < sheet1Raw.length; i++) {
-    const row = sheet1Raw[i];
+  for (let i = 1; i < raw.length; i++) {
+    const row = raw[i];
     if (!row || row.length < 7) continue;
 
     const dateSerial = row[1];
@@ -167,7 +199,7 @@ async function fetchBrandData(accessToken: string, brandKey: string) {
     const salesBefore = parseFloat(row[5]) || 0;
     const salesAfter = parseFloat(row[6]) || 0;
 
-    dailyData.push({
+    result.push({
       date: excelSerialToDate(dateSerial),
       rawDate: excelSerialToISO(dateSerial),
       accountName,
@@ -180,41 +212,18 @@ async function fetchBrandData(accessToken: string, brandKey: string) {
       rawDuration: duration,
     });
   }
+  return result;
+}
 
-  // Brand summary
-  const totalGmv = dailyData.reduce((s, d) => s + d.rawGmv, 0);
-  const totalSales = dailyData.reduce((s, d) => s + d.rawSalesAfter, 0);
-  const brandSummary = {
-    gmv: formatNumber(totalGmv),
-    salesCount: formatNumber(totalSales),
-    rawGmv: totalGmv,
-    rawSales: totalSales,
-  };
-
-  // Account summaries
-  const accountSummaries = sheetConfig.accounts.map((name) => {
-    const rows = dailyData.filter((d) => d.accountName === name);
-    const gmv = rows.reduce((s, d) => s + d.rawGmv, 0);
-    const sales = rows.reduce((s, d) => s + d.rawSalesAfter, 0);
-    return {
-      accountName: name,
-      gmv: formatNumber(gmv),
-      salesCount: formatNumber(sales),
-      rawGmv: gmv,
-      rawSales: sales,
-    };
-  });
-
-  // KPI data
-  function calcAverageFromRow(dailyRow: (string | number | null)[]): number {
-    const nums = dailyRow
-      .slice(1)
-      .map((v) => (v === null || v === undefined ? NaN : parseFloat(String(v))))
-      .filter((v) => !isNaN(v));
-    if (nums.length === 0) return 0;
-    return nums.reduce((s, v) => s + v, 0) / nums.length;
-  }
-
+/* ========== Parse KPI Data from Raw Sheet ========== */
+function parseKpiData(sheet2Raw: string[][], sheet2DailyRaw: string[][]): Array<{
+  dimension: string;
+  target: string;
+  achieved: string;
+  rate: string;
+  rawRate: number;
+  isLow: boolean;
+}> {
   const kpiData: Array<{
     dimension: string;
     target: string;
@@ -268,9 +277,20 @@ async function fetchBrandData(accessToken: string, brandKey: string) {
       isLow: rate < 1,
     });
   }
+  return kpiData;
+}
 
-  // Sub-account KPI
-  const subAccountKpi: Array<{
+/* ========== Parse Sub-Account KPI from Raw Sheet ========== */
+function parseSubAccountKpi(raw: string[][]): Array<{
+  account: string;
+  dimension: string;
+  target: string;
+  achieved: string;
+  rate: string;
+  rawRate: number;
+  isLow: boolean;
+}> {
+  const result: Array<{
     account: string;
     dimension: string;
     target: string;
@@ -280,8 +300,8 @@ async function fetchBrandData(accessToken: string, brandKey: string) {
     isLow: boolean;
   }> = [];
 
-  for (let i = 1; i < sheet3Raw.length; i++) {
-    const row = sheet3Raw[i];
+  for (let i = 1; i < raw.length; i++) {
+    const row = raw[i];
     if (!row || row.length < 3) continue;
 
     const account = row[0] || '';
@@ -298,7 +318,7 @@ async function fetchBrandData(accessToken: string, brandKey: string) {
           ? achievedVal / targetVal
           : 0;
 
-    subAccountKpi.push({
+    result.push({
       account,
       dimension,
       target: `${targetVal}次`,
@@ -308,21 +328,127 @@ async function fetchBrandData(accessToken: string, brandKey: string) {
       isLow: rate < 1,
     });
   }
+  return result;
+}
 
-  // Summary row
+/* ========== Empty Data Fallback ========== */
+function emptyBrandData(brandKey: string) {
+  const meta = BRAND_META[brandKey];
+  if (!meta) return null;
+  return {
+    brandSummary: { gmv: '0', salesCount: '0', rawGmv: 0, rawSales: 0 },
+    accountSummaries: meta.accounts.map((name) => ({
+      accountName: name,
+      gmv: '0',
+      salesCount: '0',
+      rawGmv: 0,
+      rawSales: 0,
+    })),
+    dailyData: [],
+    dailySummary: { duration: '0小时', gmv: '0', salesBeforeReturn: '0', salesAfterReturn: '0' },
+    kpiData: [],
+    subAccountKpi: [],
+    kpiDailyRaw: [],
+    kpiDailyDates: [],
+    accounts: meta.accounts,
+    brandLabel: meta.brandLabel,
+    color: meta.color,
+    hasData: false,
+  };
+}
+
+/* ========== Fetch Brand Data ========== */
+async function fetchBrandData(accessToken: string, brandKey: string) {
+  const config = BRAND_SHEET_MAP[brandKey];
+  if (!config) return emptyBrandData(brandKey);
+
+  // 1. Fetch all daily data sheets in parallel, then merge
+  const dailyRawResults = await Promise.all(
+    config.dailySheets.map((src) =>
+      getSheetValues(accessToken, src.spreadsheetToken, src.sheetId, src.range)
+    )
+  );
+  const dailyData = dailyRawResults.flatMap((raw) => parseDailyData(raw));
+
+  // 2. Fetch main KPI sheet + daily KPI sheet (if exists)
+  let kpiData: Array<{
+    dimension: string;
+    target: string;
+    achieved: string;
+    rate: string;
+    rawRate: number;
+    isLow: boolean;
+  }> = [];
+  let kpiDailyRaw: number[][] = [];
+  let kpiDailyDates: string[] = [];
+
+  if (config.kpiMainSheet) {
+    const [kpiMainRaw, kpiDailyRawSheet] = await Promise.all([
+      getSheetValues(
+        accessToken,
+        config.kpiMainSheet.spreadsheetToken,
+        config.kpiMainSheet.sheetId,
+        config.kpiMainSheet.range
+      ),
+      config.kpiMainDailySheet
+        ? getSheetValues(
+            accessToken,
+            config.kpiMainDailySheet.spreadsheetToken,
+            config.kpiMainDailySheet.sheetId,
+            config.kpiMainDailySheet.range
+          )
+        : Promise.resolve([]),
+    ]);
+
+    kpiData = parseKpiData(kpiMainRaw, kpiDailyRawSheet);
+
+    // Extract raw daily numbers for frontend date-filtered recalculation
+    for (let i = 1; i < kpiDailyRawSheet.length; i++) {
+      const row = kpiDailyRawSheet[i] || [];
+      const nums = row
+        .slice(1)
+        .map((v) => (v === null || v === undefined ? NaN : parseFloat(String(v))));
+      kpiDailyRaw.push(nums);
+    }
+    kpiDailyDates = (kpiDailyRawSheet[0] || [])
+      .slice(1)
+      .map((v) => excelSerialToISO(v));
+  }
+
+  // 3. Fetch all sub-account KPI sheets in parallel, then merge
+  const subKpiRawResults = await Promise.all(
+    config.kpiSubSheets.map((src) =>
+      getSheetValues(accessToken, src.spreadsheetToken, src.sheetId, src.range)
+    )
+  );
+  const subAccountKpi = subKpiRawResults.flatMap((raw) => parseSubAccountKpi(raw));
+
+  // 4. Calculate summaries
+  const totalGmv = dailyData.reduce((s, d) => s + d.rawGmv, 0);
+  const totalSales = dailyData.reduce((s, d) => s + d.rawSalesAfter, 0);
+  const brandSummary = {
+    gmv: formatNumber(totalGmv),
+    salesCount: formatNumber(totalSales),
+    rawGmv: totalGmv,
+    rawSales: totalSales,
+  };
+
+  const accountSummaries = config.accounts.map((name) => {
+    const rows = dailyData.filter((d) => d.accountName === name);
+    const gmv = rows.reduce((s, d) => s + d.rawGmv, 0);
+    const sales = rows.reduce((s, d) => s + d.rawSalesAfter, 0);
+    return {
+      accountName: name,
+      gmv: formatNumber(gmv),
+      salesCount: formatNumber(sales),
+      rawGmv: gmv,
+      rawSales: sales,
+    };
+  });
+
   const summaryDuration = dailyData.reduce((s, d) => s + d.rawDuration, 0);
   const summaryGmv = dailyData.reduce((s, d) => s + d.rawGmv, 0);
   const summarySalesAfter = dailyData.reduce((s, d) => s + d.rawSalesAfter, 0);
-
-  // KPI daily raw for frontend date recalculation
-  const kpiDailyRaw: number[][] = [];
-  for (let i = 1; i < sheet2DailyRaw.length; i++) {
-    const row = sheet2DailyRaw[i] || [];
-    const nums = row
-      .slice(1)
-      .map((v) => (v === null || v === undefined ? NaN : parseFloat(String(v))));
-    kpiDailyRaw.push(nums);
-  }
 
   return {
     brandSummary,
@@ -337,33 +463,31 @@ async function fetchBrandData(accessToken: string, brandKey: string) {
     kpiData,
     subAccountKpi,
     kpiDailyRaw,
-    kpiDailyDates: (sheet2DailyRaw[0] || [])
-      .slice(1)
-      .map((v) => excelSerialToISO(v)),
-    accounts: sheetConfig.accounts,
-    brandLabel: sheetConfig.brandLabel,
-    color: sheetConfig.color,
+    kpiDailyDates,
+    accounts: config.accounts,
+    brandLabel: config.brandLabel,
+    color: config.color,
     hasData: true,
   };
 }
 
+/* ========== API Route Handler ========== */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const brand = searchParams.get('brand') || 'vivo';
 
-    // If brand is 'all', fetch all brands
     if (brand === 'all') {
       const accessToken = await getTenantAccessToken();
       const brandKeys = ['vivo', 'iqoo', 'iot'];
       const results: Record<string, Awaited<ReturnType<typeof fetchBrandData>>> = {};
 
+      // Fetch all brands sequentially to avoid rate limits
       for (const bk of brandKeys) {
-        const sheetConfig = BRAND_SHEET_MAP[bk];
-        if (sheetConfig) {
+        try {
           results[bk] = await fetchBrandData(accessToken, bk);
-        } else {
-          results[bk] = emptyBrandData(bk);
+        } catch {
+          results[bk] = emptyBrandData(bk) || results[bk];
         }
       }
 
@@ -375,9 +499,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Single brand
-    const sheetConfig = BRAND_SHEET_MAP[brand];
-    if (!sheetConfig) {
-      // Brand without Feishu data
+    const config = BRAND_SHEET_MAP[brand];
+    if (!config) {
       const emptyData = emptyBrandData(brand);
       if (!emptyData) {
         return NextResponse.json(
