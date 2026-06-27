@@ -8,12 +8,13 @@ interface PersonSummary {
   timeSlots: string[];
   totalHours: number;
   earlyMorningHours: number;
+  dualBroadcastHours: number;
 }
 
 interface AccountData {
   accountName: string;
   personSummary: PersonSummary[];
-  stats: { personCount: number; totalHours: number; earlyMorningHours: number };
+  stats: { personCount: number; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number };
 }
 
 interface DateData {
@@ -26,6 +27,7 @@ interface GlobalStats {
   totalPersonDays: number;
   totalHours: number;
   totalEarlyMorning: number;
+  totalDualBroadcast: number;
   totalDays: number;
 }
 
@@ -119,17 +121,18 @@ export default function SchedulePage() {
   // 按选中主播筛选
   const dates = useMemo(() => {
     if (selectedPerson === '全部主播') return rawDates;
-    return rawDates.map((d: { date: string; accounts?: { accountName: string; personSummary?: { name: string; totalHours: number; earlyMorningHours: number; timeSlots: string[] }[]; stats?: { personCount: number; totalHours: number; earlyMorningHours: number } }[] }) => ({
+    return rawDates.map((d: { date: string; display?: string; accounts?: { accountName: string; personSummary?: { name: string; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number; timeSlots: string[] }[]; stats?: { personCount: number; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number } }[] }) => ({
       ...d,
-      accounts: (d.accounts || []).map((a: { accountName: string; personSummary?: { name: string; totalHours: number; earlyMorningHours: number; timeSlots: string[] }[]; stats?: { personCount: number; totalHours: number; earlyMorningHours: number } }) => {
+      accounts: (d.accounts || []).map((a: { accountName: string; personSummary?: { name: string; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number; timeSlots: string[] }[]; stats?: { personCount: number; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number } }) => {
         const filtered = (a.personSummary || []).filter((p: { name: string }) => p.name === selectedPerson);
         const personCount = filtered.length;
         const totalHours = filtered.reduce((s: number, p: { totalHours: number }) => s + (p.totalHours || 0), 0);
         const earlyMorningHours = filtered.reduce((s: number, p: { earlyMorningHours: number }) => s + (p.earlyMorningHours || 0), 0);
+        const dualBroadcastHours = filtered.reduce((s: number, p: { dualBroadcastHours: number }) => s + (p.dualBroadcastHours || 0), 0);
         return {
           ...a,
           personSummary: filtered,
-          stats: { personCount, totalHours, earlyMorningHours },
+          stats: { personCount, totalHours, earlyMorningHours, dualBroadcastHours },
         };
       }),
     }));
@@ -144,16 +147,18 @@ export default function SchedulePage() {
     let totalPersonDays = 0;
     let totalHours = 0;
     let totalEarlyMorning = 0;
-    dates.forEach((d: { accounts?: { personSummary?: unknown[]; stats?: { personCount: number; totalHours: number; earlyMorningHours: number } }[] }) => {
+    let totalDualBroadcast = 0;
+    dates.forEach((d: { accounts?: { personSummary?: unknown[]; stats?: { personCount: number; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number } }[] }) => {
       const hasPerson = (d.accounts || []).some((a: { personSummary?: unknown[] }) => (a.personSummary || []).length > 0);
       if (hasPerson) totalDays++;
-      (d.accounts || []).forEach((a: { stats?: { personCount: number; totalHours: number; earlyMorningHours: number } }) => {
+      (d.accounts || []).forEach((a: { stats?: { personCount: number; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number } }) => {
         totalPersonDays += (a.stats?.personCount || 0);
         totalHours += (a.stats?.totalHours || 0);
         totalEarlyMorning += (a.stats?.earlyMorningHours || 0);
+        totalDualBroadcast += (a.stats?.dualBroadcastHours || 0);
       });
     });
-    return { totalDays, totalPersonDays, totalHours, totalEarlyMorning };
+    return { totalDays, totalPersonDays, totalHours, totalEarlyMorning, totalDualBroadcast };
   }, [dates, selectedPerson, scheduleData]);
 
   // 切换日期展开的账号Tab
@@ -225,11 +230,13 @@ export default function SchedulePage() {
 
       {/* ===== 全局汇总卡片 ===== */}
       {globalStats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
           <StatCard label="覆盖天数" value={globalStats.totalDays} suffix="天" color="#4facfe" />
           <StatCard label="排班人次" value={globalStats.totalPersonDays} suffix="人次" color="#66df7c" />
           <StatCard label="总时长" value={globalStats.totalHours} suffix="小时" color="#f093fb" />
+          <StatCard label="常规时长" value={globalStats.totalHours - globalStats.totalEarlyMorning} suffix="小时" color="#4facfe" />
           <StatCard label="凌晨班时长" value={globalStats.totalEarlyMorning} suffix="小时" color="#ffb84d" />
+          <StatCard label="双播时长" value={globalStats.totalDualBroadcast} suffix="小时" color="#c084fc" />
         </div>
       )}
 
@@ -261,8 +268,11 @@ export default function SchedulePage() {
 // ===== 汇总卡片 =====
 function StatCard({ label, value, suffix, color }: { label: string; value: number; suffix: string; color: string }) {
   return (
-    <div className="bg-zinc-800/60 rounded-xl p-4 border border-zinc-700/50">
-      <div className="text-xs text-zinc-400 mb-1">{label}</div>
+    <div className="bg-zinc-800/60 rounded-xl p-4 border border-zinc-700/50 hover:border-zinc-600/50 transition">
+      <div className="flex items-center gap-1.5 text-xs text-zinc-400 mb-1">
+        <span className="inline-block w-2 h-2 rounded-full" style={{ background: color }} />
+        <span>{label}</span>
+      </div>
       <div className="flex items-baseline gap-1">
         <span className="text-xl font-bold" style={{ color }}>{value}</span>
         <span className="text-xs text-zinc-500">{suffix}</span>
@@ -284,6 +294,7 @@ function DateGroup({
   const totalPersons = dateItem.accounts.reduce((s, a) => s + (a.stats?.personCount || 0), 0);
   const totalHours = dateItem.accounts.reduce((s, a) => s + (a.stats?.totalHours || 0), 0);
   const totalEarly = dateItem.accounts.reduce((s, a) => s + (a.stats?.earlyMorningHours || 0), 0);
+  const totalDual = dateItem.accounts.reduce((s, a) => s + (a.stats?.dualBroadcastHours || 0), 0);
   const isWeekend = [0, 6].includes(new Date(dateItem.date).getDay());
 
   return (
@@ -297,6 +308,11 @@ function DateGroup({
           {totalEarly > 0 && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400">
               凌晨班 {totalEarly}h
+            </span>
+          )}
+          {totalDual > 0 && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">
+              双播 {totalDual}h
             </span>
           )}
         </div>
@@ -357,6 +373,7 @@ function DateGroup({
 // ===== 人员明细卡片 =====
 function PersonDetailCard({ person, color }: { person: PersonSummary; color: string }) {
   const hasEarlyMorning = (person.earlyMorningHours || 0) > 0;
+  const hasDualBroadcast = (person.dualBroadcastHours || 0) > 0;
 
   return (
     <div className="bg-zinc-800/60 rounded-lg p-3 border border-zinc-700/30 hover:border-zinc-600/50 transition">
@@ -373,6 +390,11 @@ function PersonDetailCard({ person, color }: { person: PersonSummary; color: str
           {hasEarlyMorning && (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400">
               凌晨{person.earlyMorningHours}h
+            </span>
+          )}
+          {hasDualBroadcast && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-400">
+              双播{person.dualBroadcastHours}h
             </span>
           )}
         </div>

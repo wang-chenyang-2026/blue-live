@@ -54,15 +54,23 @@ function dateToColIndex(dateStr: string): number {
   return 2 + diff;
 }
 
-// 解析人员名字和时长
-function parsePerson(cellValue: string | null): { name: string; hours: number } | null {
+// 解析人员名字和时长（支持双播："漫漫、发发" 拆分为两人）
+function parsePerson(cellValue: string | null): { names: string[]; hours: number; isDual: boolean } | null {
   if (!cellValue || cellValue.trim() === '') return null;
   const trimmed = cellValue.trim();
+  // 检测 0.5 后缀
   const match = trimmed.match(/^(.+?)(0\.5)?$/);
-  if (match) {
-    return { name: match[1].trim(), hours: match[2] === '0.5' ? 0.5 : 1 };
+  if (!match) return null;
+  const content = match[1].trim();
+  const hours = match[2] === '0.5' ? 0.5 : 1;
+  // 中文顿号分隔双播
+  if (content.includes('、')) {
+    const names = content.split('、').map(n => n.trim()).filter(n => n.length > 0);
+    if (names.length > 1) {
+      return { names, hours, isDual: true };
+    }
   }
-  return { name: trimmed, hours: 1 };
+  return { names: [content], hours, isDual: false };
 }
 
 // 读取飞书sheet一列数据
@@ -79,10 +87,10 @@ async function readColumn(token: string, colIndex: number, startRow: number, end
 
 // 处理单个账号一天的数据
 function processAccountDay(cellValues: string[], startRow: number): {
-  personSummary: { name: string; timeSlots: string[]; totalHours: number; earlyMorningHours: number }[];
-  stats: { personCount: number; totalHours: number; earlyMorningHours: number };
+  personSummary: { name: string; timeSlots: string[]; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number }[];
+  stats: { personCount: number; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number };
 } {
-  const personMap: Record<string, { name: string; timeSlots: string[]; totalHours: number; earlyMorningHours: number }> = {};
+  const personMap: Record<string, { name: string; timeSlots: string[]; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number }> = {};
 
   cellValues.forEach((cell, idx) => {
     const timeSlot = SCHEDULE_CONFIG.timeSlots[idx];
@@ -90,15 +98,22 @@ function processAccountDay(cellValues: string[], startRow: number): {
     const personInfo = parsePerson(cell);
     if (!personInfo) return;
 
-    const { name, hours } = personInfo;
-    if (!personMap[name]) {
-      personMap[name] = { name, timeSlots: [], totalHours: 0, earlyMorningHours: 0 };
-    }
-    personMap[name].timeSlots.push(timeSlot);
-    personMap[name].totalHours += hours;
-    if (SCHEDULE_CONFIG.earlyMorningSlots.includes(timeSlot)) {
-      personMap[name].earlyMorningHours += hours;
-    }
+    const { names, hours, isDual } = personInfo;
+    const isEarlyMorning = SCHEDULE_CONFIG.earlyMorningSlots.includes(timeSlot);
+
+    names.forEach(name => {
+      if (!personMap[name]) {
+        personMap[name] = { name, timeSlots: [], totalHours: 0, earlyMorningHours: 0, dualBroadcastHours: 0 };
+      }
+      personMap[name].timeSlots.push(timeSlot);
+      personMap[name].totalHours += hours;
+      if (isEarlyMorning) {
+        personMap[name].earlyMorningHours += hours;
+      }
+      if (isDual) {
+        personMap[name].dualBroadcastHours += hours;
+      }
+    });
   });
 
   const personSummary = Object.values(personMap);
@@ -106,6 +121,7 @@ function processAccountDay(cellValues: string[], startRow: number): {
     personCount: personSummary.length,
     totalHours: personSummary.reduce((s, p) => s + p.totalHours, 0),
     earlyMorningHours: personSummary.reduce((s, p) => s + p.earlyMorningHours, 0),
+    dualBroadcastHours: personSummary.reduce((s, p) => s + p.dualBroadcastHours, 0),
   };
   return { personSummary, stats };
 }
@@ -179,6 +195,7 @@ export async function GET(request: NextRequest) {
       totalPersonDays: datesData.reduce((s, d) => s + d.accounts.reduce((a, acc) => a + acc.stats.personCount, 0), 0),
       totalHours: datesData.reduce((s, d) => s + d.accounts.reduce((a, acc) => a + acc.stats.totalHours, 0), 0),
       totalEarlyMorning: datesData.reduce((s, d) => s + d.accounts.reduce((a, acc) => a + acc.stats.earlyMorningHours, 0), 0),
+      totalDualBroadcast: datesData.reduce((s, d) => s + d.accounts.reduce((a, acc) => a + acc.stats.dualBroadcastHours, 0), 0),
       totalDays: dates.length,
     };
 
