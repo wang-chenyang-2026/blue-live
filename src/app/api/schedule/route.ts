@@ -87,12 +87,25 @@ function getCellString(row: any[], colIndex: number): string {
   const cell = row[colIndex];
   if (!cell) return '';
   if (typeof cell === 'string') return cell;
+  if (typeof cell === 'number') return String(cell);  // 支持 Excel 序列号（数字）
   if (typeof cell === 'object' && cell.value !== undefined) return String(cell.value);
   return '';
 }
 
 function parseDateFromCell(value: string): Date | null {
   if (!value) return null;
+  
+  // 支持 Excel 序列号（飞书返回数字格式的日期）
+  const asNumber = parseFloat(value);
+  if (!isNaN(asNumber) && asNumber > 25569) {
+    // Excel 序列号转 Unix 时间戳
+    // Excel epoch: 1899-12-30, Unix epoch: 1970-01-01
+    // 25569 = days from 1899-12-30 to 1970-01-01
+    const unixMs = (asNumber - 25569) * 86400 * 1000;
+    const date = new Date(unixMs);
+    return date;
+  }
+  
   // 支持 "2026年6月1日" 格式
   const match = value.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
   if (!match) return null;
@@ -106,7 +119,8 @@ function parseDateFromCell(value: string): Date | null {
 function isHeaderRow(row: any[]): boolean {
   const a = getCellString(row, 0).trim();
   const b = getCellString(row, 1).trim();
-  return a === '项目' || a === '账号' || b === '时间';
+  // 支持 "项目"/"账号" 或 "时间"/"时间段" 作为 header 标识
+  return a === '项目' || a === '账号' || b === '时间' || b === '时间段';
 }
 
 function isTimeSlotRow(row: any[]): boolean {
