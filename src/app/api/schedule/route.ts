@@ -73,10 +73,6 @@ function parsePerson(cellValue: string | null): { names: string[]; hours: number
   return { names: [content], hours, isDual: false };
 }
 
-<<<<<<< HEAD
-  if (headerIndices.length === 0) return [];
-  console.log('[DEBUG] headerIndices:', headerIndices);
-=======
 // 读取飞书sheet一列数据
 async function readColumn(token: string, colIndex: number, startRow: number, endRow: number): Promise<string[]> {
   const colName = colToLetter(colIndex);
@@ -88,7 +84,6 @@ async function readColumn(token: string, colIndex: number, startRow: number, end
   const values: string[][] = json.data.valueRange.values;
   return values.map(r => (r && r[0] ? String(r[0]) : ''));
 }
->>>>>>> 992230726fd50ce8cd9797a34e9f84ea6b8c25ca
 
 // 处理单个账号一天的数据
 function processAccountDay(cellValues: string[], startRow: number): {
@@ -103,61 +98,6 @@ function processAccountDay(cellValues: string[], startRow: number): {
     const personInfo = parsePerson(cell);
     if (!personInfo) return;
 
-<<<<<<< HEAD
-  if (colToDate.size === 0) return [];
-  const firstDates = Array.from(colToDate.entries()).slice(0, 5).map(([col, d]) => `col ${col}: ${d.toISOString().split('T')[0]}`);
-  console.log('[DEBUG] colToDate size:', colToDate.size, 'first dates:', firstDates);
-
-  // 查找目标日期所在的列
-  let targetCol = -1;
-  for (const [colIdx, date] of colToDate.entries()) {
-    if (dateKey(date) === targetKey) {
-      targetCol = colIdx;
-      break;
-    }
-  }
-
-  if (targetCol === -1) return []; // 目标日期不在该表的范围内
-  console.log('[DEBUG] Found targetCol:', targetCol, 'for targetKey:', targetKey);
-
-  // Step 2: 遍历数据行，识别账号块并提取人员数据
-  const accounts: AccountResult[] = [];
-  let currentAccountName = '';
-  let personMap: Record<string, { timeSlots: string[]; totalHours: number; earlyMorningHours: number }> = {};
-
-  for (let i = 0; i < rows.length; i++) {
-    // 跳过 header 行
-    if (headerIndices.includes(i)) {
-      // 先保存之前的账号
-      if (currentAccountName) {
-        accounts.push(buildAccountResult(currentAccountName, personMap));
-        currentAccountName = '';
-        personMap = {};
-      }
-      continue;
-    }
-
-    // 跳过 sub-header 行（header 的下一行，通常 B 列为空或非时间段）
-    if (i > 0 && headerIndices.includes(i - 1)) continue;
-
-    if (!isTimeSlotRow(rows[i])) continue;
-
-    // Debug: 打印前几行的 A 和 B 列值
-    if (i < 10) {
-      const aDebug = getCellString(rows[i], 0);
-      const bDebug = getCellString(rows[i], 1);
-      const targetDebug = getCellString(rows[i], targetCol);
-      console.log(`[DEBUG] Row ${i+1}: A="${aDebug}", B="${bDebug}", targetCol(${targetCol})="${targetDebug}"`);
-    }
-
-    // 检查是否有新的账号名（col A 非空）
-    const aVal = getCellString(rows[i], 0).trim().replace(/\n/g, '').replace(/\r/g, '');
-    if (aVal) {
-      // 保存之前的账号
-      if (currentAccountName) {
-        accounts.push(buildAccountResult(currentAccountName, personMap));
-        personMap = {};
-=======
     const { names, hours, isDual } = personInfo;
     const isEarlyMorning = SCHEDULE_CONFIG.earlyMorningSlots.includes(timeSlot);
 
@@ -169,7 +109,6 @@ function processAccountDay(cellValues: string[], startRow: number): {
       personMap[name].totalHours += hours;
       if (isEarlyMorning) {
         personMap[name].earlyMorningHours += hours;
->>>>>>> 992230726fd50ce8cd9797a34e9f84ea6b8c25ca
       }
       if (isDual) {
         personMap[name].dualBroadcastHours += hours;
