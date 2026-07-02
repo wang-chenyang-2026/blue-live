@@ -36,6 +36,8 @@ interface ScheduleResponse {
   data: {
     dates: DateData[];
     globalStats: GlobalStats;
+    brand: string;
+    role: string;
   };
 }
 
@@ -50,24 +52,34 @@ function getDaysAgo(days: number): string {
   return d.toISOString().split('T')[0];
 }
 
+// 账号颜色映射（包含 vivo 和 iQOO 所有账号）
 const ACCOUNT_COLORS: Record<string, string> = {
+  // vivo 账号
   'vivo（大号）': '#415FFF',
   'vivo官方旗舰店（抖音）': '#FF6B35',
   'vivo官方旗舰店（快手）': '#00C9A7',
+  // iQOO 账号
+  'iQOO手机（快手）': '#4facfe',
+  'iQOO手机（抖音）': '#00c9a7',
+  'iQOO官方旗舰店（抖音）': '#ffb84d',
 };
 
 // ===== 组件 =====
 export default function SchedulePage() {
-  // 日期区间（SSR安全：初始静态值，useEffect设今天）
-  const [startDate, setStartDate] = useState('2026-06-01');
-  const [endDate, setEndDate] = useState('2026-06-07');
+  // 品牌和角色状态
+  const [brand, setBrand] = useState<'vivo' | 'iQOO'>('vivo');
+  const [role, setRole] = useState<'anchor' | 'control'>('anchor');
+
+  // 日期区间
+  const [startDate, setStartDate] = useState('2026-05-01');
+  const [endDate, setEndDate] = useState('2026-05-07');
   const [mounted, setMounted] = useState(false);
 
   const [scheduleData, setScheduleData] = useState<ScheduleResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedDates, setExpandedDates] = useState<Record<string, string>>({});
-  const [selectedPerson, setSelectedPerson] = useState('全部主播');
+  const [selectedPerson, setSelectedPerson] = useState('全部');
 
   // 客户端挂载后设置今天日期
   useEffect(() => {
@@ -77,12 +89,12 @@ export default function SchedulePage() {
   }, []);
 
   // 获取排班数据
-  const fetchSchedule = useCallback(async (start: string, end: string) => {
+  const fetchSchedule = useCallback(async (start: string, end: string, b: string, r: string) => {
     if (!start || !end) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/schedule?start=${start}&end=${end}`);
+      const res = await fetch(`/api/schedule?start=${start}&end=${end}&brand=${b}&role=${r}`);
       const json: ScheduleResponse = await res.json();
       if (json.success) {
         setScheduleData(json);
@@ -96,16 +108,16 @@ export default function SchedulePage() {
     }
   }, []);
 
-  // 日期变化时自动获取
+  // 日期、品牌或角色变化时自动获取
   useEffect(() => {
     if (mounted && startDate && endDate) {
-      fetchSchedule(startDate, endDate);
+      fetchSchedule(startDate, endDate, brand, role);
     }
-  }, [startDate, endDate, mounted, fetchSchedule]);
+  }, [startDate, endDate, mounted, brand, role, fetchSchedule]);
 
   const rawDates = scheduleData?.data?.dates || [];
 
-  // 提取去重人员名单（必须在early return之前调用hook）
+  // 提取去重人员名单
   const allPersons = useMemo(() => {
     const nameSet = new Set<string>();
     rawDates.forEach((d: { accounts?: { personSummary?: { name: string }[] }[] }) => {
@@ -118,9 +130,9 @@ export default function SchedulePage() {
     return Array.from(nameSet).sort();
   }, [rawDates]);
 
-  // 按选中主播筛选
+  // 按选中人员筛选
   const dates = useMemo(() => {
-    if (selectedPerson === '全部主播') return rawDates;
+    if (selectedPerson === '全部') return rawDates;
     return rawDates.map((d: { date: string; display?: string; accounts?: { accountName: string; personSummary?: { name: string; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number; timeSlots: string[] }[]; stats?: { personCount: number; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number } }[] }) => ({
       ...d,
       accounts: (d.accounts || []).map((a: { accountName: string; personSummary?: { name: string; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number; timeSlots: string[] }[]; stats?: { personCount: number; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number } }) => {
@@ -140,7 +152,7 @@ export default function SchedulePage() {
 
   // 根据筛选结果计算汇总
   const globalStats = useMemo(() => {
-    if (selectedPerson === '全部主播' && scheduleData?.data?.globalStats) {
+    if (selectedPerson === '全部' && scheduleData?.data?.globalStats) {
       return scheduleData.data.globalStats;
     }
     let totalDays = 0;
@@ -169,13 +181,69 @@ export default function SchedulePage() {
     }));
   };
 
+  // 角色显示名称
+  const roleLabel = role === 'anchor' ? '主播' : '中控';
+
   if (!mounted) {
     return <div className="p-8 text-center text-zinc-500">加载中...</div>;
   }
 
   return (
     <div className="min-h-screen bg-[#09090b] text-zinc-100 p-6">
-      <h1 className="text-2xl font-bold mb-6">排班管理</h1>
+      {/* 标题行：标题 + 品牌Tab + 角色Toggle */}
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+        <h1 className="text-2xl font-bold">主播排班管理</h1>
+        
+        <div className="flex items-center gap-4">
+          {/* 品牌切换 Tab */}
+          <div className="flex items-center bg-zinc-800 rounded-lg p-1">
+            <button
+              onClick={() => setBrand('vivo')}
+              className={`px-4 py-1.5 text-sm rounded-md transition ${
+                brand === 'vivo'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              vivo
+            </button>
+            <button
+              onClick={() => setBrand('iQOO')}
+              className={`px-4 py-1.5 text-sm rounded-md transition ${
+                brand === 'iQOO'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              iQOO
+            </button>
+          </div>
+
+          {/* 角色切换 Toggle */}
+          <div className="flex items-center bg-zinc-800 rounded-lg p-1">
+            <button
+              onClick={() => setRole('anchor')}
+              className={`px-4 py-1.5 text-sm rounded-md transition ${
+                role === 'anchor'
+                  ? 'bg-purple-600 text-white'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              主播
+            </button>
+            <button
+              onClick={() => setRole('control')}
+              className={`px-4 py-1.5 text-sm rounded-md transition ${
+                role === 'control'
+                  ? 'bg-purple-600 text-white'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              中控
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* ===== 日期区间选择器 ===== */}
       <div className="flex items-center gap-3 mb-6 flex-wrap">
@@ -208,19 +276,19 @@ export default function SchedulePage() {
           className="px-3 py-2 text-xs rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition"
         >本月</button>
         <button
-          onClick={() => fetchSchedule(startDate, endDate)}
+          onClick={() => fetchSchedule(startDate, endDate, brand, role)}
           className="px-4 py-2 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition font-medium"
         >刷新</button>
 
-        {/* 主播筛选 */}
+        {/* 人员筛选 */}
         <div className="flex items-center gap-2 ml-4">
-          <span className="text-sm text-zinc-400">主播筛选</span>
+          <span className="text-sm text-zinc-400">{roleLabel}筛选</span>
           <select
             value={selectedPerson}
             onChange={e => setSelectedPerson(e.target.value)}
             className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none min-w-[140px]"
           >
-            <option value="全部主播">全部主播</option>
+            <option value="全部">全部{roleLabel}</option>
             {allPersons.map((name: string) => (
               <option key={name} value={name}>{name}</option>
             ))}
@@ -323,7 +391,7 @@ function DateGroup({
       </div>
 
       {/* 账号Tab */}
-      <div className="flex gap-1 px-4 pt-3">
+      <div className="flex gap-1 px-4 pt-3 flex-wrap">
         {dateItem.accounts.map(account => {
           const color = ACCOUNT_COLORS[account.accountName] || '#667eea';
           const isActive = expandedAccount === account.accountName;

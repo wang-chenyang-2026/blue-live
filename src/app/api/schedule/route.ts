@@ -3,23 +3,94 @@ import { NextRequest, NextResponse } from 'next/server';
 // 飞书API配置
 const FEISHU_APP_ID = process.env.FEISHU_APP_ID || 'cli_aab083b6c2b99be3';
 
-// 排班表格配置
-const SCHEDULE_CONFIG = {
-  spreadsheetToken: 'HgdSwkq98iYiy5kgxVUcVe08n5f',
-  sheetId: '5690e8',
-  accounts: [
-    { name: 'vivo（大号）', startRow: 3, endRow: 26 },
-    { name: 'vivo官方旗舰店（抖音）', startRow: 30, endRow: 53 },
-    { name: 'vivo官方旗舰店（快手）', startRow: 57, endRow: 80 },
-  ],
-  earlyMorningSlots: ['2-3点', '3-4点', '4-5点', '5-6点', '6-7点', '7-8点'],
-  timeSlots: [
-    '0-1点', '1-2点', '2-3点', '3-4点', '4-5点', '5-6点',
-    '6-7点', '7-8点', '8-9点', '9-10点', '10-11点', '11-12点',
-    '12-13点', '13-14点', '14-15点', '15-16点', '16-17点', '17-18点',
-    '18-19点', '19-20点', '20-21点', '21-22点', '22-23点', '23-24点',
-  ],
+// 多品牌排班表格配置
+const BRAND_CONFIGS: Record<string, {
+  tables: Array<{
+    spreadsheetToken: string;
+    sheetId: string;
+    baseDate: string; // 该表的基准日期（C列对应的日期）
+    accounts: Array<{ name: string; displayName: string; startRow: number; endRow: number }>;
+  }>;
+}> = {
+  vivo: {
+    tables: [{
+      spreadsheetToken: 'HgdSwkq98iYiy5kgxVUcVe08n5f',
+      sheetId: '5690e8', // 主播表
+      baseDate: '2026-06-01',
+      accounts: [
+        { name: 'vivo（大号）', displayName: 'vivo（大号）', startRow: 3, endRow: 26 },
+        { name: 'vivo官方旗舰店（抖音）', displayName: 'vivo官方旗舰店（抖音）', startRow: 30, endRow: 53 },
+        { name: 'vivo官方旗舰店（快手）', displayName: 'vivo官方旗舰店（快手）', startRow: 57, endRow: 80 },
+      ],
+    }],
+  },
+  iQOO: {
+    tables: [
+      {
+        spreadsheetToken: 'XSwFwf2tPi2SOzkEeGrcctZMn7c',
+        sheetId: '3efb46', // iQOO快手主播表
+        baseDate: '2026-05-01',
+        accounts: [
+          { name: 'iQOO手机', displayName: 'iQOO手机（快手）', startRow: 3, endRow: 26 },
+        ],
+      },
+      {
+        spreadsheetToken: 'OjXIwcmMNidCrzk5G5OcWaFJnzg',
+        sheetId: '7fa2c2', // iQOO抖音主播表
+        baseDate: '2026-06-01',
+        accounts: [
+          { name: 'iQOO手机', displayName: 'iQOO手机（抖音）', startRow: 3, endRow: 26 },
+          { name: 'iQOO官方旗舰店（抖音）', displayName: 'iQOO官方旗舰店（抖音）', startRow: 30, endRow: 53 },
+        ],
+      },
+    ],
+  },
 };
+
+// 中控表配置（与主播表结构一致，只是sheet不同）
+const CONTROL_TABLE_CONFIGS: Record<string, typeof BRAND_CONFIGS[string]> = {
+  vivo: {
+    tables: [{
+      spreadsheetToken: 'HgdSwkq98iYiy5kgxVUcVe08n5f',
+      sheetId: '3xQ1Kq', // 中控表
+      baseDate: '2026-06-01',
+      accounts: [
+        { name: 'vivo（大号）', displayName: 'vivo（大号）', startRow: 3, endRow: 26 },
+        { name: 'vivo官方旗舰店（抖音）', displayName: 'vivo官方旗舰店（抖音）', startRow: 30, endRow: 53 },
+        { name: 'vivo官方旗舰店（快手）', displayName: 'vivo官方旗舰店（快手）', startRow: 57, endRow: 80 },
+      ],
+    }],
+  },
+  iQOO: {
+    tables: [
+      {
+        spreadsheetToken: 'XSwFwf2tPi2SOzkEeGrcctZMn7c',
+        sheetId: 'z2ln4e', // iQOO快手中控表
+        baseDate: '2026-05-01',
+        accounts: [
+          { name: 'iQOO手机', displayName: 'iQOO手机（快手）', startRow: 3, endRow: 26 },
+        ],
+      },
+      {
+        spreadsheetToken: 'OjXIwcmMNidCrzk5G5OcWaFJnzg',
+        sheetId: 'UyzPvX', // iQOO抖音中控表
+        baseDate: '2026-06-01',
+        accounts: [
+          { name: 'iQOO手机', displayName: 'iQOO手机（抖音）', startRow: 3, endRow: 26 },
+          { name: 'iQOO官方旗舰店（抖音）', displayName: 'iQOO官方旗舰店（抖音）', startRow: 30, endRow: 53 },
+        ],
+      },
+    ],
+  },
+};
+
+const EARLY_MORNING_SLOTS = ['2-3点', '3-4点', '4-5点', '5-6点', '6-7点', '7-8点'];
+const TIME_SLOTS = [
+  '0-1点', '1-2点', '2-3点', '3-4点', '4-5点', '5-6点',
+  '6-7点', '7-8点', '8-9点', '9-10点', '10-11点', '11-12点',
+  '12-13点', '13-14点', '14-15点', '15-16点', '16-17点', '17-18点',
+  '18-19点', '19-20点', '20-21点', '21-22点', '22-23点', '23-24点',
+];
 
 // 获取飞书 tenant_access_token
 async function getFeishuToken(): Promise<string> {
@@ -46,12 +117,12 @@ function colToLetter(col: number): string {
   return name;
 }
 
-// 日期 → 列索引 (C=2 = 6月1日)
-function dateToColIndex(dateStr: string): number {
-  const base = new Date('2026-06-01');
+// 日期 → 列索引（根据基准日期计算）
+function dateToColIndex(dateStr: string, baseDate: string): number {
+  const base = new Date(baseDate);
   const target = new Date(dateStr);
   const diff = Math.floor((target.getTime() - base.getTime()) / (86400000));
-  return 2 + diff;
+  return 2 + diff; // C列 = index 2
 }
 
 // 解析人员名字和时长（支持双播："漫漫、发发" 拆分为两人）
@@ -74,10 +145,17 @@ function parsePerson(cellValue: string | null): { names: string[]; hours: number
 }
 
 // 读取飞书sheet一列数据
-async function readColumn(token: string, colIndex: number, startRow: number, endRow: number): Promise<string[]> {
+async function readColumn(
+  token: string,
+  spreadsheetToken: string,
+  sheetId: string,
+  colIndex: number,
+  startRow: number,
+  endRow: number
+): Promise<string[]> {
   const colName = colToLetter(colIndex);
   const range = `${colName}${startRow}:${colName}${endRow}`;
-  const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${SCHEDULE_CONFIG.spreadsheetToken}/values/${SCHEDULE_CONFIG.sheetId}!${range}`;
+  const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${sheetId}!${range}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   const json = await res.json();
   if (json.code !== 0 || !json.data?.valueRange?.values) return [];
@@ -86,20 +164,20 @@ async function readColumn(token: string, colIndex: number, startRow: number, end
 }
 
 // 处理单个账号一天的数据
-function processAccountDay(cellValues: string[], startRow: number): {
+function processAccountDay(cellValues: string[]): {
   personSummary: { name: string; timeSlots: string[]; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number }[];
   stats: { personCount: number; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number };
 } {
   const personMap: Record<string, { name: string; timeSlots: string[]; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number }> = {};
 
   cellValues.forEach((cell, idx) => {
-    const timeSlot = SCHEDULE_CONFIG.timeSlots[idx];
+    const timeSlot = TIME_SLOTS[idx];
     if (!timeSlot) return;
     const personInfo = parsePerson(cell);
     if (!personInfo) return;
 
     const { names, hours, isDual } = personInfo;
-    const isEarlyMorning = SCHEDULE_CONFIG.earlyMorningSlots.includes(timeSlot);
+    const isEarlyMorning = EARLY_MORNING_SLOTS.includes(timeSlot);
 
     names.forEach(name => {
       if (!personMap[name]) {
@@ -149,9 +227,19 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const start = searchParams.get('start') || searchParams.get('startDate');
     const end = searchParams.get('end') || searchParams.get('endDate');
+    const brand = searchParams.get('brand') || 'vivo';
+    const role = searchParams.get('role') || 'anchor'; // anchor=主播, control=中控
 
     if (!start || !end) {
       return NextResponse.json({ success: false, error: 'start and end parameters are required' }, { status: 400 });
+    }
+
+    // 根据角色选择配置
+    const configMap = role === 'control' ? CONTROL_TABLE_CONFIGS : BRAND_CONFIGS;
+    const brandConfig = configMap[brand];
+    
+    if (!brandConfig) {
+      return NextResponse.json({ success: false, error: `Unknown brand: ${brand}` }, { status: 400 });
     }
 
     const dates = getDatesBetween(start, end);
@@ -161,34 +249,61 @@ export async function GET(request: NextRequest) {
 
     const token = await getFeishuToken();
 
-    // 并行读取所有日期的列数据
-    const colReads = dates.map(date => {
-      const colIndex = dateToColIndex(date);
-      // 读取整列 (row 3 to 80) 包含所有账号
-      return readColumn(token, colIndex, 3, 80).then(values => ({ date, values }));
+    // 收集所有账号的数据
+    const allAccountsMap: Record<string, {
+      accountName: string;
+      personSummary: { name: string; timeSlots: string[]; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number }[];
+      stats: { personCount: number; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number };
+    }[]> = {};
+
+    // 初始化每个日期的账号数据
+    dates.forEach(date => {
+      allAccountsMap[date] = [];
     });
 
-    const colResults = await Promise.all(colReads);
-
-    // 按日期分组处理
-    const datesData = colResults.map(({ date, values }) => {
-      const accounts = SCHEDULE_CONFIG.accounts.map(account => {
-        const offset = account.startRow - 3; // 转为0-based索引
-        const cellValues = values.slice(offset, offset + 24); // 24个时段
-        const { personSummary, stats } = processAccountDay(cellValues, account.startRow);
-        return {
-          accountName: account.name,
-          personSummary,
-          stats,
-        };
+    // 处理每个表格
+    for (const table of brandConfig.tables) {
+      // 计算该表覆盖的日期范围
+      const tableBase = new Date(table.baseDate);
+      const validDates = dates.filter(date => {
+        const d = new Date(date);
+        return d >= tableBase; // 只处理该表基准日期之后的日期
       });
 
-      return {
-        date,
-        display: formatDateDisplay(date),
-        accounts,
-      };
-    });
+      if (validDates.length === 0) continue;
+
+      // 并行读取该表所有日期的列数据
+      const colReads = validDates.map(date => {
+        const colIndex = dateToColIndex(date, table.baseDate);
+        const maxRow = Math.max(...table.accounts.map(a => a.endRow));
+        return readColumn(token, table.spreadsheetToken, table.sheetId, colIndex, 3, maxRow)
+          .then(values => ({ date, values }));
+      });
+
+      const colResults = await Promise.all(colReads);
+
+      // 处理每个日期的数据
+      for (const { date, values } of colResults) {
+        const accountDataList = table.accounts.map(account => {
+          const offset = account.startRow - 3;
+          const cellValues = values.slice(offset, offset + 24);
+          const { personSummary, stats } = processAccountDay(cellValues);
+          return {
+            accountName: account.displayName,
+            personSummary,
+            stats,
+          };
+        });
+        allAccountsMap[date] = [...allAccountsMap[date], ...accountDataList];
+      }
+    }
+
+    // 构建按日期分组的数据
+    const datesData = dates.map(date => ({
+      date,
+      display: formatDateDisplay(date),
+      accounts: allAccountsMap[date] || [],
+    }));
 
     // 全局汇总
     const globalStats = {
@@ -204,6 +319,8 @@ export async function GET(request: NextRequest) {
       data: {
         dates: datesData,
         globalStats,
+        brand,
+        role,
       },
     });
   } catch (error) {
