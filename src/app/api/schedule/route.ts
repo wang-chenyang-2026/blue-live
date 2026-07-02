@@ -3,382 +3,211 @@ import { NextRequest, NextResponse } from 'next/server';
 // 飞书API配置
 const FEISHU_APP_ID = process.env.FEISHU_APP_ID || 'cli_aab083b6c2b99be3';
 
-// 品牌排班表配置
-interface SheetSource {
-  spreadsheetToken: string;
-  anchorSheetId: string;
-  controlSheetId: string;
-}
-
-const BRAND_SOURCES: Record<string, SheetSource[]> = {
-  vivo: [
-    {
-      spreadsheetToken: 'HgdSwkq98iYiy5kgxVUcVe08n5f',
-      anchorSheetId: '5690e8',
-      controlSheetId: '3xQ1Kq',
-    },
+// 排班表格配置
+const SCHEDULE_CONFIG = {
+  spreadsheetToken: 'HgdSwkq98iYiy5kgxVUcVe08n5f',
+  sheetId: '5690e8',
+  accounts: [
+    { name: 'vivo（大号）', startRow: 3, endRow: 26 },
+    { name: 'vivo官方旗舰店（抖音）', startRow: 30, endRow: 53 },
+    { name: 'vivo官方旗舰店（快手）', startRow: 57, endRow: 80 },
   ],
-  iqoo: [
-    {
-      spreadsheetToken: 'OjXIwcmMNidCrzk5G5OcWaFJnzg',
-      anchorSheetId: '7fa2c2',
-      controlSheetId: 'UyzPvX',
-    },
-    {
-      spreadsheetToken: 'XSwFwf2tPi2SOzkEeGrcctZMn7c',
-      anchorSheetId: '3efb46',
-      controlSheetId: 'z2ln4e',
-    },
+  earlyMorningSlots: ['2-3点', '3-4点', '4-5点', '5-6点', '6-7点', '7-8点'],
+  timeSlots: [
+    '0-1点', '1-2点', '2-3点', '3-4点', '4-5点', '5-6点',
+    '6-7点', '7-8点', '8-9点', '9-10点', '10-11点', '11-12点',
+    '12-13点', '13-14点', '14-15点', '15-16点', '16-17点', '17-18点',
+    '18-19点', '19-20点', '20-21点', '21-22点', '22-23点', '23-24点',
   ],
 };
 
-// 凌晨班时段定义（2-8点）
-const EARLY_MORNING_START_HOURS = new Set([2, 3, 4, 5, 6, 7]);
-
-// ==================== 飞书API ====================
-
+// 获取飞书 tenant_access_token
 async function getFeishuToken(): Promise<string> {
   const appSecret = process.env.FEISHU_APP_SECRET;
-  if (!appSecret) {
-    throw new Error('FEISHU_APP_SECRET is not configured');
-  }
-
+  if (!appSecret) throw new Error('FEISHU_APP_SECRET is not configured');
   const response = await fetch('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      app_id: FEISHU_APP_ID,
-      app_secret: appSecret,
-    }),
+    body: JSON.stringify({ app_id: FEISHU_APP_ID, app_secret: appSecret }),
   });
-
   const data = await response.json();
-  if (data.code !== 0 || !data.tenant_access_token) {
-    throw new Error(`Failed to get token: ${data.msg}`);
-  }
-
+  if (data.code !== 0 || !data.tenant_access_token) throw new Error(`Failed to get token: ${data.msg}`);
   return data.tenant_access_token;
 }
 
-async function readSheetData(
-  token: string,
-  spreadsheetToken: string,
-  sheetId: string,
-  range: string
-): Promise<any[][]> {
-  const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${sheetId}!${range}`;
-
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const data = await response.json();
-
-  if (data.code !== 0 || !data.data?.valueRange?.values) {
-    throw new Error(`Failed to read sheet: ${data.msg || 'unknown error'}`);
+// 列索引转列名
+function colToLetter(col: number): string {
+  let name = '';
+  let c = col;
+  while (c >= 0) {
+    name = String.fromCharCode((c % 26) + 65) + name;
+    c = Math.floor(c / 26) - 1;
   }
-
-  return data.data.valueRange.values;
+  return name;
 }
 
-// ==================== 解析工具 ====================
-
-function getCellString(row: any[], colIndex: number): string {
-  if (!row || colIndex >= row.length) return '';
-  const cell = row[colIndex];
-  if (!cell) return '';
-  if (typeof cell === 'string') return cell;
-  if (typeof cell === 'number') return String(cell);  // 支持 Excel 序列号（数字）
-  if (typeof cell === 'object' && cell.value !== undefined) return String(cell.value);
-  return '';
+// 日期 → 列索引 (C=2 = 6月1日)
+function dateToColIndex(dateStr: string): number {
+  const base = new Date('2026-06-01');
+  const target = new Date(dateStr);
+  const diff = Math.floor((target.getTime() - base.getTime()) / (86400000));
+  return 2 + diff;
 }
 
-function getCellRawValue(row: any[], colIndex: number): any {
-  if (!row || colIndex >= row.length) return null;
-  const cell = row[colIndex];
-  if (!cell) return null;
-  if (typeof cell === 'object' && cell.value !== undefined) return cell.value;
-  return cell;
-}
-
-function parseDateFromCell(value: any): Date | null {
-  if (!value && value !== 0) return null;
-  
-  // Handle numeric Excel serial date (e.g., 46174 = 2026-06-01)
-  if (typeof value === 'number') {
-    // Excel epoch: 1900-01-01 = serial 1
-    // But Excel incorrectly treats 1900 as leap year
-    // For serial >= 1: date = UTC(1899, 11, 30 + serial)
-    const date = new Date(Date.UTC(1899, 11, 30 + value));
-    return date;
-  }
-  
-  const str = String(value);
-  if (!str) return null;
-
-  // 支持 "2026年6月1日" 格式
-  const match = str.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
-  if (match) {
-    const year = parseInt(match[1]);
-    const month = parseInt(match[2]) - 1;
-    const day = parseInt(match[3]);
-    if (month >= 0 && month <= 11 && day >= 1 && day <= 31) {
-      return new Date(year, month, day);
-    }
-  }
-  
-  return null;
-}
-
-function isHeaderRow(row: any[]): boolean {
-  const a = getCellString(row, 0).trim();
-  const b = getCellString(row, 1).trim();
-  // 支持 "项目"/"账号" 或 "时间"/"时间段" 作为 header 标识
-  return a === '项目' || a === '账号' || b === '时间' || b === '时间段';
-}
-
-function isTimeSlotRow(row: any[]): boolean {
-  const b = getCellString(row, 1).trim();
-  return /^\d{1,2}[-–]\d{1,2}点$/.test(b);
-}
-
-function normalizeTimeSlot(raw: string): { display: string; startHour: number } {
-  const s = raw.replace(/点$/, '').trim();
-  const match = s.match(/^(\d+)[-–](\d+)$/);
-  if (!match) return { display: raw, startHour: -1 };
-
-  let start = parseInt(match[1]);
-  let end = parseInt(match[2]);
-
-  // 规范化: 24→0
-  if (start >= 24) start = start - 24;
-
-  return { display: `${start}-${end}点`, startHour: start };
-}
-
-function parsePersonInfo(cellValue: string | null): { name: string; hours: number } | null {
+// 解析人员名字和时长（支持双播："漫漫、发发" 拆分为两人）
+function parsePerson(cellValue: string | null): { names: string[]; hours: number; isDual: boolean } | null {
   if (!cellValue || cellValue.trim() === '') return null;
-
   const trimmed = cellValue.trim();
+  // 检测 0.5 后缀
   const match = trimmed.match(/^(.+?)(0\.5)?$/);
-
-  if (match) {
-    const name = match[1].trim();
-    const hasHalfHour = match[2] === '0.5';
-    return { name, hours: hasHalfHour ? 0.5 : 1 };
-  }
-
-  return { name: trimmed, hours: 1 };
-}
-
-function dateKey(date: Date): string {
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-}
-
-// ==================== 核心解析逻辑 ====================
-
-interface AccountResult {
-  name: string;
-  schedules: {
-    person: string;
-    timeSlots: string[];
-    totalHours: number;
-    earlyMorningHours: number;
-  }[];
-}
-
-function buildAccountResult(
-  name: string,
-  personMap: Record<string, { timeSlots: string[]; totalHours: number; earlyMorningHours: number }>
-): AccountResult {
-  const schedules = Object.entries(personMap).map(([person, data]) => ({
-    person,
-    timeSlots: data.timeSlots,
-    totalHours: data.totalHours,
-    earlyMorningHours: data.earlyMorningHours,
-  }));
-
-  // 按总时长降序排列
-  schedules.sort((a, b) => b.totalHours - a.totalHours);
-
-  return { name, schedules };
-}
-
-function parseSheetForDate(rows: any[][], targetDateStr: string): AccountResult[] {
-  const targetDate = new Date(targetDateStr + 'T00:00:00');
-  const targetKey = dateKey(targetDate);
-
-  // Step 1: 找到 header 行，解析日期到列的映射
-  const headerIndices: number[] = [];
-  for (let i = 0; i < rows.length; i++) {
-    if (isHeaderRow(rows[i])) {
-      headerIndices.push(i);
+  if (!match) return null;
+  const content = match[1].trim();
+  const hours = match[2] === '0.5' ? 0.5 : 1;
+  // 中文顿号分隔双播
+  if (content.includes('、')) {
+    const names = content.split('、').map(n => n.trim()).filter(n => n.length > 0);
+    if (names.length > 1) {
+      return { names, hours, isDual: true };
     }
   }
+  return { names: [content], hours, isDual: false };
+}
 
-  if (headerIndices.length === 0) return [];
+// 读取飞书sheet一列数据
+async function readColumn(token: string, colIndex: number, startRow: number, endRow: number): Promise<string[]> {
+  const colName = colToLetter(colIndex);
+  const range = `${colName}${startRow}:${colName}${endRow}`;
+  const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${SCHEDULE_CONFIG.spreadsheetToken}/values/${SCHEDULE_CONFIG.sheetId}!${range}`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const json = await res.json();
+  if (json.code !== 0 || !json.data?.valueRange?.values) return [];
+  const values: string[][] = json.data.valueRange.values;
+  return values.map(r => (r && r[0] ? String(r[0]) : ''));
+}
 
-  // 从第一个 header 行解析日期列映射
-  const headerRow = rows[headerIndices[0]];
-  const colToDate = new Map<number, Date>();
+// 处理单个账号一天的数据
+function processAccountDay(cellValues: string[], startRow: number): {
+  personSummary: { name: string; timeSlots: string[]; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number }[];
+  stats: { personCount: number; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number };
+} {
+  const personMap: Record<string, { name: string; timeSlots: string[]; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number }> = {};
 
-  for (let j = 2; j < headerRow.length; j++) {
-    const cellVal = getCellRawValue(headerRow, j);
-    const date = parseDateFromCell(cellVal);
-    if (date) {
-      colToDate.set(j, date);
-    }
-  }
+  cellValues.forEach((cell, idx) => {
+    const timeSlot = SCHEDULE_CONFIG.timeSlots[idx];
+    if (!timeSlot) return;
+    const personInfo = parsePerson(cell);
+    if (!personInfo) return;
 
-  if (colToDate.size === 0) return [];
+    const { names, hours, isDual } = personInfo;
+    const isEarlyMorning = SCHEDULE_CONFIG.earlyMorningSlots.includes(timeSlot);
 
-  // 查找目标日期所在的列
-  let targetCol = -1;
-  for (const [colIdx, date] of colToDate.entries()) {
-    if (dateKey(date) === targetKey) {
-      targetCol = colIdx;
-      break;
-    }
-  }
-
-  if (targetCol === -1) return []; // 目标日期不在该表的范围内
-
-  // Step 2: 遍历数据行，识别账号块并提取人员数据
-  const accounts: AccountResult[] = [];
-  let currentAccountName = '';
-  let personMap: Record<string, { timeSlots: string[]; totalHours: number; earlyMorningHours: number }> = {};
-
-  for (let i = 0; i < rows.length; i++) {
-    // 跳过 header 行
-    if (headerIndices.includes(i)) {
-      // 先保存之前的账号
-      if (currentAccountName) {
-        accounts.push(buildAccountResult(currentAccountName, personMap));
-        currentAccountName = '';
-        personMap = {};
+    names.forEach(name => {
+      if (!personMap[name]) {
+        personMap[name] = { name, timeSlots: [], totalHours: 0, earlyMorningHours: 0, dualBroadcastHours: 0 };
       }
-      continue;
-    }
-
-    // 跳过 sub-header 行（header 的下一行，通常 B 列为空或非时间段）
-    if (i > 0 && headerIndices.includes(i - 1)) continue;
-
-    if (!isTimeSlotRow(rows[i])) continue;
-
-    // 检查是否有新的账号名（col A 非空）
-    const aVal = getCellString(rows[i], 0).trim().replace(/\n/g, '').replace(/\r/g, '');
-    if (aVal) {
-      // 保存之前的账号
-      if (currentAccountName) {
-        accounts.push(buildAccountResult(currentAccountName, personMap));
-        personMap = {};
+      personMap[name].timeSlots.push(timeSlot);
+      personMap[name].totalHours += hours;
+      if (isEarlyMorning) {
+        personMap[name].earlyMorningHours += hours;
       }
-      currentAccountName = aVal;
-    }
-
-    if (!currentAccountName) continue;
-
-    // 获取时间段和人员信息
-    const bVal = getCellString(rows[i], 1).trim();
-    const { display, startHour } = normalizeTimeSlot(bVal);
-
-    const personVal = getCellString(rows[i], targetCol);
-    const personInfo = parsePersonInfo(personVal);
-
-    if (personInfo) {
-      if (!personMap[personInfo.name]) {
-        personMap[personInfo.name] = { timeSlots: [], totalHours: 0, earlyMorningHours: 0 };
+      if (isDual) {
+        personMap[name].dualBroadcastHours += hours;
       }
-      personMap[personInfo.name].timeSlots.push(display);
-      personMap[personInfo.name].totalHours += personInfo.hours;
-      if (EARLY_MORNING_START_HOURS.has(startHour)) {
-        personMap[personInfo.name].earlyMorningHours += personInfo.hours;
-      }
-    }
-  }
+    });
+  });
 
-  // 保存最后一个账号
-  if (currentAccountName) {
-    accounts.push(buildAccountResult(currentAccountName, personMap));
-  }
-
-  return accounts;
+  const personSummary = Object.values(personMap);
+  const stats = {
+    personCount: personSummary.length,
+    totalHours: personSummary.reduce((s, p) => s + p.totalHours, 0),
+    earlyMorningHours: personSummary.reduce((s, p) => s + p.earlyMorningHours, 0),
+    dualBroadcastHours: personSummary.reduce((s, p) => s + p.dualBroadcastHours, 0),
+  };
+  return { personSummary, stats };
 }
 
-// ==================== 主处理函数 ====================
-
-async function processScheduleForBrand(
-  token: string,
-  date: string,
-  brand: string,
-  role: string
-): Promise<AccountResult[]> {
-  const sources = BRAND_SOURCES[brand];
-  if (!sources) return [];
-
-  const allAccounts: AccountResult[] = [];
-
-  for (const source of sources) {
-    const sheetId = role === 'control' ? source.controlSheetId : source.anchorSheetId;
-
-    try {
-      // 读取完整数据范围（A1:AO100 覆盖约41列x100行，支持iQOO快手从5月1日起算）
-      const rows = await readSheetData(token, source.spreadsheetToken, sheetId, 'A1:AO100');
-      const accounts = parseSheetForDate(rows, date);
-      allAccounts.push(...accounts);
-    } catch (error) {
-      console.error(`Error reading sheet ${sheetId}:`, error);
-    }
+// 生成日期列表
+function getDatesBetween(start: string, end: string): string[] {
+  const dates: string[] = [];
+  const s = new Date(start);
+  const e = new Date(end);
+  for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
+    dates.push(d.toISOString().split('T')[0]);
   }
-
-  return allAccounts;
+  return dates;
 }
 
-// ==================== API 路由 ====================
+// 格式化日期显示
+function formatDateDisplay(dateStr: string): string {
+  const d = new Date(dateStr);
+  const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+  return `${d.getMonth() + 1}月${d.getDate()}日 周${weekdays[d.getDay()]}`;
+}
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const date = searchParams.get('date');
-    const brand = searchParams.get('brand') || 'vivo';
-    const role = searchParams.get('role') || 'anchor';
+    const start = searchParams.get('start') || searchParams.get('startDate');
+    const end = searchParams.get('end') || searchParams.get('endDate');
 
-    // 验证日期参数
-    if (!date) {
-      return NextResponse.json({ error: 'Date parameter is required' }, { status: 400 });
+    if (!start || !end) {
+      return NextResponse.json({ success: false, error: 'start and end parameters are required' }, { status: 400 });
     }
 
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(date)) {
-      return NextResponse.json({ error: 'Invalid date format. Use YYYY-MM-DD' }, { status: 400 });
+    const dates = getDatesBetween(start, end);
+    if (dates.length === 0) {
+      return NextResponse.json({ success: false, error: 'Invalid date range' }, { status: 400 });
     }
 
-    // 验证品牌
-    if (!['vivo', 'iqoo'].includes(brand)) {
-      return NextResponse.json({ error: 'Invalid brand. Use vivo or iqoo' }, { status: 400 });
-    }
-
-    // 验证角色
-    if (!['anchor', 'control'].includes(role)) {
-      return NextResponse.json({ error: 'Invalid role. Use anchor or control' }, { status: 400 });
-    }
-
-    // 获取飞书token
     const token = await getFeishuToken();
 
-    // 获取排班数据
-    const accounts = await processScheduleForBrand(token, date, brand, role);
+    // 并行读取所有日期的列数据
+    const colReads = dates.map(date => {
+      const colIndex = dateToColIndex(date);
+      // 读取整列 (row 3 to 80) 包含所有账号
+      return readColumn(token, colIndex, 3, 80).then(values => ({ date, values }));
+    });
+
+    const colResults = await Promise.all(colReads);
+
+    // 按日期分组处理
+    const datesData = colResults.map(({ date, values }) => {
+      const accounts = SCHEDULE_CONFIG.accounts.map(account => {
+        const offset = account.startRow - 3; // 转为0-based索引
+        const cellValues = values.slice(offset, offset + 24); // 24个时段
+        const { personSummary, stats } = processAccountDay(cellValues, account.startRow);
+        return {
+          accountName: account.name,
+          personSummary,
+          stats,
+        };
+      });
+
+      return {
+        date,
+        display: formatDateDisplay(date),
+        accounts,
+      };
+    });
+
+    // 全局汇总
+    const globalStats = {
+      totalPersonDays: datesData.reduce((s, d) => s + d.accounts.reduce((a, acc) => a + acc.stats.personCount, 0), 0),
+      totalHours: datesData.reduce((s, d) => s + d.accounts.reduce((a, acc) => a + acc.stats.totalHours, 0), 0),
+      totalEarlyMorning: datesData.reduce((s, d) => s + d.accounts.reduce((a, acc) => a + acc.stats.earlyMorningHours, 0), 0),
+      totalDualBroadcast: datesData.reduce((s, d) => s + d.accounts.reduce((a, acc) => a + acc.stats.dualBroadcastHours, 0), 0),
+      totalDays: dates.length,
+    };
 
     return NextResponse.json({
-      date,
-      brand,
-      role,
-      accounts,
+      success: true,
+      data: {
+        dates: datesData,
+        globalStats,
+      },
     });
-  } catch (error: any) {
-    console.error('API Error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500 }
-    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
