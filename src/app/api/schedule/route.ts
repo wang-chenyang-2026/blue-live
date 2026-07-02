@@ -91,16 +91,41 @@ function getCellString(row: any[], colIndex: number): string {
   return '';
 }
 
-function parseDateFromCell(value: string): Date | null {
-  if (!value) return null;
+function getCellRawValue(row: any[], colIndex: number): any {
+  if (!row || colIndex >= row.length) return null;
+  const cell = row[colIndex];
+  if (!cell) return null;
+  if (typeof cell === 'object' && cell.value !== undefined) return cell.value;
+  return cell;
+}
+
+function parseDateFromCell(value: any): Date | null {
+  if (!value && value !== 0) return null;
+  
+  // Handle numeric Excel serial date (e.g., 46174 = 2026-06-01)
+  if (typeof value === 'number') {
+    // Excel epoch: 1900-01-01 = serial 1
+    // But Excel incorrectly treats 1900 as leap year
+    // For serial >= 1: date = UTC(1899, 11, 30 + serial)
+    const date = new Date(Date.UTC(1899, 11, 30 + value));
+    return date;
+  }
+  
+  const str = String(value);
+  if (!str) return null;
+  
   // 支持 "2026年6月1日" 格式
-  const match = value.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
-  if (!match) return null;
-  const year = parseInt(match[1]);
-  const month = parseInt(match[2]) - 1;
-  const day = parseInt(match[3]);
-  if (month < 0 || month > 11 || day < 1 || day > 31) return null;
-  return new Date(year, month, day);
+  const match = str.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+  if (match) {
+    const year = parseInt(match[1]);
+    const month = parseInt(match[2]) - 1;
+    const day = parseInt(match[3]);
+    if (month >= 0 && month <= 11 && day >= 1 && day <= 31) {
+      return new Date(year, month, day);
+    }
+  }
+  
+  return null;
 }
 
 function isHeaderRow(row: any[]): boolean {
@@ -195,7 +220,7 @@ function parseSheetForDate(rows: any[][], targetDateStr: string): AccountResult[
   const colToDate = new Map<number, Date>();
 
   for (let j = 2; j < headerRow.length; j++) {
-    const cellVal = getCellString(headerRow, j);
+    const cellVal = getCellRawValue(headerRow, j);
     const date = parseDateFromCell(cellVal);
     if (date) {
       colToDate.set(j, date);
