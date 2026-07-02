@@ -294,8 +294,8 @@ async function processScheduleForBrand(
     const sheetId = role === 'control' ? source.controlSheetId : source.anchorSheetId;
 
     try {
-      // 读取完整数据范围（A1:AJ100 覆盖约36列x100行）
-      const rows = await readSheetData(token, source.spreadsheetToken, sheetId, 'A1:AJ100');
+      // 读取完整数据范围（A1:AO100 覆盖约41列x100行，支持iQOO快手从5月1日起算）
+      const rows = await readSheetData(token, source.spreadsheetToken, sheetId, 'A1:AO100');
       const accounts = parseSheetForDate(rows, date);
       allAccounts.push(...accounts);
     } catch (error) {
