@@ -216,6 +216,7 @@ function parseSheetForDate(rows: any[][], targetDateStr: string): AccountResult[
   }
 
   if (headerIndices.length === 0) return [];
+  console.log('[DEBUG] headerIndices:', headerIndices);
 
   // 从第一个 header 行解析日期列映射
   const headerRow = rows[headerIndices[0]];
@@ -230,6 +231,8 @@ function parseSheetForDate(rows: any[][], targetDateStr: string): AccountResult[
   }
 
   if (colToDate.size === 0) return [];
+  const firstDates = Array.from(colToDate.entries()).slice(0, 5).map(([col, d]) => `col ${col}: ${d.toISOString().split('T')[0]}`);
+  console.log('[DEBUG] colToDate size:', colToDate.size, 'first dates:', firstDates);
 
   // 查找目标日期所在的列
   let targetCol = -1;
@@ -241,6 +244,7 @@ function parseSheetForDate(rows: any[][], targetDateStr: string): AccountResult[
   }
 
   if (targetCol === -1) return []; // 目标日期不在该表的范围内
+  console.log('[DEBUG] Found targetCol:', targetCol, 'for targetKey:', targetKey);
 
   // Step 2: 遍历数据行，识别账号块并提取人员数据
   const accounts: AccountResult[] = [];
@@ -263,6 +267,14 @@ function parseSheetForDate(rows: any[][], targetDateStr: string): AccountResult[
     if (i > 0 && headerIndices.includes(i - 1)) continue;
 
     if (!isTimeSlotRow(rows[i])) continue;
+
+    // Debug: 打印前几行的 A 和 B 列值
+    if (i < 10) {
+      const aDebug = getCellString(rows[i], 0);
+      const bDebug = getCellString(rows[i], 1);
+      const targetDebug = getCellString(rows[i], targetCol);
+      console.log(`[DEBUG] Row ${i+1}: A="${aDebug}", B="${bDebug}", targetCol(${targetCol})="${targetDebug}"`);
+    }
 
     // 检查是否有新的账号名（col A 非空）
     const aVal = getCellString(rows[i], 0).trim().replace(/\n/g, '').replace(/\r/g, '');
