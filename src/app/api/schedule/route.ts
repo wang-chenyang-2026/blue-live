@@ -125,23 +125,43 @@ function dateToColIndex(dateStr: string, baseDate: string): number {
   return 2 + diff; // C列 = index 2
 }
 
-// 解析人员名字和时长（支持双播："漫漫、发发" 拆分为两人）
-function parsePerson(cellValue: string | null): { names: string[]; hours: number; isDual: boolean } | null {
+// 解析人员名字和时长
+// 格式1: "大白：0.75小时\n袁野：0.25小时" → 带时长标注的多人共播，按标注计入
+// 格式2: "漫漫、发发" → 普通双播，各计1小时
+// 格式3: "张三" / "张三0.5" → 单人，计1小时或0.5小时
+function parsePerson(cellValue: string | null): { entries: Array<{ name: string; hours: number }>; isDual: boolean } | null {
   if (!cellValue || cellValue.trim() === '') return null;
   const trimmed = cellValue.trim();
+
+  // 优先检测「姓名：X小时」格式（带换行的时长标注）
+  const hasDurationAnnotation = /[:：]\s*[\d.]+\s*小时/.test(trimmed);
+  if (hasDurationAnnotation) {
+    const lines = trimmed.split(/[\n\r]+/).map(l => l.trim()).filter(l => l.length > 0);
+    const entries: Array<{ name: string; hours: number }> = [];
+    for (const line of lines) {
+      const m = line.match(/^(.+?)\s*[:：]\s*([\d.]+)\s*小时?$/);
+      if (m) {
+        entries.push({ name: m[1].trim(), hours: parseFloat(m[2]) || 0 });
+      }
+    }
+    if (entries.length > 0) {
+      return { entries, isDual: entries.length > 1 };
+    }
+  }
+
   // 检测 0.5 后缀
   const match = trimmed.match(/^(.+?)(0\.5)?$/);
   if (!match) return null;
   const content = match[1].trim();
   const hours = match[2] === '0.5' ? 0.5 : 1;
-  // 中文顿号分隔双播
+  // 中文顿号分隔双播（各计1小时）
   if (content.includes('、')) {
     const names = content.split('、').map(n => n.trim()).filter(n => n.length > 0);
     if (names.length > 1) {
-      return { names, hours, isDual: true };
+      return { entries: names.map(n => ({ name: n, hours })), isDual: true };
     }
   }
-  return { names: [content], hours, isDual: false };
+  return { entries: [{ name: content, hours }], isDual: false };
 }
 
 // 读取飞书sheet一列数据
@@ -176,10 +196,10 @@ function processAccountDay(cellValues: string[]): {
     const personInfo = parsePerson(cell);
     if (!personInfo) return;
 
-    const { names, hours, isDual } = personInfo;
+    const { entries, isDual } = personInfo;
     const isEarlyMorning = EARLY_MORNING_SLOTS.includes(timeSlot);
 
-    names.forEach(name => {
+    entries.forEach(({ name, hours }) => {
       if (!personMap[name]) {
         personMap[name] = { name, timeSlots: [], totalHours: 0, earlyMorningHours: 0, dualBroadcastHours: 0 };
       }
