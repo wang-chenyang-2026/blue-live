@@ -145,7 +145,7 @@ function parsePerson(cellValue: string | null): { entries: Array<{ name: string;
       }
     }
     if (entries.length > 0) {
-      return { entries, isDual: entries.length > 1 };
+      return { entries, isDual: false }; // 带时长标注的多人共播不计入双播，仅为常规时长
     }
   }
 
