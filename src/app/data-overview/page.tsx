@@ -81,8 +81,8 @@ type ApiResponse = SingleBrandResponse | AllBrandsResponse;
 const BRAND_TABS = [
   { id: 'all', label: '全部', color: '#a78bfa' },
   { id: 'vivo', label: 'vivo', color: '#415FFF' },
-  { id: 'iqoo', label: 'iQOO', color: '#FF6B35' },
-  { id: 'iot', label: 'IOT', color: '#00C9A7' },
+  { id: 'iQOO', label: 'iQOO', color: '#FF6B35' },
+  { id: 'IOT', label: 'IOT', color: '#00C9A7' },
 ] as const;
 
 type BrandTabId = typeof BRAND_TABS[number]['id'];
@@ -848,3 +848,4 @@ export default function DataOverviewPage() {
     </div>
   );
 }
+

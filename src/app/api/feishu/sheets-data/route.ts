@@ -43,7 +43,7 @@ const BRAND_SHEET_MAP: Record<string, BrandSheetConfig> = {
     brandLabel: 'vivo',
     color: '#415FFF',
   },
-  iqoo: {
+  iQOO: {
     dailySheets: [
       { spreadsheetToken: IQOO_TOKEN, sheetId: '0a2100', range: 'A1:G200' },
       { spreadsheetToken: IQOO_TOKEN, sheetId: 'RYPvqw', range: 'A1:G200' },
@@ -57,7 +57,7 @@ const BRAND_SHEET_MAP: Record<string, BrandSheetConfig> = {
     brandLabel: 'iQOO',
     color: '#FF6B35',
   },
-  iot: {
+  IOT: {
     dailySheets: [
       { spreadsheetToken: IOT_TOKEN, sheetId: '0a2100', range: 'A1:G200' },
       { spreadsheetToken: IOT_TOKEN, sheetId: 'RYPvqw', range: 'A1:G200' },
@@ -75,8 +75,8 @@ const BRAND_SHEET_MAP: Record<string, BrandSheetConfig> = {
 // Brand metadata fallback
 const BRAND_META: Record<string, { accounts: string[]; brandLabel: string; color: string }> = {
   vivo: { accounts: ['vivo（大号）', 'vivo官方旗舰店（抖音）', 'vivo官方旗舰店（快手）'], brandLabel: 'vivo', color: '#415FFF' },
-  iqoo: { accounts: ['iQOO手机', 'iQOO官方旗舰店（抖音）', 'iQOO官方旗舰店（快手）'], brandLabel: 'iQOO', color: '#FF6B35' },
-  iot: { accounts: ['IOT平板', 'IOT手表'], brandLabel: 'IOT', color: '#00C9A7' },
+  iQOO: { accounts: ['iQOO手机', 'iQOO官方旗舰店（抖音）', 'iQOO官方旗舰店（快手）'], brandLabel: 'iQOO', color: '#FF6B35' },
+  IOT: { accounts: ['IOT平板', 'IOT手表'], brandLabel: 'IOT', color: '#00C9A7' },
 };
 
 /* ========== Feishu API Helpers ========== */
@@ -438,7 +438,7 @@ export async function GET(request: NextRequest) {
 
     if (brand === 'all') {
       const accessToken = await getTenantAccessToken();
-      const brandKeys = ['vivo', 'iqoo', 'iot'];
+      const brandKeys = ['vivo', 'iQOO', 'IOT'];
       const results: Record<string, Awaited<ReturnType<typeof fetchBrandData>>> = {};
 
       for (const bk of brandKeys) {
@@ -483,3 +483,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
+
