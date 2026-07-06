@@ -185,17 +185,57 @@ export default function DataOverviewPage() {
       const json: ApiResponse = await res.json();
       if (!json.success) throw new Error(json.error || '获取数据失败');
 
+      // 自动检测实际数据日期范围，如果当前日期范围没有数据则自动调整
+      const collectDates = (data: BrandData): string[] => {
+        return (data.dailyData || [])
+          .map(d => d.rawDate)
+          .filter(d => d && !d.startsWith('1899'));
+      };
+
       if (json.mode === 'all') {
         setBrandDataMap((prev) => ({ ...prev, ...json.data }));
+        // 从所有品牌数据中收集可用日期
+        const allDates = Object.values(json.data).flatMap(collectDates);
+        if (allDates.length > 0) {
+          const maxDate = allDates.reduce((a, b) => a > b ? a : b);
+          const maxDataDate = new Date(maxDate);
+          const adjustedEnd = toDateStr(maxDataDate);
+          const adjustedStart = toDateStr(new Date(maxDataDate.getFullYear(), maxDataDate.getMonth(), 1));
+          setDateRange({ start: adjustedStart, end: adjustedEnd });
+          setCustomStart(adjustedStart);
+          setCustomEnd(adjustedEnd);
+          const now = new Date();
+          if (maxDataDate.getFullYear() === now.getFullYear() && maxDataDate.getMonth() === now.getMonth()) {
+            setQuickLabel('本月');
+          } else {
+            setQuickLabel('上月');
+          }
+        }
       } else {
         setBrandDataMap((prev) => ({ ...prev, [json.brand]: json.data }));
+        const dates = collectDates(json.data);
+        if (dates.length > 0) {
+          const maxDate = dates.reduce((a, b) => a > b ? a : b);
+          const maxDataDate = new Date(maxDate);
+          const adjustedEnd = toDateStr(maxDataDate);
+          const adjustedStart = toDateStr(new Date(maxDataDate.getFullYear(), maxDataDate.getMonth(), 1));
+          setDateRange({ start: adjustedStart, end: adjustedEnd });
+          setCustomStart(adjustedStart);
+          setCustomEnd(adjustedEnd);
+          const now = new Date();
+          if (maxDataDate.getFullYear() === now.getFullYear() && maxDataDate.getMonth() === now.getMonth()) {
+            setQuickLabel('本月');
+          } else {
+            setQuickLabel('上月');
+          }
+        }
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '获取数据失败');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [dateRange.start, dateRange.end]);
 
   // Fetch all brands data on mount
   useEffect(() => {
