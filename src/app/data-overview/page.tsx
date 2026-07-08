@@ -164,6 +164,9 @@ export default function DataOverviewPage() {
   // Sort
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
+  // Compare month (YYYY-MM)
+  const [compareMonth, setCompareMonth] = useState('');
+
   useEffect(() => {
     setIsClient(true);
     const now = new Date();
@@ -174,6 +177,7 @@ export default function DataOverviewPage() {
     setDateRange(defaultRange);
     setCustomStart(defaultRange.start);
     setCustomEnd(defaultRange.end);
+    setCompareMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
   }, []);
 
   // Fetch data for a specific brand or all brands
@@ -204,6 +208,7 @@ export default function DataOverviewPage() {
           setDateRange({ start: adjustedStart, end: adjustedEnd });
           setCustomStart(adjustedStart);
           setCustomEnd(adjustedEnd);
+          setCompareMonth(`${maxDataDate.getFullYear()}-${String(maxDataDate.getMonth() + 1).padStart(2, '0')}`);
           const now = new Date();
           if (maxDataDate.getFullYear() === now.getFullYear() && maxDataDate.getMonth() === now.getMonth()) {
             setQuickLabel('本月');
@@ -222,6 +227,7 @@ export default function DataOverviewPage() {
           setDateRange({ start: adjustedStart, end: adjustedEnd });
           setCustomStart(adjustedStart);
           setCustomEnd(adjustedEnd);
+          setCompareMonth(`${maxDataDate.getFullYear()}-${String(maxDataDate.getMonth() + 1).padStart(2, '0')}`);
           const now = new Date();
           if (maxDataDate.getFullYear() === now.getFullYear() && maxDataDate.getMonth() === now.getMonth()) {
             setQuickLabel('本月');
@@ -383,6 +389,72 @@ export default function DataOverviewPage() {
     salesBefore: filteredDaily.reduce((s, d) => s + parseFloat(d.salesBeforeReturn.replace(/,/g, '') || '0'), 0),
     salesAfter: filteredDaily.reduce((s, d) => s + d.rawSalesAfter, 0),
   }), [filteredDaily]);
+
+  // Available months for comparison selector
+  const availableMonths = useMemo(() => {
+    if (!currentBrandData?.dailyData) return [];
+    const months = new Set<string>();
+    currentBrandData.dailyData.forEach(d => {
+      if (d.rawDate && d.rawDate.length >= 7 && !d.rawDate.startsWith('1899')) {
+        months.add(d.rawDate.substring(0, 7));
+      }
+    });
+    return Array.from(months).sort().reverse();
+  }, [currentBrandData]);
+
+  // Monthly comparison data
+  const monthlyCompareData = useMemo(() => {
+    if (!currentBrandData?.dailyData || !compareMonth) return null;
+
+    const [year, month] = compareMonth.split('-').map(Number);
+    const prevDate = new Date(year, month - 2, 1);
+    const prevYear = prevDate.getFullYear();
+    const prevMonth = prevDate.getMonth() + 1;
+    const prevMonthStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
+
+    const filterByMonth = (monthStr: string) => {
+      return currentBrandData.dailyData.filter(d => {
+        if (!d.rawDate) return false;
+        return d.rawDate.startsWith(monthStr);
+      });
+    };
+
+    const currentRows = filterByMonth(compareMonth);
+    const prevRows = filterByMonth(prevMonthStr);
+
+    const filteredCurrent = accountFilter !== '全部'
+      ? currentRows.filter(d => d.accountName === accountFilter)
+      : currentRows;
+    const filteredPrev = accountFilter !== '全部'
+      ? prevRows.filter(d => d.accountName === accountFilter)
+      : prevRows;
+
+    const calcStats = (rows: DailyRow[]) => ({
+      duration: rows.reduce((s, d) => s + d.rawDuration, 0),
+      gmv: rows.reduce((s, d) => s + d.rawGmv, 0),
+      sales: rows.reduce((s, d) => s + d.rawSalesAfter, 0),
+    });
+
+    const current = calcStats(filteredCurrent);
+    const prev = calcStats(filteredPrev);
+
+    const pctChange = (curr: number, prevVal: number) => {
+      if (prevVal === 0) return curr > 0 ? 100 : 0;
+      return ((curr - prevVal) / prevVal) * 100;
+    };
+
+    return {
+      currentMonth: compareMonth,
+      prevMonth: prevMonthStr,
+      current,
+      prev,
+      durationChange: pctChange(current.duration, prev.duration),
+      gmvChange: pctChange(current.gmv, prev.gmv),
+      salesChange: pctChange(current.sales, prev.sales),
+      hasCurrentData: filteredCurrent.length > 0,
+      hasPrevData: filteredPrev.length > 0,
+    };
+  }, [currentBrandData, compareMonth, accountFilter]);
 
   // All-brands summary data
   const allBrandsSummary = useMemo(() => {
@@ -766,6 +838,95 @@ export default function DataOverviewPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Monthly Comparison Table */}
+        {monthlyCompareData && (
+          <Card className="bg-zinc-900/80 border-zinc-700/50">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base text-zinc-200">月度环比对比</CardTitle>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-zinc-500">对比月份</span>
+                  <select
+                    value={compareMonth}
+                    onChange={(e) => setCompareMonth(e.target.value)}
+                    className="bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+                  >
+                    {availableMonths.length > 0 ? (
+                      availableMonths.map((m) => {
+                        const [y, mo] = m.split('-');
+                        return <option key={m} value={m}>{y}年{parseInt(mo)}月</option>;
+                      })
+                    ) : (
+                      <option value={compareMonth}>
+                        {compareMonth ? `${compareMonth.split('-')[0]}年${parseInt(compareMonth.split('-')[1])}月` : ''}
+                      </option>
+                    )}
+                  </select>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-700 text-zinc-400">
+                      <th className="text-left py-2 px-3">指标</th>
+                      <th className="text-right py-2 px-3">
+                        {(() => { const [y, m] = monthlyCompareData.currentMonth.split('-'); return `${y}年${parseInt(m)}月`; })()}
+                      </th>
+                      <th className="text-right py-2 px-3">
+                        {(() => { const [y, m] = monthlyCompareData.prevMonth.split('-'); return `${y}年${parseInt(m)}月`; })()}
+                      </th>
+                      <th className="text-right py-2 px-3">环比变化</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Duration Row */}
+                    <tr className="border-b border-zinc-800 hover:bg-zinc-800/50">
+                      <td className="py-2 px-3 text-zinc-300">直播时长</td>
+                      <td className="py-2 px-3 text-right text-white font-medium">{monthlyCompareData.current.duration}h</td>
+                      <td className="py-2 px-3 text-right text-zinc-300">{monthlyCompareData.prev.duration}h</td>
+                      <td className="py-2 px-3 text-right">
+                        <span className={`inline-flex items-center gap-0.5 ${monthlyCompareData.durationChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {monthlyCompareData.durationChange >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                          {monthlyCompareData.durationChange >= 0 ? '+' : ''}{monthlyCompareData.durationChange.toFixed(1)}%
+                        </span>
+                      </td>
+                    </tr>
+                    {/* GMV Row */}
+                    <tr className="border-b border-zinc-800 hover:bg-zinc-800/50">
+                      <td className="py-2 px-3 text-zinc-300">GMV</td>
+                      <td className="py-2 px-3 text-right text-white font-medium">{fmt(monthlyCompareData.current.gmv)}</td>
+                      <td className="py-2 px-3 text-right text-zinc-300">{fmt(monthlyCompareData.prev.gmv)}</td>
+                      <td className="py-2 px-3 text-right">
+                        <span className={`inline-flex items-center gap-0.5 ${monthlyCompareData.gmvChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {monthlyCompareData.gmvChange >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                          {monthlyCompareData.gmvChange >= 0 ? '+' : ''}{monthlyCompareData.gmvChange.toFixed(1)}%
+                        </span>
+                      </td>
+                    </tr>
+                    {/* Sales Row */}
+                    <tr className="border-b border-zinc-800 hover:bg-zinc-800/50">
+                      <td className="py-2 px-3 text-zinc-300">结算台数</td>
+                      <td className="py-2 px-3 text-right text-white font-medium">{fmt(monthlyCompareData.current.sales)}</td>
+                      <td className="py-2 px-3 text-right text-zinc-300">{fmt(monthlyCompareData.prev.sales)}</td>
+                      <td className="py-2 px-3 text-right">
+                        <span className={`inline-flex items-center gap-0.5 ${monthlyCompareData.salesChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {monthlyCompareData.salesChange >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                          {monthlyCompareData.salesChange >= 0 ? '+' : ''}{monthlyCompareData.salesChange.toFixed(1)}%
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              {!monthlyCompareData.hasPrevData && (
+                <div className="text-center py-4 text-zinc-500 text-xs">上月暂无数据，无法计算环比</div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* KPI Section */}
         {currentBrandData.kpiTabs && currentBrandData.kpiTabs.length > 0 && (
