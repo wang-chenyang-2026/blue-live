@@ -390,21 +390,40 @@ export default function DataOverviewPage() {
     salesAfter: filteredDaily.reduce((s, d) => s + d.rawSalesAfter, 0),
   }), [filteredDaily]);
 
-  // Available months for comparison selector
+  // Available months for comparison selector (works for all brands)
   const availableMonths = useMemo(() => {
-    if (!currentBrandData?.dailyData) return [];
-    const months = new Set<string>();
-    currentBrandData.dailyData.forEach(d => {
-      if (d.rawDate && d.rawDate.length >= 7 && !d.rawDate.startsWith('1899')) {
-        months.add(d.rawDate.substring(0, 7));
-      }
-    });
-    return Array.from(months).sort().reverse();
-  }, [currentBrandData]);
+    const sources = activeBrand === 'all'
+      ? Object.values(brandDataMap)
+      : currentBrandData ? [currentBrandData] : [];
 
-  // Monthly comparison data
+    const months = new Set<string>();
+    for (const bd of sources) {
+      if (!bd?.dailyData) continue;
+      bd.dailyData.forEach(d => {
+        if (d.rawDate && d.rawDate.length >= 7 && !d.rawDate.startsWith('1899')) {
+          months.add(d.rawDate.substring(0, 7));
+        }
+      });
+    }
+    return Array.from(months).sort().reverse();
+  }, [activeBrand, brandDataMap, currentBrandData]);
+
+  // Monthly comparison data (works for both single brand and all brands)
   const monthlyCompareData = useMemo(() => {
-    if (!currentBrandData?.dailyData || !compareMonth) return null;
+    if (!compareMonth) return null;
+
+    // Determine data source(s)
+    const sources: DailyRow[] = [];
+    if (activeBrand === 'all') {
+      for (const bd of Object.values(brandDataMap)) {
+        if (bd?.dailyData) sources.push(...bd.dailyData);
+      }
+    } else {
+      if (!currentBrandData?.dailyData) return null;
+      sources.push(...currentBrandData.dailyData);
+    }
+
+    if (sources.length === 0) return null;
 
     const [year, month] = compareMonth.split('-').map(Number);
     const prevDate = new Date(year, month - 2, 1);
@@ -412,15 +431,8 @@ export default function DataOverviewPage() {
     const prevMonth = prevDate.getMonth() + 1;
     const prevMonthStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
 
-    const filterByMonth = (monthStr: string) => {
-      return currentBrandData.dailyData.filter(d => {
-        if (!d.rawDate) return false;
-        return d.rawDate.startsWith(monthStr);
-      });
-    };
-
-    const currentRows = filterByMonth(compareMonth);
-    const prevRows = filterByMonth(prevMonthStr);
+    const currentRows = sources.filter(d => d.rawDate && d.rawDate.startsWith(compareMonth));
+    const prevRows = sources.filter(d => d.rawDate && d.rawDate.startsWith(prevMonthStr));
 
     const filteredCurrent = accountFilter !== '全部'
       ? currentRows.filter(d => d.accountName === accountFilter)
@@ -454,7 +466,59 @@ export default function DataOverviewPage() {
       hasCurrentData: filteredCurrent.length > 0,
       hasPrevData: filteredPrev.length > 0,
     };
-  }, [currentBrandData, compareMonth, accountFilter]);
+  }, [activeBrand, brandDataMap, currentBrandData, compareMonth, accountFilter]);
+
+  // Per-account comparison rows for "all brands" view
+  const allBrandsCompareRows = useMemo(() => {
+    if (!compareMonth) return [];
+
+    const [year, month] = compareMonth.split('-').map(Number);
+    const prevDate = new Date(year, month - 2, 1);
+    const prevYear = prevDate.getFullYear();
+    const prevMonth = prevDate.getMonth() + 1;
+    const prevMonthStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
+
+    const rows: Array<{
+      accountName: string;
+      brand: string;
+      brandColor: string;
+      curDuration: number;
+      prevDuration: number;
+      curGmv: number;
+      prevGmv: number;
+      curSales: number;
+      prevSales: number;
+    }> = [];
+
+    for (const brandKey of Object.keys(brandDataMap)) {
+      const bd = brandDataMap[brandKey];
+      if (!bd?.dailyData) continue;
+
+      const accounts = bd.accounts || [];
+      const brandColor = bd.color || BRAND_TABS.find(b => b.id === brandKey)?.color || '#a78bfa';
+
+      for (const accountName of accounts) {
+        const accountRows = bd.dailyData.filter(d => d.accountName === accountName);
+
+        const curRows = accountRows.filter(d => d.rawDate && d.rawDate.startsWith(compareMonth));
+        const prevRows = accountRows.filter(d => d.rawDate && d.rawDate.startsWith(prevMonthStr));
+
+        rows.push({
+          accountName,
+          brand: bd.brandLabel || brandKey,
+          brandColor,
+          curDuration: curRows.reduce((s, d) => s + d.rawDuration, 0),
+          prevDuration: prevRows.reduce((s, d) => s + d.rawDuration, 0),
+          curGmv: curRows.reduce((s, d) => s + d.rawGmv, 0),
+          prevGmv: prevRows.reduce((s, d) => s + d.rawGmv, 0),
+          curSales: curRows.reduce((s, d) => s + d.rawSalesAfter, 0),
+          prevSales: prevRows.reduce((s, d) => s + d.rawSalesAfter, 0),
+        });
+      }
+    }
+
+    return rows;
+  }, [compareMonth, brandDataMap]);
 
   // All-brands summary data
   const allBrandsSummary = useMemo(() => {
@@ -613,11 +677,110 @@ export default function DataOverviewPage() {
         ))}
       </div>
 
-      {/* Empty state hint */}
-      <div className="flex items-center justify-center py-12 text-zinc-500">
-        <Database className="h-5 w-5 mr-2" />
-        <span>点击品牌卡片查看详细数据</span>
-      </div>
+      {/* Monthly Comparison Table */}
+      {allBrandsCompareRows.length > 0 && (
+        <Card className="bg-zinc-900/80 border-zinc-700/50">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base text-zinc-200">月度环比对比</CardTitle>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-zinc-500">对比月份</span>
+                <select
+                  value={compareMonth}
+                  onChange={(e) => setCompareMonth(e.target.value)}
+                  className="bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+                >
+                  {availableMonths.length > 0 ? (
+                    availableMonths.map((m) => {
+                      const [y, mo] = m.split('-');
+                      return <option key={m} value={m}>{y}年{parseInt(mo)}月</option>;
+                    })
+                  ) : (
+                    <option value={compareMonth}>
+                      {compareMonth ? `${compareMonth.split('-')[0]}年${parseInt(compareMonth.split('-')[1])}月` : ''}
+                    </option>
+                  )}
+                </select>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-700 text-zinc-400">
+                    <th className="text-left py-2 px-3 bg-zinc-900" rowSpan={2}>账号</th>
+                    <th className="text-center py-2 px-3 bg-zinc-900 border-l border-zinc-700" colSpan={4}>时长(h)</th>
+                    <th className="text-center py-2 px-3 bg-zinc-900 border-l border-zinc-700" colSpan={4}>GMV</th>
+                    <th className="text-center py-2 px-3 bg-zinc-900 border-l border-zinc-700" colSpan={4}>结算台数</th>
+                  </tr>
+                  <tr className="border-b border-zinc-700 text-zinc-400">
+                    <th className="text-right py-1 px-3 bg-zinc-900 border-l border-zinc-700">本月</th>
+                    <th className="text-right py-1 px-3 bg-zinc-900">上月</th>
+                    <th className="text-right py-1 px-3 bg-zinc-900">涨幅</th>
+                    <th className="text-right py-1 px-3 bg-zinc-900">增长率</th>
+                    <th className="text-right py-1 px-3 bg-zinc-900 border-l border-zinc-700">本月</th>
+                    <th className="text-right py-1 px-3 bg-zinc-900">上月</th>
+                    <th className="text-right py-1 px-3 bg-zinc-900">涨幅</th>
+                    <th className="text-right py-1 px-3 bg-zinc-900">增长率</th>
+                    <th className="text-right py-1 px-3 bg-zinc-900 border-l border-zinc-700">本月</th>
+                    <th className="text-right py-1 px-3 bg-zinc-900">上月</th>
+                    <th className="text-right py-1 px-3 bg-zinc-900">涨幅</th>
+                    <th className="text-right py-1 px-3 bg-zinc-900">增长率</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allBrandsCompareRows.map((row, idx) => {
+                    const calcDelta = (cur: number, prev: number) => cur - prev;
+                    const calcRate = (cur: number, prev: number) => {
+                      if (prev === 0) return cur > 0 ? 100 : 0;
+                      return ((cur - prev) / prev) * 100;
+                    };
+                    const colorClass = (val: number) => val > 0 ? 'text-emerald-400' : val < 0 ? 'text-red-400' : 'text-zinc-400';
+
+                    const dDelta = calcDelta(row.curDuration, row.prevDuration);
+                    const dRate = calcRate(row.curDuration, row.prevDuration);
+                    const gDelta = calcDelta(row.curGmv, row.prevGmv);
+                    const gRate = calcRate(row.curGmv, row.prevGmv);
+                    const sDelta = calcDelta(row.curSales, row.prevSales);
+                    const sRate = calcRate(row.curSales, row.prevSales);
+
+                    return (
+                      <tr key={idx} className="border-b border-zinc-800 hover:bg-zinc-800/50">
+                        <td className="py-2 px-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: row.brandColor }} />
+                            <span className="text-zinc-300">{row.accountName}</span>
+                            <span className="text-xs text-zinc-500">({row.brand})</span>
+                          </div>
+                        </td>
+                        {/* Duration */}
+                        <td className="py-2 px-3 text-right text-white">{row.curDuration}</td>
+                        <td className="py-2 px-3 text-right text-zinc-300">{row.prevDuration}</td>
+                        <td className={`py-2 px-3 text-right ${colorClass(dDelta)}`}>{dDelta >= 0 ? '+' : ''}{dDelta}</td>
+                        <td className={`py-2 px-3 text-right ${colorClass(dRate)}`}>{dRate >= 0 ? '+' : ''}{dRate.toFixed(1)}%</td>
+                        {/* GMV */}
+                        <td className="py-2 px-3 text-right text-white border-l border-zinc-800">{fmt(row.curGmv)}</td>
+                        <td className="py-2 px-3 text-right text-zinc-300">{fmt(row.prevGmv)}</td>
+                        <td className={`py-2 px-3 text-right ${colorClass(gDelta)}`}>{gDelta >= 0 ? '+' : ''}{fmt(gDelta)}</td>
+                        <td className={`py-2 px-3 text-right ${colorClass(gRate)}`}>{gRate >= 0 ? '+' : ''}{gRate.toFixed(1)}%</td>
+                        {/* Sales */}
+                        <td className="py-2 px-3 text-right text-white border-l border-zinc-800">{fmt(row.curSales)}</td>
+                        <td className="py-2 px-3 text-right text-zinc-300">{fmt(row.prevSales)}</td>
+                        <td className={`py-2 px-3 text-right ${colorClass(sDelta)}`}>{sDelta >= 0 ? '+' : ''}{fmt(sDelta)}</td>
+                        <td className={`py-2 px-3 text-right ${colorClass(sRate)}`}>{sRate >= 0 ? '+' : ''}{sRate.toFixed(1)}%</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {allBrandsCompareRows.length === 0 && (
+              <div className="text-center py-8 text-zinc-500">所选月份暂无数据</div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 
