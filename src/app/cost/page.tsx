@@ -37,6 +37,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
+  Database,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSafeMonth } from '@/lib/hooks';
@@ -101,6 +102,22 @@ export default function CostPage() {
   const [showRevenueDialog, setShowRevenueDialog] = useState(false);
   const [showKPIDialog, setShowKPIDialog] = useState(false);
 
+  // 飞书数据状态
+  const [feishuData, setFeishuData] = useState<{
+    month: string;
+    brand: string;
+    dimensions: {
+      anchor: { total: number; details: Array<{ name: string; hours: number; rate: number; cost: number }> };
+      control: { total: number; details: Array<{ name: string; hours: number; cost: number; mode: string }> };
+      fulltime: { total: number; details: Array<{ name: string; base: number; subsidy: number; cost: number; role: string }> };
+      purchase: { total: number; details: unknown[] };
+    };
+    totalCost: number;
+    byBrand: { vivo: number; iQOO: number; IOT: number };
+  } | null>(null);
+  const [feishuLoading, setFeishuLoading] = useState(false);
+  const [feishuBrand, setFeishuBrand] = useState<string>('all');
+
   const [newCost, setNewCost] = useState({
     category: '兼职主播成本' as CostCategory,
     amount: 0,
@@ -141,6 +158,29 @@ export default function CostPage() {
   useEffect(() => {
     if (currentBrand !== 'all') setActiveBrand(currentBrand);
   }, [currentBrand]);
+
+  // 获取飞书数据
+  const fetchFeishuData = useCallback(async (month: string, brand: string) => {
+    if (!month) return;
+    setFeishuLoading(true);
+    try {
+      const res = await fetch(`/api/cost-overview?month=${month}&brand=${brand}`);
+      const data = await res.json();
+      if (data.success) {
+        setFeishuData(data.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch feishu data:', error);
+    } finally {
+      setFeishuLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedMonth) {
+      fetchFeishuData(selectedMonth, feishuBrand);
+    }
+  }, [selectedMonth, feishuBrand, fetchFeishuData]);
 
   // 客户端数据未就绪时返回骨架屏，确保 SSR/CSR 结构一致
   if (!isClient || !selectedMonth) {
@@ -374,6 +414,7 @@ export default function CostPage() {
           <TabsTrigger value="revenues" className="text-xs">收入明细</TabsTrigger>
           <TabsTrigger value="kpi" className="text-xs">KPI管理</TabsTrigger>
           <TabsTrigger value="dashboard" className="text-xs">利润率看板</TabsTrigger>
+          <TabsTrigger value="feishu" className="text-xs">飞书数据</TabsTrigger>
         </TabsList>
 
         {/* 成本明细 */}
@@ -779,7 +820,239 @@ export default function CostPage() {
             })}
           </div>
         </TabsContent>
+
+        {/* 飞书数据 */}
+        <TabsContent value="feishu" className="mt-4">
+          <FeishuDataPanel />
+        </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// 飞书数据面板组件
+function FeishuDataPanel() {
+  const [month, setMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [brand, setBrand] = useState('all');
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`/api/cost-overview?month=${month}&brand=${brand}`);
+        const json = await res.json();
+        if (json.success) {
+          setData(json.data);
+        } else {
+          setError(json.error || '获取数据失败');
+        }
+      } catch (e) {
+        setError('网络请求失败');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [month, brand]);
+
+  const formatMoney = (n: number) => `¥${n.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
+  return (
+    <div className="space-y-4">
+      {/* 筛选器 */}
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <Label className="text-xs text-muted-foreground">月份</Label>
+          <input
+            type="month"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+            className="rounded-md border border-border bg-background px-3 py-1.5 text-xs"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Label className="text-xs text-muted-foreground">品牌</Label>
+          <Select value={brand} onValueChange={setBrand}>
+            <SelectTrigger className="w-32 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部</SelectItem>
+              <SelectItem value="vivo">vivo</SelectItem>
+              <SelectItem value="iQOO">iQOO</SelectItem>
+              <SelectItem value="IOT">IOT</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* 加载状态 */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <span className="ml-3 text-sm text-muted-foreground">正在从飞书获取数据...</span>
+        </div>
+      )}
+
+      {/* 错误状态 */}
+      {error && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+          <p className="text-sm text-red-400">{error}</p>
+        </div>
+      )}
+
+      {/* 数据展示 */}
+      {data && !loading && (
+        <>
+          {/* 四维度卡片 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="rounded-xl border border-pink-500/30 bg-pink-500/10 p-4">
+              <p className="text-xs text-pink-400">兼职主播</p>
+              <p className="text-2xl font-bold text-pink-300 mt-1">{formatMoney(data.dimensions.anchor.total)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{data.dimensions.anchor.details.length} 人</p>
+            </div>
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+              <p className="text-xs text-amber-400">兼职中控</p>
+              <p className="text-2xl font-bold text-amber-300 mt-1">{formatMoney(data.dimensions.control.total)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{data.dimensions.control.details.length} 人</p>
+            </div>
+            <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-4">
+              <p className="text-xs text-blue-400">全职员工</p>
+              <p className="text-2xl font-bold text-blue-300 mt-1">{formatMoney(data.dimensions.fulltime.total)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{data.dimensions.fulltime.details.length} 人</p>
+            </div>
+            <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-4">
+              <p className="text-xs text-green-400">日常采买</p>
+              <p className="text-2xl font-bold text-green-300 mt-1">{formatMoney(data.dimensions.purchase.total)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{data.dimensions.purchase.details.length} 条</p>
+            </div>
+          </div>
+
+          {/* 总成本 */}
+          <div className="rounded-xl border border-border bg-card p-5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-foreground">总成本</h3>
+              <p className="text-2xl font-bold text-primary">{formatMoney(data.totalCost)}</p>
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground">vivo</p>
+                <p className="text-sm font-medium text-foreground">{formatMoney(data.byBrand.vivo)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">iQOO</p>
+                <p className="text-sm font-medium text-foreground">{formatMoney(data.byBrand.iQOO)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">IOT</p>
+                <p className="text-sm font-medium text-foreground">{formatMoney(data.byBrand.IOT)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 兼职主播明细 */}
+          {data.dimensions.anchor.details.length > 0 && (
+            <div className="rounded-xl border border-border bg-card p-5">
+              <h3 className="text-sm font-medium text-foreground mb-3">兼职主播明细</h3>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-2">姓名</th>
+                    <th className="text-right py-2">时长(h)</th>
+                    <th className="text-right py-2">时薪</th>
+                    <th className="text-right py-2">成本</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.dimensions.anchor.details.map((item: any, idx: number) => (
+                    <tr key={idx} className="border-b border-border/50">
+                      <td className="py-2">{item.name}</td>
+                      <td className="text-right py-2">{item.hours}</td>
+                      <td className="text-right py-2">{formatMoney(item.rate)}</td>
+                      <td className="text-right py-2 font-medium">{formatMoney(item.cost)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* 兼职中控明细 */}
+          {data.dimensions.control.details.length > 0 && (
+            <div className="rounded-xl border border-border bg-card p-5">
+              <h3 className="text-sm font-medium text-foreground mb-3">兼职中控明细</h3>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-2">姓名</th>
+                    <th className="text-right py-2">时长(h)</th>
+                    <th className="text-left py-2">模式</th>
+                    <th className="text-right py-2">成本</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.dimensions.control.details.map((item: any, idx: number) => (
+                    <tr key={idx} className="border-b border-border/50">
+                      <td className="py-2">{item.name}</td>
+                      <td className="text-right py-2">{item.hours}</td>
+                      <td className="py-2"><Badge variant="outline" className="text-xs">{item.mode}</Badge></td>
+                      <td className="text-right py-2 font-medium">{formatMoney(item.cost)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* 全职员工明细 */}
+          {data.dimensions.fulltime.details.length > 0 && (
+            <div className="rounded-xl border border-border bg-card p-5">
+              <h3 className="text-sm font-medium text-foreground mb-3">全职员工明细</h3>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-2">姓名</th>
+                    <th className="text-left py-2">角色</th>
+                    <th className="text-right py-2">底薪</th>
+                    <th className="text-right py-2">补贴</th>
+                    <th className="text-right py-2">成本</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.dimensions.fulltime.details.map((item: any, idx: number) => (
+                    <tr key={idx} className="border-b border-border/50">
+                      <td className="py-2">{item.name}</td>
+                      <td className="py-2"><Badge variant="outline" className="text-xs">{item.role}</Badge></td>
+                      <td className="text-right py-2">{formatMoney(item.base)}</td>
+                      <td className="text-right py-2">{formatMoney(item.subsidy)}</td>
+                      <td className="text-right py-2 font-medium">{formatMoney(item.cost)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* 空状态 */}
+          {data.dimensions.anchor.details.length === 0 && 
+           data.dimensions.control.details.length === 0 && 
+           data.dimensions.fulltime.details.length === 0 && 
+           data.dimensions.purchase.details.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <Database className="h-12 w-12 mb-3 opacity-50" />
+              <p className="text-sm">该月份暂无数据</p>
+              <p className="text-xs mt-1">请检查排班表是否已录入该月数据</p>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
