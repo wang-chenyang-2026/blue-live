@@ -26,10 +26,10 @@ const SCHEDULE_CONFIG = {
 
 // Data table configuration (for purchase costs)
 const DATA_CONFIG = {
-  vivo: { wikiToken: "D2lOwohBDilDdgka9Ilc6U3xnib", sheetId: "0a2100", purchaseCol: 10 }, // K column = index 10
-  "iQOO-ks": { wikiToken: "EEDWwUGZHiFy0Xk6fQAcjH9NnZd", sheetId: "", purchaseCol: 10 },
-  "iQOO-dy": { wikiToken: "EEDWwUGZHiFy0Xk6fQAcjH9NnZd", sheetId: "", purchaseCol: 10 },
-  IOT: { wikiToken: "H7cpwf3rwiDvGOkZVYlcqJASnaf", sheetId: "", purchaseCol: 10 },
+  vivo: { wikiToken: "D2lOwohBDilDdgka9Ilc6U3xnib", sheetId: "0a2100", purchaseCol: 10 },
+  "iQOO-ks": { wikiToken: "EEDWwUGZHiFy0Xk6fQAcjH9NnZd", sheetId: "RYPvqw", purchaseCol: 10 },
+  "iQOO-dy": { wikiToken: "EEDWwUGZHiFy0Xk6fQAcjH9NnZd", sheetId: "0a2100", purchaseCol: 10 },
+  IOT: { wikiToken: "H7cpwf3rwiDvGOkZVYlcqJASnaf", sheetId: "0a2100", purchaseCol: 10 },
 };
 
 // 2026 Legal holidays
@@ -104,9 +104,14 @@ function parseExcelDate(serial: number): Date {
   return new Date(utcDays * 86400 * 1000);
 }
 
-// Helper: Strip numbers from name
+// Helper: Strip numbers and trailing punctuation from name
 function stripNumbers(name: string): string {
-  return name.replace(/[0-9]/g, "").trim();
+  return name.replace(/[0-9]/g, "").replace(/[.。·]/g, "").trim();
+}
+
+// Helper: Check if string is a day-of-week label
+function isDayLabel(name: string): boolean {
+  return /^(星期|周|礼拜)[一二三四五六日天]$/.test(name);
 }
 
 // Helper: Check if date is a legal holiday
@@ -152,7 +157,7 @@ async function calcAnchorCost(
   for (const schedule of schedules) {
     if (!schedule) continue;
     
-    const values = await readSheet(feishuToken, schedule.wikiToken, `${schedule.anchorSheet}!A1:H50`);
+    const values = await readSheet(feishuToken, schedule.wikiToken, `${schedule.anchorSheet}!A1:AH100`);
     if (!values.length) continue;
     
     // Parse header to find date columns
@@ -220,7 +225,7 @@ async function calcControlCost(
   for (const schedule of schedules) {
     if (!schedule) continue;
     
-    const values = await readSheet(feishuToken, schedule.wikiToken, `${schedule.controlSheet}!A1:H50`);
+    const values = await readSheet(feishuToken, schedule.wikiToken, `${schedule.controlSheet}!A1:AH100`);
     if (!values.length) continue;
     
     const header = values[0];
@@ -245,6 +250,9 @@ async function calcControlCost(
           const names = cell.split(/[,，、]/).map(n => n.trim()).filter(Boolean);
           for (const name of names) {
             const cleanName = stripNumbers(name);
+            // Skip full-time employees and day labels
+            if (cleanName in FULLTIME_CONFIG) continue;
+            if (isDayLabel(cleanName)) continue;
             nameHours[cleanName] = (nameHours[cleanName] || 0) + 1;
           }
         }
@@ -328,7 +336,7 @@ async function calcFulltimeCost(
   for (const schedule of allSchedules) {
     // Check both anchor and control sheets
     for (const sheetId of [schedule.anchorSheet, schedule.controlSheet]) {
-      const values = await readSheet(feishuToken, schedule.wikiToken, `${sheetId}!A1:H50`);
+      const values = await readSheet(feishuToken, schedule.wikiToken, `${sheetId}!A1:AH100`);
       if (!values.length) continue;
       
       const header = values[0];
