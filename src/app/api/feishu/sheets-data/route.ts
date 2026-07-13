@@ -59,8 +59,8 @@ const BRAND_SHEET_MAP: Record<string, BrandSheetConfig> = {
   },
   IOT: {
     dailySheets: [
-      { spreadsheetToken: IOT_TOKEN, sheetId: '0a2100', range: 'A1:G200' },
-      { spreadsheetToken: IOT_TOKEN, sheetId: 'RYPvqw', range: 'A1:G200' },
+      { spreadsheetToken: IOT_TOKEN, sheetId: '0a2100', range: 'A1:J200' },
+      { spreadsheetToken: IOT_TOKEN, sheetId: 'RYPvqw', range: 'A1:J200' },
     ],
     kpiSheets: [
       { spreadsheetToken: IOT_TOKEN, sheetId: '204xjT', range: 'A1:H10', dailyRange: 'H1:AL10', label: 'IOT平板KPI' },
@@ -147,7 +147,7 @@ function formatNumber(num: number | string): string {
 }
 
 /* ========== Parse Daily Data from Raw Sheet ========== */
-function parseDailyData(raw: string[][]): Array<{
+function parseDailyData(raw: string[][], columnOffset: number = 0): Array<{
   date: string;
   rawDate: string;
   accountName: string;
@@ -172,16 +172,18 @@ function parseDailyData(raw: string[][]): Array<{
     rawDuration: number;
   }> = [];
 
+  const minRowLength = 7 + columnOffset; // 7 for old structure, 10 for IOT new structure
+
   for (let i = 1; i < raw.length; i++) {
     const row = raw[i];
-    if (!row || row.length < 7) continue;
+    if (!row || row.length < minRowLength) continue;
 
     const dateSerial = row[1];
     const accountName = row[2] || '';
     const duration = parseFloat(row[3]) || 0;
-    const gmv = parseFloat(row[4]) || 0;
-    const salesBefore = parseFloat(row[5]) || 0;
-    const salesAfter = parseFloat(row[6]) || 0;
+    const gmv = parseFloat(row[4 + columnOffset]) || 0;
+    const salesBefore = parseFloat(row[5 + columnOffset]) || 0;
+    const salesAfter = parseFloat(row[6 + columnOffset]) || 0;
 
     result.push({
       date: excelSerialToDate(dateSerial),
@@ -366,7 +368,7 @@ async function fetchBrandData(accessToken: string, brandKey: string) {
       getSheetValues(accessToken, src.spreadsheetToken, src.sheetId, src.range)
     )
   );
-  const dailyData = dailyRawResults.flatMap((raw) => parseDailyData(raw));
+  const dailyData = dailyRawResults.flatMap((raw) => parseDailyData(raw, brandKey === 'IOT' ? 3 : 0));
 
   // 2. Fetch all KPI sheets in parallel, each becomes a Tab
   // Each sheet needs both main data (A:H) and daily data (H:AL)
