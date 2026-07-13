@@ -148,9 +148,14 @@ async function calcAnchorCost(
   const monthStr = String(monthNum).padStart(2, "0");
   
   // Get schedule data
-  const schedules = brand === "iQOO" 
-    ? [SCHEDULE_CONFIG["iQOO-ks"], SCHEDULE_CONFIG["iQOO-dy"]]
-    : [SCHEDULE_CONFIG[brand as keyof typeof SCHEDULE_CONFIG]];
+  let schedules;
+  if (brand === "all") {
+    schedules = Object.values(SCHEDULE_CONFIG);
+  } else if (brand === "iQOO") {
+    schedules = [SCHEDULE_CONFIG["iQOO-ks"], SCHEDULE_CONFIG["iQOO-dy"]];
+  } else {
+    schedules = [SCHEDULE_CONFIG[brand as keyof typeof SCHEDULE_CONFIG]];
+  }
   
   const nameHours: Record<string, number> = {};
   
@@ -216,9 +221,14 @@ async function calcControlCost(
 ): Promise<{ total: number; details: Array<{ name: string; hours: number; cost: number; mode: string }> }> {
   const [year, monthNum] = month.split("-").map(Number);
   
-  const schedules = brand === "iQOO"
-    ? [SCHEDULE_CONFIG["iQOO-ks"], SCHEDULE_CONFIG["iQOO-dy"]]
-    : [SCHEDULE_CONFIG[brand as keyof typeof SCHEDULE_CONFIG]];
+  let schedules;
+  if (brand === "all") {
+    schedules = Object.values(SCHEDULE_CONFIG);
+  } else if (brand === "iQOO") {
+    schedules = [SCHEDULE_CONFIG["iQOO-ks"], SCHEDULE_CONFIG["iQOO-dy"]];
+  } else {
+    schedules = [SCHEDULE_CONFIG[brand as keyof typeof SCHEDULE_CONFIG]];
+  }
   
   const nameHours: Record<string, number> = {};
   
@@ -481,9 +491,14 @@ async function calcPurchaseCost(
 ): Promise<{ total: number; details: Array<{ date: string; amount: number }> }> {
   const [year, monthNum] = month.split("-").map(Number);
   
-  const dataConfigs = brand === "iQOO"
-    ? [DATA_CONFIG["iQOO-ks"], DATA_CONFIG["iQOO-dy"]]
-    : [DATA_CONFIG[brand as keyof typeof DATA_CONFIG]];
+  let dataConfigs;
+  if (brand === "all") {
+    dataConfigs = Object.values(DATA_CONFIG);
+  } else if (brand === "iQOO") {
+    dataConfigs = [DATA_CONFIG["iQOO-ks"], DATA_CONFIG["iQOO-dy"]];
+  } else {
+    dataConfigs = [DATA_CONFIG[brand as keyof typeof DATA_CONFIG]];
+  }
   
   const dailyCosts: Array<{ date: string; amount: number }> = [];
   
