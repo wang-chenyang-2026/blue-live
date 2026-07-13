@@ -20,7 +20,7 @@ import {
   DollarSign,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { CostOverview } from '@/components/CostOverview';
+
 
 interface ProfitCardData {
   id: string;
@@ -345,11 +345,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 成本概览模块 */}
-      <div className="mt-8">
-        <h2 className="text-xl font-bold text-foreground mb-4">成本概览</h2>
-        <CostOverview />
-      </div>
+
     </div>
   );
 }
