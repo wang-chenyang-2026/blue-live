@@ -33,7 +33,7 @@ interface BrandSheetConfig {
 const BRAND_SHEET_MAP: Record<string, BrandSheetConfig> = {
   vivo: {
     dailySheets: [
-      { spreadsheetToken: VIVO_TOKEN, sheetId: '0a2100', range: 'A1:G200' },
+      { spreadsheetToken: VIVO_TOKEN, sheetId: '0a2100', range: 'A1:J200' },
     ],
     kpiSheets: [
       { spreadsheetToken: VIVO_TOKEN, sheetId: '204xjT', range: 'A1:H6', dailyRange: 'H1:AL6', label: 'vivo（大号）KPI' },
@@ -45,8 +45,8 @@ const BRAND_SHEET_MAP: Record<string, BrandSheetConfig> = {
   },
   iQOO: {
     dailySheets: [
-      { spreadsheetToken: IQOO_TOKEN, sheetId: '0a2100', range: 'A1:G200' },
-      { spreadsheetToken: IQOO_TOKEN, sheetId: 'RYPvqw', range: 'A1:G200' },
+      { spreadsheetToken: IQOO_TOKEN, sheetId: '0a2100', range: 'A1:J200' },
+      { spreadsheetToken: IQOO_TOKEN, sheetId: 'RYPvqw', range: 'A1:J200' },
     ],
     kpiSheets: [
       { spreadsheetToken: IQOO_TOKEN, sheetId: '204xjT', range: 'A1:H6', dailyRange: 'H1:AL6', label: 'iQOO手机（抖音）KPI' },
@@ -368,7 +368,7 @@ async function fetchBrandData(accessToken: string, brandKey: string) {
       getSheetValues(accessToken, src.spreadsheetToken, src.sheetId, src.range)
     )
   );
-  const dailyData = dailyRawResults.flatMap((raw) => parseDailyData(raw, brandKey === 'IOT' ? 3 : 0));
+  const dailyData = dailyRawResults.flatMap((raw) => parseDailyData(raw, 3));
 
   // 2. Fetch all KPI sheets in parallel, each becomes a Tab
   // Each sheet needs both main data (A:H) and daily data (H:AL)
