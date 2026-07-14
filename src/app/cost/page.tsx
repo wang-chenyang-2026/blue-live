@@ -891,7 +891,14 @@ export default function CostPage() {
 
         {/* 飞书数据 */}
         <TabsContent value="feishu" className="mt-4">
-          <FeishuDataPanel externalMonth={selectedMonth} />
+          <FeishuDataPanel
+            externalMonth={selectedMonth}
+            externalData={feishuData}
+            externalLoading={feishuLoading}
+            brand={feishuBrand}
+            onBrandChange={setFeishuBrand}
+            onRefresh={() => fetchFeishuData(selectedMonth, feishuBrand)}
+          />
         </TabsContent>
       </Tabs>
     </div>
@@ -899,14 +906,34 @@ export default function CostPage() {
 }
 
 // 飞书数据面板组件
-function FeishuDataPanel({ externalMonth }: { externalMonth: string }) {
+function FeishuDataPanel({
+  externalMonth,
+  externalData,
+  externalLoading,
+  brand,
+  onBrandChange,
+  onRefresh,
+}: {
+  externalMonth: string;
+  externalData: {
+    month: string;
+    brand: string;
+    dimensions: {
+      anchor: { total: number; details: Array<{ name: string; hours: number; rate: number; cost: number }> };
+      control: { total: number; details: Array<{ name: string; hours: number; cost: number; mode: string }> };
+      fulltime: { total: number; details: Array<{ name: string; base: number; subsidy: number; cost: number; role: string }> };
+      purchase: { total: number; details: unknown[] };
+    };
+    totalCost: number;
+    byBrand: { vivo: number; iQOO: number; IOT: number };
+  } | null;
+  externalLoading: boolean;
+  brand: string;
+  onBrandChange: (brand: string) => void;
+  onRefresh: () => void;
+}) {
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
-  const [brand, setBrand] = useState('all');
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
 
   // 初始化日期范围（从外部月份推导）
   useEffect(() => {
@@ -918,30 +945,9 @@ function FeishuDataPanel({ externalMonth }: { externalMonth: string }) {
     }
   }, [externalMonth]);
 
-  // 数据请求：直接使用 externalMonth，消除内部 month 状态
-  useEffect(() => {
-    if (!externalMonth) return;
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    fetch(`/api/cost-overview?month=${externalMonth}&brand=${brand}`)
-      .then(res => res.json())
-      .then(json => {
-        if (cancelled) return;
-        if (json.success) {
-          setData(json.data);
-        } else {
-          setError(json.error || '获取数据失败');
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setError('网络请求失败');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [externalMonth, brand, refreshKey]);
+  // 直接使用父组件传入的数据，无需内部 fetch
+  const data = externalData;
+  const loading = externalLoading;
 
   const formatMoney = (n: number) => `¥${n.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
@@ -982,7 +988,7 @@ function FeishuDataPanel({ externalMonth }: { externalMonth: string }) {
         >本月</button>
         <div className="flex items-center gap-2 ml-2">
           <Label className="text-xs text-zinc-400">品牌</Label>
-          <Select value={brand} onValueChange={setBrand}>
+          <Select value={brand} onValueChange={onBrandChange}>
             <SelectTrigger className="w-28 text-xs">
               <SelectValue />
             </SelectTrigger>
@@ -995,7 +1001,7 @@ function FeishuDataPanel({ externalMonth }: { externalMonth: string }) {
           </Select>
         </div>
         <button
-          onClick={() => setRefreshKey(k => k + 1)}
+          onClick={onRefresh}
           className="px-4 py-2 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition font-medium"
         >刷新</button>
       </div>
@@ -1005,13 +1011,6 @@ function FeishuDataPanel({ externalMonth }: { externalMonth: string }) {
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           <span className="ml-3 text-sm text-muted-foreground">正在从飞书获取数据...</span>
-        </div>
-      )}
-
-      {/* 错误状态 */}
-      {error && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
-          <p className="text-sm text-red-400">{error}</p>
         </div>
       )}
 
