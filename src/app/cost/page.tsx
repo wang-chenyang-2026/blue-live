@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, memo } from 'react';
 import dynamic from 'next/dynamic';
 import { useApp } from '@/contexts/AppContext';
 import { BRANDS, COST_CATEGORIES } from '@/lib/constants';
@@ -457,66 +457,17 @@ export default function CostPage() {
             <h3 className="text-sm font-medium text-foreground">成本明细</h3>
           </div>
 
-          {/* 成本分类汇总 - 使用飞书API数据 */}
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-4">
-            {COST_CATEGORIES.map((cat) => {
-              // 从飞书数据获取各分类成本
-              let feishuCatCost = 0;
-              let feishuCatCount = 0;
-              if (feishuData) {
-                switch (cat) {
-                  case '兼职主播成本':
-                    feishuCatCost = feishuData.dimensions.anchor.total;
-                    feishuCatCount = feishuData.dimensions.anchor.details.length;
-                    break;
-                  case '兼职中控成本':
-                    feishuCatCost = feishuData.dimensions.control.total;
-                    feishuCatCount = feishuData.dimensions.control.details.length;
-                    break;
-                  case '全职主播成本':
-                    feishuCatCost = feishuData.dimensions.fulltime.details
-                      .filter((d: { role: string }) => d.role === '主播')
-                      .reduce((sum: number, d: { cost: number }) => sum + d.cost, 0);
-                    feishuCatCount = feishuData.dimensions.fulltime.details
-                      .filter((d: { role: string }) => d.role === '主播').length;
-                    break;
-                  case '全职中控成本':
-                    feishuCatCost = feishuData.dimensions.fulltime.details
-                      .filter((d: { role: string }) => d.role === '中控')
-                      .reduce((sum: number, d: { cost: number }) => sum + d.cost, 0);
-                    feishuCatCount = feishuData.dimensions.fulltime.details
-                      .filter((d: { role: string }) => d.role === '中控').length;
-                    break;
-                  case '日常物料成本':
-                    feishuCatCost = feishuData.dimensions.purchase.total;
-                    feishuCatCount = feishuData.dimensions.purchase.details.length;
-                    break;
-                  case '其它成本':
-                    feishuCatCost = 0;
-                    feishuCatCount = 0;
-                    break;
-                }
-              }
-              // 优先使用飞书数据，否则使用localStorage数据
-              const localStorageTotal = brandCosts.filter((c) => c.category === cat).reduce((s, c) => s + c.amount, 0);
-              const total = feishuData ? feishuCatCost : localStorageTotal;
-              const count = feishuData ? feishuCatCount : brandCosts.filter((c) => c.category === cat).length;
-              
-              const colors = COST_CATEGORY_COLORS[cat] || COST_CATEGORY_COLORS['其它成本'];
-              
-              return (
-                <div key={cat} className={`rounded-lg ${colors.bg} border-l-4 ${colors.border} p-3`}>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className={`inline-block w-2 h-2 rounded-full ${colors.dot}`} />
-                    <p className={`text-[10px] font-medium ${colors.text}`}>{cat.replace('成本', '')}</p>
-                  </div>
-                  <p className="text-sm font-bold text-foreground">¥{total.toLocaleString()}</p>
-                  {feishuData && count > 0 && (
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{count} 人</p>
-                  )}
+          {/* 成本分类汇总 - 使用飞书API数据（React.memo优化） */}
+          <div className="relative">
+            {feishuLoading && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50 rounded-lg">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                  加载中...
                 </div>
-              );
-            })}
+              </div>
+            )}
+            <CostCategoryCards feishuData={feishuData} brandCosts={brandCosts} />
           </div>
 
           {/* 成本列表 - 优先显示飞书数据 */}
@@ -777,4 +728,53 @@ export default function CostPage() {
     </div>
   );
 }
+
+const CostCategoryCards = memo(function CostCategoryCards({
+  feishuData, brandCosts
+}: {
+  feishuData: any;
+  brandCosts: any[];
+}) {
+  const CATEGORIES = [
+    { id: 'anchor', name: '兼职主播', key: 'anchor', isDim: true },
+    { id: 'control', name: '兼职中控', key: 'control', isDim: true },
+    { id: 'fulltime-anchor', name: '全职主播', key: 'fulltime', role: '主播' },
+    { id: 'fulltime-control', name: '全职中控', key: 'fulltime', role: '中控' },
+    { id: 'purchase', name: '日常物料', key: 'purchase', isDim: true },
+    { id: 'other', name: '其它', key: 'other' },
+  ];
+  return (
+    <div className="grid grid-cols-3 gap-4">
+      {CATEGORIES.map((cat) => {
+        const colors = COST_CATEGORY_COLORS[cat.id] || { dot: 'bg-gray-400', border: 'border-gray-700', bg: 'bg-gray-900/20' };
+        let feishuCatCost = 0;
+        let feishuCatCount = 0;
+        if (feishuData && feishuData.dimensions) {
+          if (cat.isDim) {
+            feishuCatCost = feishuData.dimensions[cat.key]?.total || 0;
+            feishuCatCount = feishuData.dimensions[cat.key]?.details?.length || 0;
+          } else if (cat.role) {
+            const details = feishuData.dimensions[cat.key]?.details || [];
+            feishuCatCost = details.filter((d: any) => d.role === cat.role).reduce((s: number, d: any) => s + d.cost, 0);
+            feishuCatCount = details.filter((d: any) => d.role === cat.role).length;
+          }
+        }
+        const localCost = (brandCosts || []).filter((c: any) => c.category === cat.id).reduce((s: number, c: any) => s + (c.amount || c.cost || 0), 0);
+        const displayCost = feishuCatCost > 0 ? feishuCatCost : localCost;
+        return (
+          <div key={cat.id} className={`rounded-xl border ${colors.border} ${colors.bg} bg-card p-4 transition-all hover:scale-[1.01]`}>
+            <div className="flex items-center gap-2 mb-3">
+              <div className={`w-2.5 h-2.5 rounded-full ${colors.dot}`} />
+              <span className="text-sm font-medium text-muted-foreground">{cat.name}</span>
+            </div>
+            <div className="text-2xl font-bold text-foreground">¥{displayCost.toLocaleString()}</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {feishuCatCount > 0 ? `${feishuCatCount}人` : `${(brandCosts || []).filter((c: any) => c.category === cat.id).length}项`}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+});
 
