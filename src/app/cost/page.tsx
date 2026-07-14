@@ -4,6 +4,16 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useApp } from '@/contexts/AppContext';
 import { BRANDS, COST_CATEGORIES } from '@/lib/constants';
+
+// 成本分类颜色配置（常量，避免每次渲染重建）
+const COST_CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string; dot: string }> = {
+  '兼职主播成本': { bg: 'bg-pink-500/10', border: 'border-pink-500', text: 'text-pink-400', dot: 'bg-pink-500' },
+  '兼职中控成本': { bg: 'bg-amber-500/10', border: 'border-amber-500', text: 'text-amber-400', dot: 'bg-amber-500' },
+  '全职主播成本': { bg: 'bg-blue-500/10', border: 'border-blue-500', text: 'text-blue-400', dot: 'bg-blue-500' },
+  '全职中控成本': { bg: 'bg-purple-500/10', border: 'border-purple-500', text: 'text-purple-400', dot: 'bg-purple-500' },
+  '日常物料成本': { bg: 'bg-emerald-500/10', border: 'border-emerald-500', text: 'text-emerald-400', dot: 'bg-emerald-500' },
+  '其它成本': { bg: 'bg-zinc-500/10', border: 'border-zinc-500', text: 'text-zinc-400', dot: 'bg-zinc-500' },
+};
 import {
   getCostList,
   addCostItem,
@@ -492,21 +502,12 @@ export default function CostPage() {
               const total = feishuData ? feishuCatCost : localStorageTotal;
               const count = feishuData ? feishuCatCount : brandCosts.filter((c) => c.category === cat).length;
               
-              // 各分类颜色配置
-              const categoryColors: Record<string, { bg: string; border: string; text: string }> = {
-                '兼职主播成本': { bg: 'bg-pink-500/10', border: 'border-pink-500', text: 'text-pink-400' },
-                '兼职中控成本': { bg: 'bg-amber-500/10', border: 'border-amber-500', text: 'text-amber-400' },
-                '全职主播成本': { bg: 'bg-blue-500/10', border: 'border-blue-500', text: 'text-blue-400' },
-                '全职中控成本': { bg: 'bg-purple-500/10', border: 'border-purple-500', text: 'text-purple-400' },
-                '日常物料成本': { bg: 'bg-emerald-500/10', border: 'border-emerald-500', text: 'text-emerald-400' },
-                '其它成本': { bg: 'bg-zinc-500/10', border: 'border-zinc-500', text: 'text-zinc-400' },
-              };
-              const colors = categoryColors[cat] || categoryColors['其它成本'];
+              const colors = COST_CATEGORY_COLORS[cat] || COST_CATEGORY_COLORS['其它成本'];
               
               return (
                 <div key={cat} className={`rounded-lg ${colors.bg} border-l-4 ${colors.border} p-3`}>
                   <div className="flex items-center gap-1.5 mb-1">
-                    <span className={`inline-block w-2 h-2 rounded-full ${colors.border.replace('border-', 'bg-')}`} />
+                    <span className={`inline-block w-2 h-2 rounded-full ${colors.dot}`} />
                     <p className={`text-[10px] font-medium ${colors.text}`}>{cat.replace('成本', '')}</p>
                   </div>
                   <p className="text-sm font-bold text-foreground">¥{total.toLocaleString()}</p>
