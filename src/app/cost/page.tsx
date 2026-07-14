@@ -176,19 +176,7 @@ export default function CostPage() {
     }
   }, [selectedMonth, activeBrand, fetchFeishuData]);
 
-  // 客户端数据未就绪时返回骨架屏，确保 SSR/CSR 结构一致
-  if (!isClient || !selectedMonth || !startDate) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">成本核算</h1>
-          <p className="text-sm text-muted-foreground mt-1">加载中...</p>
-        </div>
-        <div className="rounded-xl border border-border bg-card h-48 animate-pulse" />
-      </div>
-    );
-  }
-
+  // 所有 Hooks 必须在条件返回之前声明，遵守 React Rules of Hooks
   const brandAccounts = useMemo(
     () => BRANDS.find((b) => b.id === activeBrand)?.accounts ?? [],
     [activeBrand],
@@ -283,6 +271,19 @@ export default function CostPage() {
 
   const isPositive = profitData.profitRate >= 0;
   const costRatio = profitData.revenue > 0 ? (profitData.totalCost / profitData.revenue * 100).toFixed(1) : '0';
+
+  // 客户端数据未就绪时返回骨架屏（在 Hooks 之后执行，不违反 Rules of Hooks）
+  if (!isClient || !selectedMonth || !startDate) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">成本核算</h1>
+          <p className="text-sm text-muted-foreground mt-1">加载中...</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card h-48 animate-pulse" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
