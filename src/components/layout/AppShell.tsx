@@ -1,7 +1,7 @@
 'use client';
 
 import { useApp } from '@/contexts/AppContext';
-import { AppSidebar, RoleSwitcher, BrandSwitcher } from '@/components/layout/AppSidebar';
+import { AppSidebar, BrandSwitcher } from '@/components/layout/AppSidebar';
 import { Bell } from 'lucide-react';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -42,7 +42,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <header className="flex h-14 items-center justify-between border-b border-border bg-card px-6">
           <BrandSwitcher />
           <div className="flex items-center gap-3">
-            <RoleSwitcher />
             <div className="h-5 w-px bg-border" />
             <button className="relative rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
               <Bell className="h-4 w-4" />

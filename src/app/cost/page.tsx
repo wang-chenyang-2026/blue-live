@@ -625,10 +625,25 @@ export default function CostPage() {
               const localStorageTotal = brandCosts.filter((c) => c.category === cat).reduce((s, c) => s + c.amount, 0);
               const total = feishuData ? feishuCatCost : localStorageTotal;
               const count = feishuData ? feishuCatCount : brandCosts.filter((c) => c.category === cat).length;
+              
+              // 各分类颜色配置
+              const categoryColors: Record<string, { bg: string; border: string; text: string }> = {
+                '兼职主播成本': { bg: 'bg-pink-500/10', border: 'border-pink-500', text: 'text-pink-400' },
+                '兼职中控成本': { bg: 'bg-amber-500/10', border: 'border-amber-500', text: 'text-amber-400' },
+                '全职主播成本': { bg: 'bg-blue-500/10', border: 'border-blue-500', text: 'text-blue-400' },
+                '全职中控成本': { bg: 'bg-purple-500/10', border: 'border-purple-500', text: 'text-purple-400' },
+                '日常物料成本': { bg: 'bg-emerald-500/10', border: 'border-emerald-500', text: 'text-emerald-400' },
+                '其它成本': { bg: 'bg-zinc-500/10', border: 'border-zinc-500', text: 'text-zinc-400' },
+              };
+              const colors = categoryColors[cat] || categoryColors['其它成本'];
+              
               return (
-                <div key={cat} className="rounded-lg bg-secondary p-3 text-center">
+                <div key={cat} className={`rounded-lg ${colors.bg} border-l-4 ${colors.border} p-3`}>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className={`inline-block w-2 h-2 rounded-full ${colors.border.replace('border-', 'bg-')}`} />
+                    <p className={`text-[10px] font-medium ${colors.text}`}>{cat.replace('成本', '')}</p>
+                  </div>
                   <p className="text-sm font-bold text-foreground">¥{total.toLocaleString()}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{cat.replace('成本', '')}</p>
                   {feishuData && count > 0 && (
                     <p className="text-[10px] text-muted-foreground mt-0.5">{count} 人</p>
                   )}
