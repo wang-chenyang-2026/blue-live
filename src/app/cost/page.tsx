@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useApp } from '@/contexts/AppContext';
-import { BRANDS, HOURLY_RATES, LIVE_TYPES, COST_CATEGORIES } from '@/lib/constants';
+import { BRANDS, COST_CATEGORIES } from '@/lib/constants';
 import {
   getCostList,
   addCostItem,
@@ -18,17 +18,12 @@ import {
   calcProfitRate,
   genId,
 } from '@/lib/store';
-import type { CostItem, RevenueItem, KPIItem, LiveType, CostCategory } from '@/lib/types';
+import type { CostItem, RevenueItem, KPIItem } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import {
-  Plus,
   Trash2,
   TrendingUp,
   TrendingDown,
@@ -117,9 +112,6 @@ export default function CostPage() {
   }, [startDate]);
 
   const [activeBrand, setActiveBrand] = useState<string>('vivo');
-  const [showCostDialog, setShowCostDialog] = useState(false);
-  const [showRevenueDialog, setShowRevenueDialog] = useState(false);
-  const [showKPIDialog, setShowKPIDialog] = useState(false);
 
   // 飞书数据状态
   const [feishuData, setFeishuData] = useState<{
@@ -135,31 +127,6 @@ export default function CostPage() {
     byBrand: { vivo: number; iQOO: number; IOT: number };
   } | null>(null);
   const [feishuLoading, setFeishuLoading] = useState(false);
-
-  const [newCost, setNewCost] = useState({
-    category: '兼职主播成本' as CostCategory,
-    amount: 0,
-    remark: '',
-  });
-  const [newRevenue, setNewRevenue] = useState({
-    accountId: '',
-    liveType: '日常直播' as LiveType,
-    hours: 0,
-    remark: '',
-  });
-  const [newKPI, setNewKPI] = useState({
-    accountId: '',
-    exposureEnterRate: 0,
-    exposureEnterRateCount: 0,
-    gpm: 0,
-    avgStayDuration: 0,
-    followRate: 0,
-    targetExposureEnterRate: 0,
-    targetExposureEnterRateCount: 0,
-    targetGpm: 0,
-    targetAvgStayDuration: 0,
-    targetFollowRate: 0,
-  });
 
   const loadData = useCallback(() => {
     setCosts(getCostList());
@@ -292,78 +259,6 @@ export default function CostPage() {
       成本: data.totalCost,
     };
   }).reverse();
-
-  // 添加成本
-  function handleAddCost() {
-    const item: CostItem = {
-      id: genId(),
-      brandId: activeBrand,
-      month: selectedMonth,
-      category: newCost.category,
-      amount: newCost.amount,
-      remark: newCost.remark,
-    };
-    addCostItem(item);
-    loadData();
-    setShowCostDialog(false);
-    setNewCost({ category: '兼职主播成本', amount: 0, remark: '' });
-  }
-
-  // 添加收入
-  function handleAddRevenue() {
-    const rate = HOURLY_RATES[newRevenue.liveType];
-    const item: RevenueItem = {
-      id: genId(),
-      brandId: activeBrand,
-      month: selectedMonth,
-      accountId: newRevenue.accountId,
-      liveType: newRevenue.liveType,
-      hours: newRevenue.hours,
-      hourlyRate: rate,
-      revenue: newRevenue.hours * rate,
-      remark: newRevenue.remark,
-    };
-    addRevenueItem(item);
-    loadData();
-    setShowRevenueDialog(false);
-    setNewRevenue({ accountId: '', liveType: '日常直播', hours: 0, remark: '' });
-  }
-
-  // 添加KPI
-  function handleAddKPI() {
-    // 检查是否达标
-    const isDeducted =
-      newKPI.exposureEnterRate < newKPI.targetExposureEnterRate ||
-      newKPI.exposureEnterRateCount < newKPI.targetExposureEnterRateCount ||
-      newKPI.gpm < newKPI.targetGpm ||
-      newKPI.avgStayDuration < newKPI.targetAvgStayDuration ||
-      newKPI.followRate < newKPI.targetFollowRate;
-
-    const item: KPIItem = {
-      id: genId(),
-      brandId: activeBrand,
-      month: selectedMonth,
-      accountId: newKPI.accountId,
-      metrics: {
-        exposureEnterRate: newKPI.exposureEnterRate,
-        exposureEnterRateCount: newKPI.exposureEnterRateCount,
-        gpm: newKPI.gpm,
-        avgStayDuration: newKPI.avgStayDuration,
-        followRate: newKPI.followRate,
-      },
-      targetMetrics: {
-        exposureEnterRate: newKPI.targetExposureEnterRate,
-        exposureEnterRateCount: newKPI.targetExposureEnterRateCount,
-        gpm: newKPI.targetGpm,
-        avgStayDuration: newKPI.targetAvgStayDuration,
-        followRate: newKPI.targetFollowRate,
-      },
-      isDeducted,
-    };
-    addKPIItem(item);
-    loadData();
-    setShowKPIDialog(false);
-  }
 
   const brandColors: Record<string, string> = {
     vivo: '#415FFF',
@@ -534,51 +429,6 @@ export default function CostPage() {
         <TabsContent value="costs" className="mt-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-medium text-foreground">成本明细</h3>
-            <Dialog open={showCostDialog} onOpenChange={setShowCostDialog}>
-              <DialogTrigger asChild>
-                <Button size="sm"><Plus className="h-4 w-4 mr-1" />添加成本</Button>
-              </DialogTrigger>
-              <DialogContent className="bg-card border-border">
-                <DialogHeader><DialogTitle>添加成本项</DialogTitle></DialogHeader>
-                <div className="space-y-4 pt-2">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">成本类别</Label>
-                    <Select value={newCost.category} onValueChange={(v) => setNewCost({ ...newCost, category: v as CostCategory })}>
-                      <SelectTrigger className="bg-secondary border-border mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover border-border">
-                        {COST_CATEGORIES.map((c) => (
-                          <SelectItem key={c} value={c}>{c}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">金额（元）</Label>
-                    <Input
-                      type="number"
-                      value={newCost.amount || ''}
-                      onChange={(e) => setNewCost({ ...newCost, amount: Number(e.target.value) })}
-                      placeholder="输入金额"
-                      className="bg-secondary border-border mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">备注</Label>
-                    <Input
-                      value={newCost.remark}
-                      onChange={(e) => setNewCost({ ...newCost, remark: e.target.value })}
-                      placeholder="可选备注"
-                      className="bg-secondary border-border mt-1"
-                    />
-                  </div>
-                  <Button onClick={handleAddCost} className="w-full" disabled={newCost.amount <= 0}>
-                    确认添加
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
           </div>
 
           {/* 成本分类汇总 - 使用飞书API数据 */}
@@ -737,74 +587,6 @@ export default function CostPage() {
         <TabsContent value="revenues" className="mt-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-medium text-foreground">收入明细</h3>
-            <Dialog open={showRevenueDialog} onOpenChange={setShowRevenueDialog}>
-              <DialogTrigger asChild>
-                <Button size="sm"><Plus className="h-4 w-4 mr-1" />添加收入</Button>
-              </DialogTrigger>
-              <DialogContent className="bg-card border-border">
-                <DialogHeader><DialogTitle>添加收入项</DialogTitle></DialogHeader>
-                <div className="space-y-4 pt-2">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">账号</Label>
-                    <Select value={newRevenue.accountId} onValueChange={(v) => setNewRevenue({ ...newRevenue, accountId: v })}>
-                      <SelectTrigger className="bg-secondary border-border mt-1">
-                        <SelectValue placeholder="选择账号" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover border-border">
-                        {brandAccounts.map((a) => (
-                          <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">直播类型</Label>
-                      <Select value={newRevenue.liveType} onValueChange={(v) => setNewRevenue({ ...newRevenue, liveType: v as LiveType })}>
-                        <SelectTrigger className="bg-secondary border-border mt-1">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-popover border-border">
-                          {LIVE_TYPES.map((t) => (
-                            <SelectItem key={t} value={t}>{t} (¥{HOURLY_RATES[t]}/h)</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">时长（小时）</Label>
-                      <Input
-                        type="number"
-                        value={newRevenue.hours || ''}
-                        onChange={(e) => setNewRevenue({ ...newRevenue, hours: Number(e.target.value) })}
-                        placeholder="0"
-                        className="bg-secondary border-border mt-1"
-                      />
-                    </div>
-                  </div>
-                  <div className="rounded-md bg-secondary p-3 text-xs">
-                    <p className="text-muted-foreground">
-                      小时费率：¥{HOURLY_RATES[newRevenue.liveType]}/小时
-                    </p>
-                    <p className="font-medium text-foreground mt-1">
-                      预计收入：¥{(newRevenue.hours * HOURLY_RATES[newRevenue.liveType]).toLocaleString()}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">备注</Label>
-                    <Input
-                      value={newRevenue.remark}
-                      onChange={(e) => setNewRevenue({ ...newRevenue, remark: e.target.value })}
-                      placeholder="可选备注"
-                      className="bg-secondary border-border mt-1"
-                    />
-                  </div>
-                  <Button onClick={handleAddRevenue} className="w-full" disabled={!newRevenue.accountId || newRevenue.hours <= 0}>
-                    确认添加
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
           </div>
 
           <div className="rounded-lg border border-border overflow-hidden">
@@ -855,66 +637,6 @@ export default function CostPage() {
         <TabsContent value="kpi" className="mt-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-medium text-foreground">KPI管理</h3>
-            <Dialog open={showKPIDialog} onOpenChange={setShowKPIDialog}>
-              <DialogTrigger asChild>
-                <Button size="sm"><Plus className="h-4 w-4 mr-1" />添加KPI</Button>
-              </DialogTrigger>
-              <DialogContent className="bg-card border-border max-w-lg">
-                <DialogHeader><DialogTitle>添加KPI指标</DialogTitle></DialogHeader>
-                <div className="space-y-4 pt-2 max-h-[60vh] overflow-y-auto">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">账号</Label>
-                    <Select value={newKPI.accountId} onValueChange={(v) => setNewKPI({ ...newKPI, accountId: v })}>
-                      <SelectTrigger className="bg-secondary border-border mt-1">
-                        <SelectValue placeholder="选择账号" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover border-border">
-                        {brandAccounts.map((a) => (
-                          <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <p className="text-xs text-muted-foreground">实际值 / 目标值</p>
-                  {[
-                    { key: 'exposureEnterRate', label: '曝光进入率（人数）', unit: '%' },
-                    { key: 'exposureEnterRateCount', label: '曝光进入率（次数）', unit: '%' },
-                    { key: 'gpm', label: 'GPM', unit: '' },
-                    { key: 'avgStayDuration', label: '停留时长', unit: '秒' },
-                    { key: 'followRate', label: '转粉率', unit: '%' },
-                  ].map(({ key, label, unit }) => (
-                    <div key={key} className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label className="text-xs text-muted-foreground">实际{label}</Label>
-                        <Input
-                          type="number"
-                          value={(newKPI as unknown as Record<string, number>)[key] || ''}
-                          onChange={(e) => setNewKPI({ ...newKPI, [key]: Number(e.target.value) })}
-                          placeholder="实际值"
-                          className="bg-secondary border-border mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">目标{label}</Label>
-                        <Input
-                          type="number"
-                          value={(newKPI as unknown as Record<string, number>)[`target${key.charAt(0).toUpperCase()}${key.slice(1)}`] || ''}
-                          onChange={(e) => {
-                            const targetKey = `target${key.charAt(0).toUpperCase()}${key.slice(1)}`;
-                            setNewKPI({ ...newKPI, [targetKey]: Number(e.target.value) });
-                          }}
-                          placeholder="目标值"
-                          className="bg-secondary border-border mt-1"
-                        />
-                      </div>
-                    </div>
-                  ))}
-                  <Button onClick={handleAddKPI} className="w-full" disabled={!newKPI.accountId}>
-                    确认添加
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
           </div>
 
           <div className="space-y-3">
