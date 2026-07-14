@@ -37,7 +37,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
-  Database,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSafeMonth } from '@/lib/hooks';
@@ -136,7 +135,6 @@ export default function CostPage() {
     byBrand: { vivo: number; iQOO: number; IOT: number };
   } | null>(null);
   const [feishuLoading, setFeishuLoading] = useState(false);
-  const [feishuBrand, setFeishuBrand] = useState<string>('all');
 
   const [newCost, setNewCost] = useState({
     category: '兼职主播成本' as CostCategory,
@@ -207,9 +205,9 @@ export default function CostPage() {
 
   useEffect(() => {
     if (selectedMonth) {
-      fetchFeishuData(selectedMonth, feishuBrand);
+      fetchFeishuData(selectedMonth, activeBrand);
     }
-  }, [selectedMonth, feishuBrand, fetchFeishuData]);
+  }, [selectedMonth, activeBrand, fetchFeishuData]);
 
   // 客户端数据未就绪时返回骨架屏，确保 SSR/CSR 结构一致
   if (!isClient || !selectedMonth || !startDate) {
@@ -227,17 +225,39 @@ export default function CostPage() {
   const brandAccounts = BRANDS.find((b) => b.id === activeBrand)?.accounts ?? [];
 
   // 当前品牌当月数据
-  const brandCosts = costs.filter((c) => c.brandId === activeBrand && c.month === selectedMonth);
-  const brandRevenues = revenues.filter((r) => r.brandId === activeBrand && r.month === selectedMonth);
-  const brandKPIs = kpis.filter((k) => k.brandId === activeBrand && k.month === selectedMonth);
+  const brandCosts = costs.filter((c) => (activeBrand === 'all' || c.brandId === activeBrand) && c.month === selectedMonth);
+  const brandRevenues = revenues.filter((r) => (activeBrand === 'all' || r.brandId === activeBrand) && r.month === selectedMonth);
+  const brandKPIs = kpis.filter((k) => (activeBrand === 'all' || k.brandId === activeBrand) && k.month === selectedMonth);
 
-  // 利润率计算 - 优先使用飞书API数据作为成本，localStorage数据作为收入
-  const localStorageProfit = calcProfitRate(activeBrand, selectedMonth);
+  // 利润率计算 - 使用飞书API数据作为成本来源
+  // 当选择"全部"品牌时，聚合所有品牌数据
+  const localStorageProfit = activeBrand === 'all'
+    ? BRANDS.reduce((acc, b) => {
+        const brandData = calcProfitRate(b.id, selectedMonth);
+        return {
+          revenue: acc.revenue + brandData.revenue,
+          totalCost: acc.totalCost + brandData.totalCost,
+          profitRate: 0,
+          costs: { ...acc.costs, ...brandData.costs },
+          kpiDeducted: acc.kpiDeducted || brandData.kpiDeducted,
+        };
+      }, { revenue: 0, totalCost: 0, profitRate: 0, costs: {} as Record<string, number>, kpiDeducted: false })
+    : calcProfitRate(activeBrand, selectedMonth);
   
-  // 从飞书API获取当前品牌的成本
-  const apiCost = feishuData?.byBrand?.[activeBrand as keyof typeof feishuData.byBrand] ?? 0;
+  // 计算聚合后的利润率
+  localStorageProfit.profitRate = localStorageProfit.revenue > 0
+    ? (localStorageProfit.revenue - localStorageProfit.totalCost) / localStorageProfit.revenue
+    : 0;
+  
+  // 从飞书API获取各维度成本
+  const feishuAnchorCost = feishuData?.dimensions?.anchor?.total ?? 0;
+  const feishuControlCost = feishuData?.dimensions?.control?.total ?? 0;
+  const feishuFulltimeCost = feishuData?.dimensions?.fulltime?.total ?? 0;
+  const feishuPurchaseCost = feishuData?.dimensions?.purchase?.total ?? 0;
+  const feishuTotalCost = feishuData?.totalCost ?? 0;
+  
   // 如果飞书数据可用，使用API成本；否则使用localStorage成本
-  const effectiveCost = feishuData ? apiCost : localStorageProfit.totalCost;
+  const effectiveCost = feishuData ? feishuTotalCost : localStorageProfit.totalCost;
   const effectiveRevenue = localStorageProfit.revenue;
   const effectiveProfitRate = effectiveRevenue > 0 
     ? (effectiveRevenue - effectiveCost) / effectiveRevenue 
@@ -397,17 +417,68 @@ export default function CostPage() {
           <button
             onClick={() => {
               if (selectedMonth) {
-                fetchFeishuData(selectedMonth, feishuBrand);
+                fetchFeishuData(selectedMonth, activeBrand);
                 loadData();
               }
             }}
             className="px-4 py-2 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition font-medium"
           >刷新</button>
         </div>
+
+        {/* 飞书数据四维度成本明细 */}
+        {feishuData && (
+          <div className="mt-5 pt-5 border-t border-border">
+            <p className="text-xs text-muted-foreground mb-3">成本构成（飞书数据）</p>
+            <div className="grid grid-cols-4 gap-4">
+              <div className="rounded-lg bg-pink-500/10 border border-pink-500/20 p-3">
+                <p className="text-[10px] text-pink-400">兼职主播</p>
+                <p className="text-lg font-bold text-pink-300 mt-0.5">¥{feishuAnchorCost.toLocaleString()}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{feishuData.dimensions.anchor.details.length} 人</p>
+              </div>
+              <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3">
+                <p className="text-[10px] text-amber-400">兼职中控</p>
+                <p className="text-lg font-bold text-amber-300 mt-0.5">¥{feishuControlCost.toLocaleString()}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{feishuData.dimensions.control.details.length} 人</p>
+              </div>
+              <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3">
+                <p className="text-[10px] text-blue-400">全职员工</p>
+                <p className="text-lg font-bold text-blue-300 mt-0.5">¥{feishuFulltimeCost.toLocaleString()}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{feishuData.dimensions.fulltime.details.length} 人</p>
+              </div>
+              <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-3">
+                <p className="text-[10px] text-green-400">日常采买</p>
+                <p className="text-lg font-bold text-green-300 mt-0.5">¥{feishuPurchaseCost.toLocaleString()}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{feishuData.dimensions.purchase.details.length} 条</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 飞书数据加载中 */}
+        {feishuLoading && !feishuData && (
+          <div className="mt-5 pt-5 border-t border-border flex items-center justify-center py-4">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+            <span className="ml-2 text-xs text-muted-foreground">正在从飞书获取成本数据...</span>
+          </div>
+        )}
       </div>
 
       {/* Brand tabs */}
       <div className="flex items-center gap-2">
+        <button
+          onClick={() => setActiveBrand('all')}
+          className={cn(
+            'rounded-md px-3 py-1.5 text-xs transition-colors',
+            activeBrand === 'all' ? 'font-medium' : 'text-muted-foreground hover:text-foreground'
+          )}
+          style={
+            activeBrand === 'all'
+              ? { backgroundColor: '#a1a1aa25', color: '#a1a1aa' }
+              : undefined
+          }
+        >
+          全部
+        </button>
         {BRANDS.map((b) => (
           <button
             key={b.id}
@@ -494,7 +565,6 @@ export default function CostPage() {
           <TabsTrigger value="revenues" className="text-xs">收入明细</TabsTrigger>
           <TabsTrigger value="kpi" className="text-xs">KPI管理</TabsTrigger>
           <TabsTrigger value="dashboard" className="text-xs">利润率看板</TabsTrigger>
-          <TabsTrigger value="feishu" className="text-xs">飞书数据</TabsTrigger>
         </TabsList>
 
         {/* 成本明细 */}
@@ -900,283 +970,8 @@ export default function CostPage() {
             })}
           </div>
         </TabsContent>
-
-        {/* 飞书数据 */}
-        <TabsContent value="feishu" className="mt-4">
-          <FeishuDataPanel
-            externalMonth={selectedMonth}
-            externalData={feishuData}
-            externalLoading={feishuLoading}
-            brand={feishuBrand}
-            onBrandChange={setFeishuBrand}
-            onRefresh={() => fetchFeishuData(selectedMonth, feishuBrand)}
-            onStartDateChange={(newStartDate) => {
-              setStartDate(newStartDate);
-            }}
-          />
-        </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-// 飞书数据面板组件
-function FeishuDataPanel({
-  externalMonth,
-  externalData,
-  externalLoading,
-  brand,
-  onBrandChange,
-  onRefresh,
-  onStartDateChange,
-}: {
-  externalMonth: string;
-  externalData: {
-    month: string;
-    brand: string;
-    dimensions: {
-      anchor: { total: number; details: Array<{ name: string; hours: number; rate: number; cost: number }> };
-      control: { total: number; details: Array<{ name: string; hours: number; cost: number; mode: string }> };
-      fulltime: { total: number; details: Array<{ name: string; base: number; subsidy: number; cost: number; role: string }> };
-      purchase: { total: number; details: unknown[] };
-    };
-    totalCost: number;
-    byBrand: { vivo: number; iQOO: number; IOT: number };
-  } | null;
-  externalLoading: boolean;
-  brand: string;
-  onBrandChange: (brand: string) => void;
-  onRefresh: () => void;
-  onStartDateChange?: (date: string) => void;
-}) {
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
-
-  // 初始化日期范围（从外部月份推导）
-  useEffect(() => {
-    if (externalMonth) {
-      setStartDate(`${externalMonth}-01`);
-      const now = new Date();
-      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-      setEndDate(todayStr);
-    }
-  }, [externalMonth]);
-
-  const handleStartDateChange = (newDate: string) => {
-    setStartDate(newDate);
-    onStartDateChange?.(newDate);
-  };
-
-  const formatMoney = (n: number) => `¥${n.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-
-  return (
-    <div className="space-y-4">
-      {/* 日期区间选择器 */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-sm text-zinc-400">日期范围</span>
-        <input
-          type="date"
-          value={startDate}
-          onChange={e => handleStartDateChange(e.target.value)}
-          className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
-        />
-        <span className="text-zinc-500">~</span>
-        <input
-          type="date"
-          value={endDate}
-          onChange={e => setEndDate(e.target.value)}
-          className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
-        />
-        <button
-          onClick={() => {
-            handleStartDateChange(getDaysAgo(6));
-            setEndDate(getToday());
-          }}
-          className="px-3 py-2 text-xs rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition"
-        >近7天</button>
-        <button
-          onClick={() => {
-            const d = new Date();
-            const mo = d.getMonth();
-            const y = d.getFullYear();
-            handleStartDateChange(`${y}-${String(mo + 1).padStart(2, '0')}-01`);
-            setEndDate(getToday());
-          }}
-          className="px-3 py-2 text-xs rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition"
-        >本月</button>
-        <div className="flex items-center gap-2 ml-2">
-          <Label className="text-xs text-zinc-400">品牌</Label>
-          <Select value={brand} onValueChange={onBrandChange}>
-            <SelectTrigger className="w-28 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部</SelectItem>
-              <SelectItem value="vivo">vivo</SelectItem>
-              <SelectItem value="iQOO">iQOO</SelectItem>
-              <SelectItem value="IOT">IOT</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <button
-          onClick={onRefresh}
-          className="px-4 py-2 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition font-medium"
-        >刷新</button>
-      </div>
-
-      {/* 加载状态 */}
-      {externalLoading && (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          <span className="ml-3 text-sm text-muted-foreground">正在从飞书获取数据...</span>
-        </div>
-      )}
-
-      {/* 数据展示 */}
-      {externalData && !externalLoading && (
-        <>
-          {/* 四维度卡片 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="rounded-xl border border-pink-500/30 bg-pink-500/10 p-4">
-              <p className="text-xs text-pink-400">兼职主播</p>
-              <p className="text-2xl font-bold text-pink-300 mt-1">{formatMoney(externalData.dimensions.anchor.total)}</p>
-              <p className="text-xs text-muted-foreground mt-1">{externalData.dimensions.anchor.details.length} 人</p>
-            </div>
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-              <p className="text-xs text-amber-400">兼职中控</p>
-              <p className="text-2xl font-bold text-amber-300 mt-1">{formatMoney(externalData.dimensions.control.total)}</p>
-              <p className="text-xs text-muted-foreground mt-1">{externalData.dimensions.control.details.length} 人</p>
-            </div>
-            <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-4">
-              <p className="text-xs text-blue-400">全职员工</p>
-              <p className="text-2xl font-bold text-blue-300 mt-1">{formatMoney(externalData.dimensions.fulltime.total)}</p>
-              <p className="text-xs text-muted-foreground mt-1">{externalData.dimensions.fulltime.details.length} 人</p>
-            </div>
-            <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-4">
-              <p className="text-xs text-green-400">日常采买</p>
-              <p className="text-2xl font-bold text-green-300 mt-1">{formatMoney(externalData.dimensions.purchase.total)}</p>
-              <p className="text-xs text-muted-foreground mt-1">{externalData.dimensions.purchase.details.length} 条</p>
-            </div>
-          </div>
-
-          {/* 总成本 */}
-          <div className="rounded-xl border border-border bg-card p-5">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-foreground">总成本</h3>
-              <p className="text-2xl font-bold text-primary">{formatMoney(externalData.totalCost)}</p>
-            </div>
-            <div className="mt-4 grid grid-cols-3 gap-4">
-              <div>
-                <p className="text-xs text-muted-foreground">vivo</p>
-                <p className="text-sm font-medium text-foreground">{formatMoney(externalData.byBrand.vivo)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">iQOO</p>
-                <p className="text-sm font-medium text-foreground">{formatMoney(externalData.byBrand.iQOO)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">IOT</p>
-                <p className="text-sm font-medium text-foreground">{formatMoney(externalData.byBrand.IOT)}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* 兼职主播明细 */}
-          {externalData.dimensions.anchor.details.length > 0 && (
-            <div className="rounded-xl border border-border bg-card p-5">
-              <h3 className="text-sm font-medium text-foreground mb-3">兼职主播明细</h3>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-2">姓名</th>
-                    <th className="text-right py-2">时长(h)</th>
-                    <th className="text-right py-2">时薪</th>
-                    <th className="text-right py-2">成本</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {externalData.dimensions.anchor.details.map((item: any, idx: number) => (
-                    <tr key={idx} className="border-b border-border/50">
-                      <td className="py-2">{item.name}</td>
-                      <td className="text-right py-2">{item.hours}</td>
-                      <td className="text-right py-2">{formatMoney(item.rate)}</td>
-                      <td className="text-right py-2 font-medium">{formatMoney(item.cost)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* 兼职中控明细 */}
-          {externalData.dimensions.control.details.length > 0 && (
-            <div className="rounded-xl border border-border bg-card p-5">
-              <h3 className="text-sm font-medium text-foreground mb-3">兼职中控明细</h3>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-2">姓名</th>
-                    <th className="text-right py-2">时长(h)</th>
-                    <th className="text-left py-2">模式</th>
-                    <th className="text-right py-2">成本</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {externalData.dimensions.control.details.map((item: any, idx: number) => (
-                    <tr key={idx} className="border-b border-border/50">
-                      <td className="py-2">{item.name}</td>
-                      <td className="text-right py-2">{item.hours}</td>
-                      <td className="py-2"><Badge variant="outline" className="text-xs">{item.mode}</Badge></td>
-                      <td className="text-right py-2 font-medium">{formatMoney(item.cost)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* 全职员工明细 */}
-          {externalData.dimensions.fulltime.details.length > 0 && (
-            <div className="rounded-xl border border-border bg-card p-5">
-              <h3 className="text-sm font-medium text-foreground mb-3">全职员工明细</h3>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-2">姓名</th>
-                    <th className="text-left py-2">角色</th>
-                    <th className="text-right py-2">底薪</th>
-                    <th className="text-right py-2">补贴</th>
-                    <th className="text-right py-2">成本</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {externalData.dimensions.fulltime.details.map((item: any, idx: number) => (
-                    <tr key={idx} className="border-b border-border/50">
-                      <td className="py-2">{item.name}</td>
-                      <td className="py-2"><Badge variant="outline" className="text-xs">{item.role}</Badge></td>
-                      <td className="text-right py-2">{formatMoney(item.base)}</td>
-                      <td className="text-right py-2">{formatMoney(item.subsidy)}</td>
-                      <td className="text-right py-2 font-medium">{formatMoney(item.cost)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* 空状态 */}
-          {externalData.dimensions.anchor.details.length === 0 && 
-           externalData.dimensions.control.details.length === 0 && 
-           externalData.dimensions.fulltime.details.length === 0 && 
-           externalData.dimensions.purchase.details.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <Database className="h-12 w-12 mb-3 opacity-50" />
-              <p className="text-sm">该月份暂无数据</p>
-              <p className="text-xs mt-1">请检查排班表是否已录入该月数据</p>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
