@@ -5,6 +5,13 @@ const FEISHU_APP_ID = "cli_aab083b6c2b99be3";
 const FEISHU_APP_SECRET = "3eg03VsphXSTYxBDyZYA8gLL4JGS8XBI";
 const SALARY_SHEET_TOKEN = "GFMyspTT3hsoemtkosbc1ObIn3Z";
 
+// Salary management table for nickname → real name mapping
+const NICKNAME_SHEET_TOKEN = "QmESw57otiab5WkLVqdcblCmnue";
+const NICKNAME_SHEETS = {
+  partTime: "b88f14",  // 兼职 sheet (A=姓名, B=花名)
+  fullTime: "CxB4xa",  // 全职 sheet (A=所属项目, B=姓名)
+};
+
 // Schedule table configuration
 const SCHEDULE_CONFIG = {
   vivo: {
@@ -109,6 +116,74 @@ function stripNumbers(name: string): string {
   return name.replace(/[0-9]/g, "").replace(/[.。·]/g, "").trim();
 }
 
+// Helper: Strip trailing non-Chinese characters from name (for salary table)
+function cleanSalaryName(name: string): string {
+  return name.replace(/[^\u4e00-\u9fa5]+$/, "").trim();
+}
+
+// Build nickname → real name mapping from salary table
+// Returns: { 花名: 真实姓名, ... }
+// Also returns reverse mapping: { 真实姓名: 真实姓名 } for direct lookups
+async function buildNicknameMapping(feishuToken: string): Promise<{
+  nicknameToReal: Record<string, string>;
+  allNames: Set<string>;
+}> {
+  const nicknameToReal: Record<string, string> = {};
+  const allNames = new Set<string>();
+
+  try {
+    // Read 兼职 sheet (A=姓名 with numbers, B=花名)
+    const ptValues = await readSheet(feishuToken, NICKNAME_SHEET_TOKEN, `${NICKNAME_SHEETS.partTime}!A1:B100`);
+    for (let i = 1; i < ptValues.length; i++) {
+      const rawName = String(ptValues[i][0] || "").trim();
+      const nickname = String(ptValues[i][1] || "").trim();
+      if (rawName && nickname) {
+        const realName = cleanSalaryName(rawName);
+        nicknameToReal[nickname] = realName;
+        allNames.add(realName);
+        allNames.add(nickname);
+      }
+    }
+
+    // Read 全职 sheet (A=所属项目, B=姓名)
+    const ftValues = await readSheet(feishuToken, NICKNAME_SHEET_TOKEN, `${NICKNAME_SHEETS.fullTime}!A1:B100`);
+    for (let i = 1; i < ftValues.length; i++) {
+      const project = String(ftValues[i][0] || "").trim();
+      const name = String(ftValues[i][1] || "").trim();
+      if (name && project) {
+        allNames.add(name);
+      }
+    }
+  } catch (e) {
+    console.error("Failed to build nickname mapping:", e);
+  }
+
+  return { nicknameToReal, allNames };
+}
+
+// Resolve a name from schedule to real name using nickname mapping
+// Priority: 1) direct match in allNames, 2) match as nickname, 3) return cleaned name
+function resolveName(scheduleName: string, mapping: { nicknameToReal: Record<string, string>; allNames: Set<string> }): string {
+  const cleaned = stripNumbers(scheduleName);
+  
+  // If it's already a known real name, return as-is
+  if (mapping.allNames.has(cleaned)) {
+    // Check if it's a nickname that maps to a different real name
+    if (mapping.nicknameToReal[cleaned]) {
+      return mapping.nicknameToReal[cleaned];
+    }
+    return cleaned;
+  }
+  
+  // Try to match as nickname
+  if (mapping.nicknameToReal[cleaned]) {
+    return mapping.nicknameToReal[cleaned];
+  }
+  
+  // Return cleaned name as fallback
+  return cleaned;
+}
+
 // Helper: Check if string is a day-of-week label
 function isDayLabel(name: string): boolean {
   return /^(星期|周|礼拜)[一二三四五六日天]$/.test(name);
@@ -142,7 +217,8 @@ function getLegalHolidayCount(year: number, month: number): number {
 async function calcAnchorCost(
   feishuToken: string,
   month: string,
-  brand: string
+  brand: string,
+  nicknameMapping?: { nicknameToReal: Record<string, string>; allNames: Set<string> }
 ): Promise<{ total: number; details: Array<{ name: string; hours: number; rate: number; cost: number }> }> {
   const [year, monthNum] = month.split("-").map(Number);
   const monthStr = String(monthNum).padStart(2, "0");
@@ -190,9 +266,11 @@ async function calcAnchorCost(
           const names = cell.split(/[,，、]/).map(n => n.trim()).filter(Boolean);
           for (const name of names) {
             const cleanName = stripNumbers(name);
+            // Resolve nickname to real name if mapping is available
+            const resolvedName = nicknameMapping ? resolveName(cleanName, nicknameMapping) : cleanName;
             // Find matching anchor in rate table
             const matchedName = Object.keys(ANCHOR_RATES).find(
-              k => stripNumbers(k) === cleanName || k === cleanName
+              k => stripNumbers(k) === resolvedName || k === resolvedName
             );
             if (matchedName) {
               nameHours[matchedName] = (nameHours[matchedName] || 0) + 1;
@@ -217,7 +295,8 @@ async function calcAnchorCost(
 async function calcControlCost(
   feishuToken: string,
   month: string,
-  brand: string
+  brand: string,
+  nicknameMapping?: { nicknameToReal: Record<string, string>; allNames: Set<string> }
 ): Promise<{ total: number; details: Array<{ name: string; hours: number; cost: number; mode: string }> }> {
   const [year, monthNum] = month.split("-").map(Number);
   
@@ -260,10 +339,12 @@ async function calcControlCost(
           const names = cell.split(/[,，、]/).map(n => n.trim()).filter(Boolean);
           for (const name of names) {
             const cleanName = stripNumbers(name);
+            // Resolve nickname to real name if mapping is available
+            const resolvedName = nicknameMapping ? resolveName(cleanName, nicknameMapping) : cleanName;
             // Skip full-time employees and day labels
-            if (cleanName in FULLTIME_CONFIG) continue;
-            if (isDayLabel(cleanName)) continue;
-            nameHours[cleanName] = (nameHours[cleanName] || 0) + 1;
+            if (resolvedName in FULLTIME_CONFIG) continue;
+            if (isDayLabel(resolvedName)) continue;
+            nameHours[resolvedName] = (nameHours[resolvedName] || 0) + 1;
           }
         }
       }
@@ -561,10 +642,13 @@ export async function GET(request: NextRequest) {
   try {
     const feishuToken = await getFeishuToken();
     
+    // Build nickname → real name mapping from salary table
+    const nicknameMapping = await buildNicknameMapping(feishuToken);
+    
     // Calculate all dimensions
     const [anchorResult, controlResult, fulltimeResult, purchaseResult] = await Promise.all([
-      calcAnchorCost(feishuToken, month, brand),
-      calcControlCost(feishuToken, month, brand),
+      calcAnchorCost(feishuToken, month, brand, nicknameMapping),
+      calcControlCost(feishuToken, month, brand, nicknameMapping),
       calcFulltimeCost(feishuToken, month, brand),
       calcPurchaseCost(feishuToken, month, brand),
     ]);
@@ -575,24 +659,24 @@ export async function GET(request: NextRequest) {
     const byBrand: Record<string, number> = {};
     if (brand === "all") {
       const [vivoAnchor, vivoControl, vivoFulltime, vivoPurchase] = await Promise.all([
-        calcAnchorCost(feishuToken, month, "vivo"),
-        calcControlCost(feishuToken, month, "vivo"),
+        calcAnchorCost(feishuToken, month, "vivo", nicknameMapping),
+        calcControlCost(feishuToken, month, "vivo", nicknameMapping),
         calcFulltimeCost(feishuToken, month, "vivo"),
         calcPurchaseCost(feishuToken, month, "vivo"),
       ]);
       byBrand.vivo = vivoAnchor.total + vivoControl.total + vivoFulltime.total + vivoPurchase.total;
       
       const [iqooAnchor, iqooControl, iqooFulltime, iqooPurchase] = await Promise.all([
-        calcAnchorCost(feishuToken, month, "iQOO"),
-        calcControlCost(feishuToken, month, "iQOO"),
+        calcAnchorCost(feishuToken, month, "iQOO", nicknameMapping),
+        calcControlCost(feishuToken, month, "iQOO", nicknameMapping),
         calcFulltimeCost(feishuToken, month, "iQOO"),
         calcPurchaseCost(feishuToken, month, "iQOO"),
       ]);
       byBrand.iQOO = iqooAnchor.total + iqooControl.total + iqooFulltime.total + iqooPurchase.total;
       
       const [iotAnchor, iotControl, iotFulltime, iotPurchase] = await Promise.all([
-        calcAnchorCost(feishuToken, month, "IOT"),
-        calcControlCost(feishuToken, month, "IOT"),
+        calcAnchorCost(feishuToken, month, "IOT", nicknameMapping),
+        calcControlCost(feishuToken, month, "IOT", nicknameMapping),
         calcFulltimeCost(feishuToken, month, "IOT"),
         calcPurchaseCost(feishuToken, month, "IOT"),
       ]);
