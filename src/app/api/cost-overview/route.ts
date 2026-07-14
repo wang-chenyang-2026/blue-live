@@ -634,10 +634,34 @@ async function calcPurchaseCost(
   return { total, details: dailyCosts };
 }
 
+// In-memory cache: key = `${month}::${brand}`, value = { data, expireAt }
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+type CachedEntry = { data: unknown; expireAt: number };
+const responseCache = new Map<string, CachedEntry>();
+
+// Normalize brand parameter: accept case-insensitive input
+function normalizeBrand(input: string): string {
+  const raw = input.trim();
+  const lower = raw.toLowerCase();
+  if (lower === "all") return "all";
+  if (lower === "vivo") return "vivo";
+  if (lower === "iqoo") return "iQOO";
+  if (lower === "iot") return "IOT";
+  return raw; // fallback to raw for unknown values
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const month = searchParams.get("month") || new Date().toISOString().substring(0, 7);
-  const brand = searchParams.get("brand") || "all";
+  const rawBrand = searchParams.get("brand") || "all";
+  const brand = normalizeBrand(rawBrand);
+  
+  // Check cache first
+  const cacheKey = `${month}::${brand}`;
+  const cached = responseCache.get(cacheKey);
+  if (cached && cached.expireAt > Date.now()) {
+    return NextResponse.json({ success: true, data: cached.data, cached: true });
+  }
   
   try {
     const feishuToken = await getFeishuToken();
@@ -683,20 +707,28 @@ export async function GET(request: NextRequest) {
       byBrand.IOT = iotAnchor.total + iotControl.total + iotFulltime.total + iotPurchase.total;
     }
     
+    const responseData = {
+      month,
+      brand,
+      dimensions: {
+        anchor: { total: anchorResult.total, details: anchorResult.details },
+        control: { total: controlResult.total, details: controlResult.details },
+        fulltime: { total: fulltimeResult.total, details: fulltimeResult.details },
+        purchase: { total: purchaseResult.total, details: purchaseResult.details },
+      },
+      totalCost,
+      byBrand,
+    };
+    
+    // Cache the result for 5 minutes
+    responseCache.set(cacheKey, {
+      data: responseData,
+      expireAt: Date.now() + CACHE_TTL_MS,
+    });
+    
     return NextResponse.json({
       success: true,
-      data: {
-        month,
-        brand,
-        dimensions: {
-          anchor: { total: anchorResult.total, details: anchorResult.details },
-          control: { total: controlResult.total, details: controlResult.details },
-          fulltime: { total: fulltimeResult.total, details: fulltimeResult.details },
-          purchase: { total: purchaseResult.total, details: purchaseResult.details },
-        },
-        totalCost,
-        byBrand,
-      },
+      data: responseData,
     });
   } catch (error) {
     console.error("Cost overview error:", error);

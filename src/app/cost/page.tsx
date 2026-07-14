@@ -189,76 +189,91 @@ export default function CostPage() {
     );
   }
 
-  const brandAccounts = BRANDS.find((b) => b.id === activeBrand)?.accounts ?? [];
+  const brandAccounts = useMemo(
+    () => BRANDS.find((b) => b.id === activeBrand)?.accounts ?? [],
+    [activeBrand],
+  );
 
-  // 当前品牌当月数据
-  const brandCosts = costs.filter((c) => (activeBrand === 'all' || c.brandId === activeBrand) && c.month === selectedMonth);
-  const brandRevenues = revenues.filter((r) => (activeBrand === 'all' || r.brandId === activeBrand) && r.month === selectedMonth);
-  const brandKPIs = kpis.filter((k) => (activeBrand === 'all' || k.brandId === activeBrand) && k.month === selectedMonth);
+  // 当前品牌当月数据（useMemo 缓存 filter 结果）
+  const brandCosts = useMemo(
+    () => costs.filter((c) => (activeBrand === 'all' || c.brandId === activeBrand) && c.month === selectedMonth),
+    [costs, activeBrand, selectedMonth],
+  );
+  const brandRevenues = useMemo(
+    () => revenues.filter((r) => (activeBrand === 'all' || r.brandId === activeBrand) && r.month === selectedMonth),
+    [revenues, activeBrand, selectedMonth],
+  );
+  const brandKPIs = useMemo(
+    () => kpis.filter((k) => (activeBrand === 'all' || k.brandId === activeBrand) && k.month === selectedMonth),
+    [kpis, activeBrand, selectedMonth],
+  );
 
   // 利润率计算 - 使用飞书API数据作为成本来源
-  // 当选择"全部"品牌时，聚合所有品牌数据
-  const localStorageProfit = activeBrand === 'all'
-    ? BRANDS.reduce((acc, b) => {
-        const brandData = calcProfitRate(b.id, selectedMonth);
-        return {
-          revenue: acc.revenue + brandData.revenue,
-          totalCost: acc.totalCost + brandData.totalCost,
-          profitRate: 0,
-          costs: { ...acc.costs, ...brandData.costs },
-          kpiDeducted: acc.kpiDeducted || brandData.kpiDeducted,
-        };
-      }, { revenue: 0, totalCost: 0, profitRate: 0, costs: {} as Record<string, number>, kpiDeducted: false })
-    : calcProfitRate(activeBrand, selectedMonth);
-  
-  // 计算聚合后的利润率
-  localStorageProfit.profitRate = localStorageProfit.revenue > 0
-    ? (localStorageProfit.revenue - localStorageProfit.totalCost) / localStorageProfit.revenue
-    : 0;
-  
-  // 从飞书API获取各维度成本
+  // useMemo 缓存 profit 计算，避免每次渲染都重算
+  const profitData = useMemo(() => {
+    const localStorageProfit = activeBrand === 'all'
+      ? BRANDS.reduce((acc, b) => {
+          const brandData = calcProfitRate(b.id, selectedMonth);
+          return {
+            revenue: acc.revenue + brandData.revenue,
+            totalCost: acc.totalCost + brandData.totalCost,
+            profitRate: 0,
+            costs: { ...acc.costs, ...brandData.costs },
+            kpiDeducted: acc.kpiDeducted || brandData.kpiDeducted,
+          };
+        }, { revenue: 0, totalCost: 0, profitRate: 0, costs: {} as Record<string, number>, kpiDeducted: false })
+      : calcProfitRate(activeBrand, selectedMonth);
+
+    const feishuTotalCost = feishuData?.totalCost ?? 0;
+    const effectiveCost = feishuData ? feishuTotalCost : localStorageProfit.totalCost;
+    const effectiveRevenue = localStorageProfit.revenue;
+    const effectiveProfitRate = effectiveRevenue > 0
+      ? (effectiveRevenue - effectiveCost) / effectiveRevenue
+      : 0;
+
+    return {
+      revenue: effectiveRevenue,
+      totalCost: effectiveCost,
+      profitRate: effectiveProfitRate,
+      costs: localStorageProfit.costs,
+      kpiDeducted: localStorageProfit.kpiDeducted,
+    };
+  }, [activeBrand, selectedMonth, feishuData]);
+
+  // 从飞书API获取各维度成本（useMemo 缓存）
   const feishuAnchorCost = feishuData?.dimensions?.anchor?.total ?? 0;
   const feishuControlCost = feishuData?.dimensions?.control?.total ?? 0;
   const feishuFulltimeCost = feishuData?.dimensions?.fulltime?.total ?? 0;
   const feishuPurchaseCost = feishuData?.dimensions?.purchase?.total ?? 0;
-  const feishuTotalCost = feishuData?.totalCost ?? 0;
-  
-  // 如果飞书数据可用，使用API成本；否则使用localStorage成本
-  const effectiveCost = feishuData ? feishuTotalCost : localStorageProfit.totalCost;
-  const effectiveRevenue = localStorageProfit.revenue;
-  const effectiveProfitRate = effectiveRevenue > 0 
-    ? (effectiveRevenue - effectiveCost) / effectiveRevenue 
-    : 0;
-  
-  const profitData = {
-    revenue: effectiveRevenue,
-    totalCost: effectiveCost,
-    profitRate: effectiveProfitRate,
-    costs: localStorageProfit.costs,
-    kpiDeducted: localStorageProfit.kpiDeducted,
-  };
 
-  // 利润率看板数据 - 所有品牌当月
-  const allBrandProfit = BRANDS.map((b) => ({
-    brand: b.name,
-    ...calcProfitRate(b.id, selectedMonth),
-  }));
+  // 利润率看板数据 - 所有品牌当月（useMemo 缓存，避免每次渲染都重算）
+  const allBrandProfit = useMemo(
+    () =>
+      BRANDS.map((b) => ({
+        brand: b.name,
+        ...calcProfitRate(b.id, selectedMonth),
+      })),
+    [selectedMonth],
+  );
 
   // 月度对比数据（近6个月）- 使用 selectedMonth 作为锚点避免 new Date()
-  const monthlyComparison = Array.from({ length: 6 }, (_, i) => {
-    const [y, m] = selectedMonth.split('-').map(Number);
-    const targetMonth = m - i;
-    const adjustedYear = targetMonth <= 0 ? y - 1 : y;
-    const adjustedMonth = targetMonth <= 0 ? targetMonth + 12 : targetMonth;
-    const month = `${adjustedYear}-${String(adjustedMonth).padStart(2, '0')}`;
-    const data = calcProfitRate(activeBrand, month);
-    return {
-      month: month.slice(5),
-      利润率: Number((data.profitRate * 100).toFixed(1)),
-      收入: data.revenue,
-      成本: data.totalCost,
-    };
-  }).reverse();
+  const monthlyComparison = useMemo(() => {
+    if (!selectedMonth) return [];
+    return Array.from({ length: 6 }, (_, i) => {
+      const [y, m] = selectedMonth.split('-').map(Number);
+      const targetMonth = m - i;
+      const adjustedYear = targetMonth <= 0 ? y - 1 : y;
+      const adjustedMonth = targetMonth <= 0 ? targetMonth + 12 : targetMonth;
+      const month = `${adjustedYear}-${String(adjustedMonth).padStart(2, '0')}`;
+      const data = calcProfitRate(activeBrand, month);
+      return {
+        month: month.slice(5),
+        利润率: Number((data.profitRate * 100).toFixed(1)),
+        收入: data.revenue,
+        成本: data.totalCost,
+      };
+    }).reverse();
+  }, [selectedMonth, activeBrand]);
 
   const brandColors: Record<string, string> = {
     vivo: '#415FFF',
