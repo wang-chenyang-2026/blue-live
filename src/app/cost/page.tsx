@@ -424,43 +424,6 @@ export default function CostPage() {
             className="px-4 py-2 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition font-medium"
           >刷新</button>
         </div>
-
-        {/* 飞书数据四维度成本明细 */}
-        {feishuData && (
-          <div className="mt-5 pt-5 border-t border-border">
-            <p className="text-xs text-muted-foreground mb-3">成本构成（飞书数据）</p>
-            <div className="grid grid-cols-4 gap-4">
-              <div className="rounded-lg bg-pink-500/10 border border-pink-500/20 p-3">
-                <p className="text-[10px] text-pink-400">兼职主播</p>
-                <p className="text-lg font-bold text-pink-300 mt-0.5">¥{feishuAnchorCost.toLocaleString()}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{feishuData.dimensions.anchor.details.length} 人</p>
-              </div>
-              <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3">
-                <p className="text-[10px] text-amber-400">兼职中控</p>
-                <p className="text-lg font-bold text-amber-300 mt-0.5">¥{feishuControlCost.toLocaleString()}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{feishuData.dimensions.control.details.length} 人</p>
-              </div>
-              <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3">
-                <p className="text-[10px] text-blue-400">全职员工</p>
-                <p className="text-lg font-bold text-blue-300 mt-0.5">¥{feishuFulltimeCost.toLocaleString()}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{feishuData.dimensions.fulltime.details.length} 人</p>
-              </div>
-              <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-3">
-                <p className="text-[10px] text-green-400">日常采买</p>
-                <p className="text-lg font-bold text-green-300 mt-0.5">¥{feishuPurchaseCost.toLocaleString()}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{feishuData.dimensions.purchase.details.length} 条</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 飞书数据加载中 */}
-        {feishuLoading && !feishuData && (
-          <div className="mt-5 pt-5 border-t border-border flex items-center justify-center py-4">
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
-            <span className="ml-2 text-xs text-muted-foreground">正在从飞书获取成本数据...</span>
-          </div>
-        )}
       </div>
 
       {/* Brand tabs */}
@@ -618,51 +581,137 @@ export default function CostPage() {
             </Dialog>
           </div>
 
-          {/* 成本分类汇总 */}
+          {/* 成本分类汇总 - 使用飞书API数据 */}
           <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-4">
             {COST_CATEGORIES.map((cat) => {
-              const total = brandCosts.filter((c) => c.category === cat).reduce((s, c) => s + c.amount, 0);
+              // 从飞书数据获取各分类成本
+              let feishuCatCost = 0;
+              let feishuCatCount = 0;
+              if (feishuData) {
+                switch (cat) {
+                  case '兼职主播成本':
+                    feishuCatCost = feishuData.dimensions.anchor.total;
+                    feishuCatCount = feishuData.dimensions.anchor.details.length;
+                    break;
+                  case '兼职中控成本':
+                    feishuCatCost = feishuData.dimensions.control.total;
+                    feishuCatCount = feishuData.dimensions.control.details.length;
+                    break;
+                  case '全职主播成本':
+                    feishuCatCost = feishuData.dimensions.fulltime.details
+                      .filter((d: { role: string }) => d.role === '主播')
+                      .reduce((sum: number, d: { cost: number }) => sum + d.cost, 0);
+                    feishuCatCount = feishuData.dimensions.fulltime.details
+                      .filter((d: { role: string }) => d.role === '主播').length;
+                    break;
+                  case '全职中控成本':
+                    feishuCatCost = feishuData.dimensions.fulltime.details
+                      .filter((d: { role: string }) => d.role === '中控')
+                      .reduce((sum: number, d: { cost: number }) => sum + d.cost, 0);
+                    feishuCatCount = feishuData.dimensions.fulltime.details
+                      .filter((d: { role: string }) => d.role === '中控').length;
+                    break;
+                  case '日常物料成本':
+                    feishuCatCost = feishuData.dimensions.purchase.total;
+                    feishuCatCount = feishuData.dimensions.purchase.details.length;
+                    break;
+                  case '其它成本':
+                    feishuCatCost = 0;
+                    feishuCatCount = 0;
+                    break;
+                }
+              }
+              // 优先使用飞书数据，否则使用localStorage数据
+              const localStorageTotal = brandCosts.filter((c) => c.category === cat).reduce((s, c) => s + c.amount, 0);
+              const total = feishuData ? feishuCatCost : localStorageTotal;
+              const count = feishuData ? feishuCatCount : brandCosts.filter((c) => c.category === cat).length;
               return (
                 <div key={cat} className="rounded-lg bg-secondary p-3 text-center">
                   <p className="text-sm font-bold text-foreground">¥{total.toLocaleString()}</p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">{cat.replace('成本', '')}</p>
+                  {feishuData && count > 0 && (
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{count} 人</p>
+                  )}
                 </div>
               );
             })}
           </div>
 
-          {/* 成本列表 */}
+          {/* 成本列表 - 优先显示飞书数据 */}
           <div className="rounded-lg border border-border overflow-hidden">
             <table className="w-full text-xs">
               <thead className="bg-secondary/50">
                 <tr>
                   <th className="text-left p-2.5 text-muted-foreground font-medium">类别</th>
+                  <th className="text-left p-2.5 text-muted-foreground font-medium">姓名/项目</th>
                   <th className="text-right p-2.5 text-muted-foreground font-medium">金额</th>
                   <th className="text-left p-2.5 text-muted-foreground font-medium">备注</th>
                   <th className="text-right p-2.5 text-muted-foreground font-medium">操作</th>
                 </tr>
               </thead>
               <tbody>
-                {brandCosts.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="text-center py-6 text-muted-foreground">暂无成本数据</td>
-                  </tr>
+                {feishuData ? (
+                  // 显示飞书数据明细
+                  (() => {
+                    const feishuRows: Array<{ category: string; name: string; amount: number; remark: string; source: string }> = [];
+                    // 兼职主播
+                    feishuData.dimensions.anchor.details.forEach((d: { name: string; cost: number; remark?: string }) => {
+                      feishuRows.push({ category: '兼职主播成本', name: d.name, amount: d.cost, remark: d.remark || '', source: 'feishu' });
+                    });
+                    // 兼职中控
+                    feishuData.dimensions.control.details.forEach((d: { name: string; cost: number; remark?: string }) => {
+                      feishuRows.push({ category: '兼职中控成本', name: d.name, amount: d.cost, remark: d.remark || '', source: 'feishu' });
+                    });
+                    // 全职员工（按role拆分）
+                    feishuData.dimensions.fulltime.details.forEach((d: { name: string; cost: number; role: string; remark?: string }) => {
+                      const category = d.role === '主播' ? '全职主播成本' : '全职中控成本';
+                      feishuRows.push({ category, name: d.name, amount: d.cost, remark: d.remark || '', source: 'feishu' });
+                    });
+                    // 日常采买
+                    (feishuData.dimensions.purchase.details as Array<{ name: string; cost: number; remark?: string }>).forEach((d) => {
+                      feishuRows.push({ category: '日常物料成本', name: d.name, amount: d.cost, remark: d.remark || '', source: 'feishu' });
+                    });
+                    if (feishuRows.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={5} className="text-center py-6 text-muted-foreground">暂无飞书成本数据</td>
+                        </tr>
+                      );
+                    }
+                    return feishuRows.map((row, idx) => (
+                      <tr key={`feishu-${idx}`} className="border-t border-border hover:bg-secondary/30">
+                        <td className="p-2.5 text-foreground">{row.category}</td>
+                        <td className="p-2.5 text-foreground">{row.name}</td>
+                        <td className="p-2.5 text-right text-foreground font-medium">¥{row.amount.toLocaleString()}</td>
+                        <td className="p-2.5 text-muted-foreground">{row.remark || '-'}</td>
+                        <td className="p-2.5 text-right text-muted-foreground text-[10px]">飞书</td>
+                      </tr>
+                    ));
+                  })()
                 ) : (
-                  brandCosts.map((c) => (
-                    <tr key={c.id} className="border-t border-border hover:bg-secondary/30">
-                      <td className="p-2.5 text-foreground">{c.category}</td>
-                      <td className="p-2.5 text-right text-foreground font-medium">¥{c.amount.toLocaleString()}</td>
-                      <td className="p-2.5 text-muted-foreground">{c.remark || '-'}</td>
-                      <td className="p-2.5 text-right">
-                        <button
-                          onClick={() => { deleteCostItem(c.id); loadData(); }}
-                          className="text-destructive hover:text-destructive/80"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </td>
+                  // 显示localStorage数据
+                  brandCosts.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="text-center py-6 text-muted-foreground">暂无成本数据</td>
                     </tr>
-                  ))
+                  ) : (
+                    brandCosts.map((c) => (
+                      <tr key={c.id} className="border-t border-border hover:bg-secondary/30">
+                        <td className="p-2.5 text-foreground">{c.category}</td>
+                        <td className="p-2.5 text-foreground">-</td>
+                        <td className="p-2.5 text-right text-foreground font-medium">¥{c.amount.toLocaleString()}</td>
+                        <td className="p-2.5 text-muted-foreground">{c.remark || '-'}</td>
+                        <td className="p-2.5 text-right">
+                          <button
+                            onClick={() => { deleteCostItem(c.id); loadData(); }}
+                            className="text-destructive hover:text-destructive/80"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )
                 )}
               </tbody>
             </table>
