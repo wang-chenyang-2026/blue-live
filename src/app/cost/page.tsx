@@ -42,6 +42,17 @@ import {
 import { cn } from '@/lib/utils';
 import { useSafeMonth } from '@/lib/hooks';
 
+// ===== 工具函数 =====
+function getToday(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+function getDaysAgo(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 // recharts 动态导入，禁用 SSR 以避免 window/document 访问导致 hydration 错误
 const RechartsBarChart = dynamic(
   () => import('recharts').then((mod) => {
@@ -102,6 +113,10 @@ export default function CostPage() {
   const [showRevenueDialog, setShowRevenueDialog] = useState(false);
   const [showKPIDialog, setShowKPIDialog] = useState(false);
 
+  // 日期范围状态（替代月份选择器）
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+
   // 飞书数据状态
   const [feishuData, setFeishuData] = useState<{
     month: string;
@@ -151,7 +166,16 @@ export default function CostPage() {
 
   useEffect(() => {
     // 使用 useSafeMonth hook 提供的安全月份值
-    if (safeMonth) setSelectedMonth(safeMonth);
+    if (safeMonth) {
+      setSelectedMonth(safeMonth);
+      // 初始化日期范围为本月1日~今天
+      const [y, m] = safeMonth.split('-').map(Number);
+      const daysInMonth = new Date(y, m, 0).getDate();
+      const today = getToday();
+      const monthEnd = `${y}-${String(m).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+      setStartDate(`${y}-${String(m).padStart(2, '0')}-01`);
+      setEndDate(today > monthEnd ? monthEnd : today);
+    }
     loadData();
   }, [loadData, safeMonth]);
 
@@ -183,7 +207,7 @@ export default function CostPage() {
   }, [selectedMonth, feishuBrand, fetchFeishuData]);
 
   // 客户端数据未就绪时返回骨架屏，确保 SSR/CSR 结构一致
-  if (!isClient || !selectedMonth) {
+  if (!isClient || !selectedMonth || !startDate) {
     return (
       <div className="space-y-6">
         <div>
@@ -316,13 +340,48 @@ export default function CostPage() {
           <h1 className="text-2xl font-bold text-foreground">成本核算</h1>
           <p className="text-sm text-muted-foreground mt-1">六大成本项、收入计算、KPI扣减与利润率分析</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Input
-            type="month"
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="h-8 w-40 bg-secondary border-border text-xs"
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-sm text-zinc-400">日期范围</span>
+          <input
+            type="date"
+            value={startDate}
+            onChange={e => setStartDate(e.target.value)}
+            className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
           />
+          <span className="text-zinc-500">~</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={e => setEndDate(e.target.value)}
+            className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
+          />
+          <button
+            onClick={() => {
+              setStartDate(getDaysAgo(6));
+              setEndDate(getToday());
+            }}
+            className="px-3 py-2 text-xs rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition"
+          >近7天</button>
+          <button
+            onClick={() => {
+              const d = new Date();
+              const m = d.getMonth();
+              const y = d.getFullYear();
+              setStartDate(`${y}-${String(m + 1).padStart(2, '0')}-01`);
+              setEndDate(getToday());
+            }}
+            className="px-3 py-2 text-xs rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition"
+          >本月</button>
+          <button
+            onClick={() => {
+              // 从 startDate 推导月份，触发飞书数据刷新
+              if (startDate) {
+                const month = startDate.slice(0, 7);
+                setSelectedMonth(month);
+              }
+            }}
+            className="px-4 py-2 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition font-medium"
+          >刷新</button>
         </div>
       </div>
 
@@ -832,16 +891,27 @@ export default function CostPage() {
 
 // 飞书数据面板组件
 function FeishuDataPanel() {
-  const [month, setMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [month, setMonth] = useState<string>('');
   const [brand, setBrand] = useState('all');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 初始化日期范围（客户端安全）
   useEffect(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const monthStr = `${y}-${String(m + 1).padStart(2, '0')}`;
+    setMonth(monthStr);
+    setStartDate(`${monthStr}-01`);
+    setEndDate(getToday());
+  }, []);
+
+  useEffect(() => {
+    if (!month) return;
     const fetchData = async () => {
       setLoading(true);
       setError(null);
@@ -866,21 +936,43 @@ function FeishuDataPanel() {
 
   return (
     <div className="space-y-4">
-      {/* 筛选器 */}
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <Label className="text-xs text-muted-foreground">月份</Label>
-          <input
-            type="month"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-xs"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Label className="text-xs text-muted-foreground">品牌</Label>
+      {/* 日期区间选择器 */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-sm text-zinc-400">日期范围</span>
+        <input
+          type="date"
+          value={startDate}
+          onChange={e => setStartDate(e.target.value)}
+          className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
+        />
+        <span className="text-zinc-500">~</span>
+        <input
+          type="date"
+          value={endDate}
+          onChange={e => setEndDate(e.target.value)}
+          className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
+        />
+        <button
+          onClick={() => {
+            setStartDate(getDaysAgo(6));
+            setEndDate(getToday());
+          }}
+          className="px-3 py-2 text-xs rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition"
+        >近7天</button>
+        <button
+          onClick={() => {
+            const d = new Date();
+            const mo = d.getMonth();
+            const y = d.getFullYear();
+            setStartDate(`${y}-${String(mo + 1).padStart(2, '0')}-01`);
+            setEndDate(getToday());
+          }}
+          className="px-3 py-2 text-xs rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition"
+        >本月</button>
+        <div className="flex items-center gap-2 ml-2">
+          <Label className="text-xs text-zinc-400">品牌</Label>
           <Select value={brand} onValueChange={setBrand}>
-            <SelectTrigger className="w-32 text-xs">
+            <SelectTrigger className="w-28 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -891,6 +983,12 @@ function FeishuDataPanel() {
             </SelectContent>
           </Select>
         </div>
+        <button
+          onClick={() => {
+            if (startDate) setMonth(startDate.slice(0, 7));
+          }}
+          className="px-4 py-2 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition font-medium"
+        >刷新</button>
       </div>
 
       {/* 加载状态 */}
