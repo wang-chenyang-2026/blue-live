@@ -934,6 +934,20 @@ function FeishuDataPanel({
 }) {
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
+  const [data, setData] = useState<{
+    month: string;
+    brand: string;
+    dimensions: {
+      anchor: { total: number; details: Array<{ name: string; hours: number; rate: number; cost: number }> };
+      control: { total: number; details: Array<{ name: string; hours: number; cost: number; mode: string }> };
+      fulltime: { total: number; details: Array<{ name: string; base: number; subsidy: number; cost: number; role: string }> };
+      purchase: { total: number; details: unknown[] };
+    };
+    totalCost: number;
+    byBrand: { vivo: number; iQOO: number; IOT: number };
+  } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // 初始化日期范围（从外部月份推导）
   useEffect(() => {
@@ -945,9 +959,29 @@ function FeishuDataPanel({
     }
   }, [externalMonth]);
 
-  // 直接使用父组件传入的数据，无需内部 fetch
-  const data = externalData;
-  const loading = externalLoading;
+  // 组件自己发起 API 请求，确保数据可靠加载
+  useEffect(() => {
+    if (!externalMonth) return;
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/cost-overview?month=${externalMonth}&brand=${brand}`)
+      .then(res => res.json())
+      .then(json => {
+        if (!cancelled) {
+          if (json.success) {
+            setData(json.data);
+          }
+          setLoading(false);
+        }
+      })
+      .catch(err => {
+        if (!cancelled) {
+          console.error('获取飞书数据失败:', err);
+          setLoading(false);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [externalMonth, brand, refreshKey]);
 
   const formatMoney = (n: number) => `¥${n.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
@@ -1001,7 +1035,7 @@ function FeishuDataPanel({
           </Select>
         </div>
         <button
-          onClick={onRefresh}
+          onClick={() => setRefreshKey(k => k + 1)}
           className="px-4 py-2 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition font-medium"
         >刷新</button>
       </div>
