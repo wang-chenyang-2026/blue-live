@@ -934,20 +934,6 @@ function FeishuDataPanel({
 }) {
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
-  const [data, setData] = useState<{
-    month: string;
-    brand: string;
-    dimensions: {
-      anchor: { total: number; details: Array<{ name: string; hours: number; rate: number; cost: number }> };
-      control: { total: number; details: Array<{ name: string; hours: number; cost: number; mode: string }> };
-      fulltime: { total: number; details: Array<{ name: string; base: number; subsidy: number; cost: number; role: string }> };
-      purchase: { total: number; details: unknown[] };
-    };
-    totalCost: number;
-    byBrand: { vivo: number; iQOO: number; IOT: number };
-  } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
 
   // 初始化日期范围（从外部月份推导）
   useEffect(() => {
@@ -958,30 +944,6 @@ function FeishuDataPanel({
       setEndDate(todayStr);
     }
   }, [externalMonth]);
-
-  // 组件自己发起 API 请求，确保数据可靠加载
-  useEffect(() => {
-    if (!externalMonth) return;
-    let cancelled = false;
-    setLoading(true);
-    fetch(`/api/cost-overview?month=${externalMonth}&brand=${brand}`)
-      .then(res => res.json())
-      .then(json => {
-        if (!cancelled) {
-          if (json.success) {
-            setData(json.data);
-          }
-          setLoading(false);
-        }
-      })
-      .catch(err => {
-        if (!cancelled) {
-          console.error('获取飞书数据失败:', err);
-          setLoading(false);
-        }
-      });
-    return () => { cancelled = true; };
-  }, [externalMonth, brand, refreshKey]);
 
   const formatMoney = (n: number) => `¥${n.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
@@ -1035,13 +997,13 @@ function FeishuDataPanel({
           </Select>
         </div>
         <button
-          onClick={() => setRefreshKey(k => k + 1)}
+          onClick={onRefresh}
           className="px-4 py-2 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition font-medium"
         >刷新</button>
       </div>
 
       {/* 加载状态 */}
-      {loading && (
+      {externalLoading && (
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           <span className="ml-3 text-sm text-muted-foreground">正在从飞书获取数据...</span>
@@ -1049,29 +1011,29 @@ function FeishuDataPanel({
       )}
 
       {/* 数据展示 */}
-      {data && !loading && (
+      {externalData && !externalLoading && (
         <>
           {/* 四维度卡片 */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="rounded-xl border border-pink-500/30 bg-pink-500/10 p-4">
               <p className="text-xs text-pink-400">兼职主播</p>
-              <p className="text-2xl font-bold text-pink-300 mt-1">{formatMoney(data.dimensions.anchor.total)}</p>
-              <p className="text-xs text-muted-foreground mt-1">{data.dimensions.anchor.details.length} 人</p>
+              <p className="text-2xl font-bold text-pink-300 mt-1">{formatMoney(externalData.dimensions.anchor.total)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{externalData.dimensions.anchor.details.length} 人</p>
             </div>
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
               <p className="text-xs text-amber-400">兼职中控</p>
-              <p className="text-2xl font-bold text-amber-300 mt-1">{formatMoney(data.dimensions.control.total)}</p>
-              <p className="text-xs text-muted-foreground mt-1">{data.dimensions.control.details.length} 人</p>
+              <p className="text-2xl font-bold text-amber-300 mt-1">{formatMoney(externalData.dimensions.control.total)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{externalData.dimensions.control.details.length} 人</p>
             </div>
             <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-4">
               <p className="text-xs text-blue-400">全职员工</p>
-              <p className="text-2xl font-bold text-blue-300 mt-1">{formatMoney(data.dimensions.fulltime.total)}</p>
-              <p className="text-xs text-muted-foreground mt-1">{data.dimensions.fulltime.details.length} 人</p>
+              <p className="text-2xl font-bold text-blue-300 mt-1">{formatMoney(externalData.dimensions.fulltime.total)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{externalData.dimensions.fulltime.details.length} 人</p>
             </div>
             <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-4">
               <p className="text-xs text-green-400">日常采买</p>
-              <p className="text-2xl font-bold text-green-300 mt-1">{formatMoney(data.dimensions.purchase.total)}</p>
-              <p className="text-xs text-muted-foreground mt-1">{data.dimensions.purchase.details.length} 条</p>
+              <p className="text-2xl font-bold text-green-300 mt-1">{formatMoney(externalData.dimensions.purchase.total)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{externalData.dimensions.purchase.details.length} 条</p>
             </div>
           </div>
 
@@ -1079,26 +1041,26 @@ function FeishuDataPanel({
           <div className="rounded-xl border border-border bg-card p-5">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium text-foreground">总成本</h3>
-              <p className="text-2xl font-bold text-primary">{formatMoney(data.totalCost)}</p>
+              <p className="text-2xl font-bold text-primary">{formatMoney(externalData.totalCost)}</p>
             </div>
             <div className="mt-4 grid grid-cols-3 gap-4">
               <div>
                 <p className="text-xs text-muted-foreground">vivo</p>
-                <p className="text-sm font-medium text-foreground">{formatMoney(data.byBrand.vivo)}</p>
+                <p className="text-sm font-medium text-foreground">{formatMoney(externalData.byBrand.vivo)}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">iQOO</p>
-                <p className="text-sm font-medium text-foreground">{formatMoney(data.byBrand.iQOO)}</p>
+                <p className="text-sm font-medium text-foreground">{formatMoney(externalData.byBrand.iQOO)}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">IOT</p>
-                <p className="text-sm font-medium text-foreground">{formatMoney(data.byBrand.IOT)}</p>
+                <p className="text-sm font-medium text-foreground">{formatMoney(externalData.byBrand.IOT)}</p>
               </div>
             </div>
           </div>
 
           {/* 兼职主播明细 */}
-          {data.dimensions.anchor.details.length > 0 && (
+          {externalData.dimensions.anchor.details.length > 0 && (
             <div className="rounded-xl border border-border bg-card p-5">
               <h3 className="text-sm font-medium text-foreground mb-3">兼职主播明细</h3>
               <table className="w-full text-xs">
@@ -1111,7 +1073,7 @@ function FeishuDataPanel({
                   </tr>
                 </thead>
                 <tbody>
-                  {data.dimensions.anchor.details.map((item: any, idx: number) => (
+                  {externalData.dimensions.anchor.details.map((item: any, idx: number) => (
                     <tr key={idx} className="border-b border-border/50">
                       <td className="py-2">{item.name}</td>
                       <td className="text-right py-2">{item.hours}</td>
@@ -1125,7 +1087,7 @@ function FeishuDataPanel({
           )}
 
           {/* 兼职中控明细 */}
-          {data.dimensions.control.details.length > 0 && (
+          {externalData.dimensions.control.details.length > 0 && (
             <div className="rounded-xl border border-border bg-card p-5">
               <h3 className="text-sm font-medium text-foreground mb-3">兼职中控明细</h3>
               <table className="w-full text-xs">
@@ -1138,7 +1100,7 @@ function FeishuDataPanel({
                   </tr>
                 </thead>
                 <tbody>
-                  {data.dimensions.control.details.map((item: any, idx: number) => (
+                  {externalData.dimensions.control.details.map((item: any, idx: number) => (
                     <tr key={idx} className="border-b border-border/50">
                       <td className="py-2">{item.name}</td>
                       <td className="text-right py-2">{item.hours}</td>
@@ -1152,7 +1114,7 @@ function FeishuDataPanel({
           )}
 
           {/* 全职员工明细 */}
-          {data.dimensions.fulltime.details.length > 0 && (
+          {externalData.dimensions.fulltime.details.length > 0 && (
             <div className="rounded-xl border border-border bg-card p-5">
               <h3 className="text-sm font-medium text-foreground mb-3">全职员工明细</h3>
               <table className="w-full text-xs">
@@ -1166,7 +1128,7 @@ function FeishuDataPanel({
                   </tr>
                 </thead>
                 <tbody>
-                  {data.dimensions.fulltime.details.map((item: any, idx: number) => (
+                  {externalData.dimensions.fulltime.details.map((item: any, idx: number) => (
                     <tr key={idx} className="border-b border-border/50">
                       <td className="py-2">{item.name}</td>
                       <td className="py-2"><Badge variant="outline" className="text-xs">{item.role}</Badge></td>
@@ -1181,10 +1143,10 @@ function FeishuDataPanel({
           )}
 
           {/* 空状态 */}
-          {data.dimensions.anchor.details.length === 0 && 
-           data.dimensions.control.details.length === 0 && 
-           data.dimensions.fulltime.details.length === 0 && 
-           data.dimensions.purchase.details.length === 0 && (
+          {externalData.dimensions.anchor.details.length === 0 && 
+           externalData.dimensions.control.details.length === 0 && 
+           externalData.dimensions.fulltime.details.length === 0 && 
+           externalData.dimensions.purchase.details.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <Database className="h-12 w-12 mb-3 opacity-50" />
               <p className="text-sm">该月份暂无数据</p>
