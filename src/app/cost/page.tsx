@@ -183,6 +183,14 @@ export default function CostPage() {
     if (currentBrand !== 'all') setActiveBrand(currentBrand);
   }, [currentBrand]);
 
+  // 日期范围的起始日期变化时，自动推导月份并触发数据刷新
+  useEffect(() => {
+    if (startDate) {
+      const derivedMonth = startDate.slice(0, 7);
+      setSelectedMonth(derivedMonth);
+    }
+  }, [startDate]);
+
   // 获取飞书数据
   const fetchFeishuData = useCallback(async (month: string, brand: string) => {
     if (!month) return;
@@ -374,10 +382,11 @@ export default function CostPage() {
           >本月</button>
           <button
             onClick={() => {
-              // 从 startDate 推导月份，触发飞书数据刷新
+              // 强制重新获取当前月份数据
               if (startDate) {
                 const month = startDate.slice(0, 7);
-                setSelectedMonth(month);
+                setSelectedMonth('');
+                setTimeout(() => setSelectedMonth(month), 0);
               }
             }}
             className="px-4 py-2 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition font-medium"
@@ -882,7 +891,7 @@ export default function CostPage() {
 
         {/* 飞书数据 */}
         <TabsContent value="feishu" className="mt-4">
-          <FeishuDataPanel />
+          <FeishuDataPanel externalMonth={selectedMonth} />
         </TabsContent>
       </Tabs>
     </div>
@@ -890,7 +899,7 @@ export default function CostPage() {
 }
 
 // 飞书数据面板组件
-function FeishuDataPanel() {
+function FeishuDataPanel({ externalMonth }: { externalMonth: string }) {
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [month, setMonth] = useState<string>('');
@@ -909,6 +918,25 @@ function FeishuDataPanel() {
     setStartDate(`${monthStr}-01`);
     setEndDate(getToday());
   }, []);
+
+  // 外部月份变化时同步（Header 日期范围改变 → 飞书面板同步）
+  useEffect(() => {
+    if (externalMonth) {
+      setMonth(externalMonth);
+      // 同步日期范围的起始日期
+      setStartDate(`${externalMonth}-01`);
+    }
+  }, [externalMonth]);
+
+  // 内部日期变化时自动推导月份
+  useEffect(() => {
+    if (startDate) {
+      const derivedMonth = startDate.slice(0, 7);
+      if (derivedMonth !== month) {
+        setMonth(derivedMonth);
+      }
+    }
+  }, [startDate]);
 
   useEffect(() => {
     if (!month) return;
@@ -985,7 +1013,12 @@ function FeishuDataPanel() {
         </div>
         <button
           onClick={() => {
-            if (startDate) setMonth(startDate.slice(0, 7));
+            // 强制重新获取：先清空再恢复
+            if (startDate) {
+              const m = startDate.slice(0, 7);
+              setMonth('');
+              setTimeout(() => setMonth(m), 0);
+            }
           }}
           className="px-4 py-2 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition font-medium"
         >刷新</button>
