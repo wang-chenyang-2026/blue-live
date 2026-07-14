@@ -238,7 +238,7 @@ async function calcAnchorCost(
   for (const schedule of schedules) {
     if (!schedule) continue;
     
-    const values = await readSheet(feishuToken, schedule.wikiToken, `${schedule.anchorSheet}!A1:AH100`);
+    const values = await readSheet(feishuToken, schedule.wikiToken, `${schedule.anchorSheet}!A1:CV200`);
     if (!values.length) continue;
     
     // Parse header to find date columns
@@ -314,7 +314,7 @@ async function calcControlCost(
   for (const schedule of schedules) {
     if (!schedule) continue;
     
-    const values = await readSheet(feishuToken, schedule.wikiToken, `${schedule.controlSheet}!A1:AH100`);
+    const values = await readSheet(feishuToken, schedule.wikiToken, `${schedule.controlSheet}!A1:CV200`);
     if (!values.length) continue;
     
     const header = values[0];
@@ -427,7 +427,7 @@ async function calcFulltimeCost(
   for (const schedule of allSchedules) {
     // Check both anchor and control sheets
     for (const sheetId of [schedule.anchorSheet, schedule.controlSheet]) {
-      const values = await readSheet(feishuToken, schedule.wikiToken, `${sheetId}!A1:AH100`);
+      const values = await readSheet(feishuToken, schedule.wikiToken, `${sheetId}!A1:CV200`);
       if (!values.length) continue;
       
       const header = values[0];
