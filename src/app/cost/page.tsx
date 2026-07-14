@@ -902,63 +902,46 @@ export default function CostPage() {
 function FeishuDataPanel({ externalMonth }: { externalMonth: string }) {
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
-  const [month, setMonth] = useState<string>('');
   const [brand, setBrand] = useState('all');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  // 初始化日期范围（客户端安全）
-  useEffect(() => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = now.getMonth();
-    const monthStr = `${y}-${String(m + 1).padStart(2, '0')}`;
-    setMonth(monthStr);
-    setStartDate(`${monthStr}-01`);
-    setEndDate(getToday());
-  }, []);
-
-  // 外部月份变化时同步（Header 日期范围改变 → 飞书面板同步）
+  // 初始化日期范围（从外部月份推导）
   useEffect(() => {
     if (externalMonth) {
-      setMonth(externalMonth);
-      // 同步日期范围的起始日期
       setStartDate(`${externalMonth}-01`);
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      setEndDate(todayStr);
     }
   }, [externalMonth]);
 
-  // 内部日期变化时自动推导月份
+  // 数据请求：直接使用 externalMonth，消除内部 month 状态
   useEffect(() => {
-    if (startDate) {
-      const derivedMonth = startDate.slice(0, 7);
-      if (derivedMonth !== month) {
-        setMonth(derivedMonth);
-      }
-    }
-  }, [startDate]);
-
-  useEffect(() => {
-    if (!month) return;
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(`/api/cost-overview?month=${month}&brand=${brand}`);
-        const json = await res.json();
+    if (!externalMonth) return;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetch(`/api/cost-overview?month=${externalMonth}&brand=${brand}`)
+      .then(res => res.json())
+      .then(json => {
+        if (cancelled) return;
         if (json.success) {
           setData(json.data);
         } else {
           setError(json.error || '获取数据失败');
         }
-      } catch (e) {
-        setError('网络请求失败');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [month, brand]);
+      })
+      .catch(() => {
+        if (!cancelled) setError('网络请求失败');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [externalMonth, brand, refreshKey]);
 
   const formatMoney = (n: number) => `¥${n.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
@@ -1012,14 +995,7 @@ function FeishuDataPanel({ externalMonth }: { externalMonth: string }) {
           </Select>
         </div>
         <button
-          onClick={() => {
-            // 强制重新获取：先清空再恢复
-            if (startDate) {
-              const m = startDate.slice(0, 7);
-              setMonth('');
-              setTimeout(() => setMonth(m), 0);
-            }
-          }}
+          onClick={() => setRefreshKey(k => k + 1)}
           className="px-4 py-2 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition font-medium"
         >刷新</button>
       </div>
