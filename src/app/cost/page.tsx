@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useApp } from '@/contexts/AppContext';
 import { BRANDS, HOURLY_RATES, LIVE_TYPES, COST_CATEGORIES } from '@/lib/constants';
@@ -106,16 +106,21 @@ export default function CostPage() {
   const [costs, setCosts] = useState<CostItem[]>([]);
   const [revenues, setRevenues] = useState<RevenueItem[]>([]);
   const [kpis, setKpis] = useState<KPIItem[]>([]);
-  // 月份初始值用空字符串，在 useEffect 中用客户端实际月份填充
-  const [selectedMonth, setSelectedMonth] = useState<string>('');
+
+  // 日期范围状态（替代月份选择器）- 必须在 selectedMonth 之前声明
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+
+  // 月份从日期范围的开始日期直接推导（不再使用独立 state）
+  const selectedMonth = useMemo(() => {
+    if (!startDate) return '';
+    return startDate.slice(0, 7); // "2026-07-01" → "2026-07"
+  }, [startDate]);
+
   const [activeBrand, setActiveBrand] = useState<string>('vivo');
   const [showCostDialog, setShowCostDialog] = useState(false);
   const [showRevenueDialog, setShowRevenueDialog] = useState(false);
   const [showKPIDialog, setShowKPIDialog] = useState(false);
-
-  // 日期范围状态（替代月份选择器）
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
 
   // 飞书数据状态
   const [feishuData, setFeishuData] = useState<{
@@ -165,10 +170,8 @@ export default function CostPage() {
   }, []);
 
   useEffect(() => {
-    // 使用 useSafeMonth hook 提供的安全月份值
-    if (safeMonth) {
-      setSelectedMonth(safeMonth);
-      // 初始化日期范围为本月1日~今天
+    // 使用 useSafeMonth hook 提供的安全月份值初始化日期范围
+    if (safeMonth && !startDate) {
       const [y, m] = safeMonth.split('-').map(Number);
       const daysInMonth = new Date(y, m, 0).getDate();
       const today = getToday();
@@ -183,13 +186,7 @@ export default function CostPage() {
     if (currentBrand !== 'all') setActiveBrand(currentBrand);
   }, [currentBrand]);
 
-  // 日期范围的起始日期变化时，自动推导月份并触发数据刷新
-  useEffect(() => {
-    if (startDate) {
-      const derivedMonth = startDate.slice(0, 7);
-      setSelectedMonth(derivedMonth);
-    }
-  }, [startDate]);
+  // selectedMonth 已通过 useMemo 从 startDate 自动推导，无需额外 useEffect
 
   // 获取飞书数据
   const fetchFeishuData = useCallback(async (month: string, brand: string) => {
@@ -234,8 +231,25 @@ export default function CostPage() {
   const brandRevenues = revenues.filter((r) => r.brandId === activeBrand && r.month === selectedMonth);
   const brandKPIs = kpis.filter((k) => k.brandId === activeBrand && k.month === selectedMonth);
 
-  // 利润率计算
-  const profitData = calcProfitRate(activeBrand, selectedMonth);
+  // 利润率计算 - 优先使用飞书API数据作为成本，localStorage数据作为收入
+  const localStorageProfit = calcProfitRate(activeBrand, selectedMonth);
+  
+  // 从飞书API获取当前品牌的成本
+  const apiCost = feishuData?.byBrand?.[activeBrand as keyof typeof feishuData.byBrand] ?? 0;
+  // 如果飞书数据可用，使用API成本；否则使用localStorage成本
+  const effectiveCost = feishuData ? apiCost : localStorageProfit.totalCost;
+  const effectiveRevenue = localStorageProfit.revenue;
+  const effectiveProfitRate = effectiveRevenue > 0 
+    ? (effectiveRevenue - effectiveCost) / effectiveRevenue 
+    : 0;
+  
+  const profitData = {
+    revenue: effectiveRevenue,
+    totalCost: effectiveCost,
+    profitRate: effectiveProfitRate,
+    costs: localStorageProfit.costs,
+    kpiDeducted: localStorageProfit.kpiDeducted,
+  };
 
   // 利润率看板数据 - 所有品牌当月
   const allBrandProfit = BRANDS.map((b) => ({
@@ -382,11 +396,9 @@ export default function CostPage() {
           >本月</button>
           <button
             onClick={() => {
-              // 强制重新获取当前月份数据
-              if (startDate) {
-                const month = startDate.slice(0, 7);
-                setSelectedMonth('');
-                setTimeout(() => setSelectedMonth(month), 0);
+              if (selectedMonth) {
+                fetchFeishuData(selectedMonth, feishuBrand);
+                loadData();
               }
             }}
             className="px-4 py-2 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition font-medium"
@@ -898,6 +910,9 @@ export default function CostPage() {
             brand={feishuBrand}
             onBrandChange={setFeishuBrand}
             onRefresh={() => fetchFeishuData(selectedMonth, feishuBrand)}
+            onStartDateChange={(newStartDate) => {
+              setStartDate(newStartDate);
+            }}
           />
         </TabsContent>
       </Tabs>
@@ -913,6 +928,7 @@ function FeishuDataPanel({
   brand,
   onBrandChange,
   onRefresh,
+  onStartDateChange,
 }: {
   externalMonth: string;
   externalData: {
@@ -931,6 +947,7 @@ function FeishuDataPanel({
   brand: string;
   onBrandChange: (brand: string) => void;
   onRefresh: () => void;
+  onStartDateChange?: (date: string) => void;
 }) {
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
@@ -945,6 +962,11 @@ function FeishuDataPanel({
     }
   }, [externalMonth]);
 
+  const handleStartDateChange = (newDate: string) => {
+    setStartDate(newDate);
+    onStartDateChange?.(newDate);
+  };
+
   const formatMoney = (n: number) => `¥${n.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
   return (
@@ -955,7 +977,7 @@ function FeishuDataPanel({
         <input
           type="date"
           value={startDate}
-          onChange={e => setStartDate(e.target.value)}
+          onChange={e => handleStartDateChange(e.target.value)}
           className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
         />
         <span className="text-zinc-500">~</span>
@@ -967,7 +989,7 @@ function FeishuDataPanel({
         />
         <button
           onClick={() => {
-            setStartDate(getDaysAgo(6));
+            handleStartDateChange(getDaysAgo(6));
             setEndDate(getToday());
           }}
           className="px-3 py-2 text-xs rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition"
@@ -977,7 +999,7 @@ function FeishuDataPanel({
             const d = new Date();
             const mo = d.getMonth();
             const y = d.getFullYear();
-            setStartDate(`${y}-${String(mo + 1).padStart(2, '0')}-01`);
+            handleStartDateChange(`${y}-${String(mo + 1).padStart(2, '0')}-01`);
             setEndDate(getToday());
           }}
           className="px-3 py-2 text-xs rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition"
