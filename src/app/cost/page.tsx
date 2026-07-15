@@ -476,7 +476,7 @@ export default function CostPage() {
               <thead className="bg-secondary/50">
                 <tr>
                   <th className="text-left p-2.5 text-muted-foreground font-medium">类别</th>
-                  <th className="text-left p-2.5 text-muted-foreground font-medium">姓名/项目</th>
+                  <th className="text-left p-2.5 text-muted-foreground font-medium">姓名</th>
                   <th className="text-right p-2.5 text-muted-foreground font-medium">金额</th>
                   <th className="text-left p-2.5 text-muted-foreground font-medium">备注</th>
                   <th className="text-right p-2.5 text-muted-foreground font-medium">操作</th>
