@@ -661,7 +661,7 @@ export default function DataOverviewPage() {
             </CardHeader>
             <CardContent className="space-y-2">
               <div>
-                <div className="text-xs text-zinc-400">GMV</div>
+                <div className="text-xs text-zinc-400">GMV(W)</div>
                 <div className="text-xl font-bold text-white">{fmt(brand.gmv)}</div>
               </div>
               <div>
@@ -711,7 +711,7 @@ export default function DataOverviewPage() {
                   <tr className="bg-zinc-800 text-zinc-100">
                     <th className="text-left py-3 px-4 font-semibold border-b border-zinc-600 border-r border-zinc-700/60" rowSpan={2}>账号</th>
                     <th className="text-center py-2 px-3 font-semibold border-b border-zinc-700/60 border-r border-zinc-700/60" colSpan={4}>时长 (h)</th>
-                    <th className="text-center py-2 px-3 font-semibold border-b border-zinc-700/60 border-r border-zinc-700/60" colSpan={4}>GMV</th>
+                    <th className="text-center py-2 px-3 font-semibold border-b border-zinc-700/60 border-r border-zinc-700/60" colSpan={4}>GMV(W)</th>
                     <th className="text-center py-2 px-3 font-semibold border-b border-zinc-700/60" colSpan={4}>结算台数</th>
                   </tr>
                   <tr className="bg-zinc-800/70 text-zinc-300 text-xs">
@@ -761,7 +761,7 @@ export default function DataOverviewPage() {
                         <td className="py-3 px-3 text-right text-zinc-400 font-mono tabular-nums">{row.prevDuration}</td>
                         <td className={`py-3 px-3 text-right font-mono tabular-nums font-medium ${colorClass(dDelta)}`}>{dDelta >= 0 ? '+' : ''}{dDelta}</td>
                         <td className={`py-3 px-3 text-right font-mono tabular-nums font-medium border-r border-zinc-800/60 ${colorClass(dRate)}`}>{dRate >= 0 ? '+' : ''}{dRate.toFixed(1)}%</td>
-                        {/* GMV */}
+                        {/* GMV(W) */}
                         <td className="py-3 px-3 text-right text-white font-mono tabular-nums">{fmt(row.curGmv)}</td>
                         <td className="py-3 px-3 text-right text-zinc-400 font-mono tabular-nums">{fmt(row.prevGmv)}</td>
                         <td className={`py-3 px-3 text-right font-mono tabular-nums font-medium ${colorClass(gDelta)}`}>{gDelta >= 0 ? '+' : ''}{fmt(gDelta)}</td>
@@ -817,7 +817,7 @@ export default function DataOverviewPage() {
             </CardHeader>
             <CardContent className="space-y-2">
               <div>
-                <div className="text-xs text-zinc-400">GMV</div>
+                <div className="text-xs text-zinc-400">GMV(W)</div>
                 <div className="text-xl font-bold text-white">{fmt(filteredBrandSummary.gmv)}</div>
               </div>
               <div>
@@ -847,7 +847,7 @@ export default function DataOverviewPage() {
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <div>
-                    <div className="text-xs text-zinc-400">GMV</div>
+                    <div className="text-xs text-zinc-400">GMV(W)</div>
                     <div className="text-xl font-bold text-white">{fmt(acc.gmv)}</div>
                   </div>
                   <div>
@@ -970,7 +970,7 @@ export default function DataOverviewPage() {
                     </th>
                     <th className="text-left py-2 px-3 bg-zinc-900">账号名称</th>
                     <th className="text-right py-2 px-3 bg-zinc-900">直播时长(h)</th>
-                    <th className="text-right py-2 px-3 bg-zinc-900">GMV</th>
+                    <th className="text-right py-2 px-3 bg-zinc-900">GMV(W)</th>
                     <th className="text-right py-2 px-3 bg-zinc-900">销售台数(退货前)</th>
                     <th className="text-right py-2 px-3 bg-zinc-900">实销台数(退货后)</th>
                   </tr>
@@ -1059,9 +1059,9 @@ export default function DataOverviewPage() {
                         </span>
                       </td>
                     </tr>
-                    {/* GMV Row */}
+                    {/* GMV(W) Row */}
                     <tr className="bg-zinc-900/10 border-b border-zinc-800/70 hover:bg-zinc-800/60 transition-colors">
-                      <td className="py-3 px-4 text-zinc-200 font-medium border-r border-zinc-800/60">GMV</td>
+                      <td className="py-3 px-4 text-zinc-200 font-medium border-r border-zinc-800/60">GMV(W)</td>
                       <td className="py-3 px-4 text-right text-white font-semibold font-mono tabular-nums border-r border-zinc-800/60">{fmt(monthlyCompareData.current.gmv)}</td>
                       <td className="py-3 px-4 text-right text-zinc-400 font-mono tabular-nums border-r border-zinc-800/60">{fmt(monthlyCompareData.prev.gmv)}</td>
                       <td className="py-3 px-4 text-right">

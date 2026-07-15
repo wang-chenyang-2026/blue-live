@@ -180,7 +180,8 @@ function parseDailyData(raw: string[][], columnOffset: number = 0): Array<{
 
     const dateSerial = row[1];
     const accountName = row[2] || '';
-    const duration = parseFloat(row[3]) || 0;
+    // Column D (idx 3) is a SUM formula string, read actual values from E(4)/F(5)/G(6)
+    const duration = (parseFloat(row[4]) || 0) + (parseFloat(row[5]) || 0) + (parseFloat(row[6]) || 0);
     const gmv = parseFloat(row[4 + columnOffset]) || 0;
     const salesBefore = parseFloat(row[5 + columnOffset]) || 0;
     const salesAfter = parseFloat(row[6 + columnOffset]) || 0;
