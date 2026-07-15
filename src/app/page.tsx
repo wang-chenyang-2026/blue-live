@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { BRANDS } from '@/lib/constants';
 import {
@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Users,
   DollarSign,
+  RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -33,14 +34,35 @@ interface ProfitCardData {
   isSummary?: boolean;
 }
 
+function getToday(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+function getDaysAgo(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days + 1);
+  return d.toISOString().split('T')[0];
+}
+
+function getMonthStart(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
 export default function DashboardPage() {
-  const { currentBrand, isClient } = useApp();
+  const { isClient } = useApp();
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [attendances, setAttendances] = useState<AttendanceItem[]>([]);
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [currentMonth, setCurrentMonth] = useState<string>('');
   const [weekStartStr, setWeekStartStr] = useState<string>('');
   const [weekEndStr, setWeekEndStr] = useState<string>('');
+  // 本地品牌筛选（不再依赖全局 currentBrand）
+  const [activeBrand, setActiveBrand] = useState<string>('all');
+  // 日期范围（默认当月1日~今天）
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [refreshTick, setRefreshTick] = useState<number>(0);
 
   useEffect(() => {
     const now = new Date();
@@ -55,9 +77,21 @@ export default function DashboardPage() {
     setWeekStartStr(weekStart.toISOString().split('T')[0]);
     setWeekEndStr(weekEnd.toISOString().split('T')[0]);
 
+    // 默认当月：从月初到今天
+    setStartDate(getMonthStart());
+    setEndDate(getToday());
+
     setSchedules(getScheduleList());
     setAttendances(getAttendanceList());
     setStaffList(getStaffList());
+  }, []);
+
+  // 刷新按钮：重新加载 localStorage 数据
+  const handleRefresh = useCallback(() => {
+    setSchedules(getScheduleList());
+    setAttendances(getAttendanceList());
+    setStaffList(getStaffList());
+    setRefreshTick((t) => t + 1);
   }, []);
 
   const brandColors: Record<string, string> = {
@@ -66,15 +100,20 @@ export default function DashboardPage() {
     iot: '#00C9A7',
   };
 
-  // 构建利润卡片数据 - 必须在early return之前调用hooks
+  // 根据日期范围推导 month（利润率计算按月）
+  const selectedMonth = useMemo(() => {
+    return startDate ? startDate.slice(0, 7) : currentMonth;
+  }, [startDate, currentMonth]);
+
+  // 构建利润卡片数据 - 必须在 early return 之前调用 hooks
   const profitCards: ProfitCardData[] = useMemo(() => {
-    if (!currentMonth) return [];
+    if (!selectedMonth) return [];
 
     const cards: ProfitCardData[] = [];
 
-    if (currentBrand === 'all') {
+    if (activeBrand === 'all') {
       BRANDS.forEach((brand) => {
-        const data = calcProfitRate(brand.id, currentMonth);
+        const data = calcProfitRate(brand.id, selectedMonth);
         cards.push({
           id: brand.id,
           name: `${brand.name}汇总`,
@@ -83,9 +122,9 @@ export default function DashboardPage() {
         });
       });
     } else {
-      const brand = BRANDS.find((b) => b.id === currentBrand);
+      const brand = BRANDS.find((b) => b.id === activeBrand);
       if (brand) {
-        const brandData = calcProfitRate(brand.id, currentMonth);
+        const brandData = calcProfitRate(brand.id, selectedMonth);
         cards.push({
           id: brand.id,
           name: `${brand.name}汇总`,
@@ -95,7 +134,7 @@ export default function DashboardPage() {
         });
 
         brand.accounts.forEach((account) => {
-          const accountData = calcProfitRateByAccount(brand.id, account.id, currentMonth);
+          const accountData = calcProfitRateByAccount(brand.id, account.id, selectedMonth);
           cards.push({
             id: account.id,
             name: account.name,
@@ -107,7 +146,8 @@ export default function DashboardPage() {
     }
 
     return cards;
-  }, [currentBrand, currentMonth]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBrand, selectedMonth, refreshTick]);
 
   if (!isClient || !currentMonth) {
     return (
@@ -125,10 +165,10 @@ export default function DashboardPage() {
     );
   }
 
-  // 根据品牌筛选排班/考勤
+  // 根据品牌筛选排班/考勤（使用本地 activeBrand）
   const filterByBrand = <T extends { brandId?: string }>(items: T[]): T[] => {
-    if (currentBrand === 'all') return items;
-    return items.filter((item) => item.brandId === currentBrand);
+    if (activeBrand === 'all') return items;
+    return items.filter((item) => item.brandId === activeBrand);
   };
 
   // 本周排班概况
@@ -138,16 +178,20 @@ export default function DashboardPage() {
 
   // 考勤异常
   const abnormalAttendances = filterByBrand(
-    attendances.filter((a) => a.date.startsWith(currentMonth) && a.status !== '正常')
+    attendances.filter((a) => a.date.startsWith(selectedMonth) && a.status !== '正常')
   );
 
   // 成本预警（所有可见卡片中成本超收入50%的）
   const costWarnings = profitCards.filter((d) => d.revenue > 0 && d.totalCost > d.revenue * 0.5);
 
   // 网格列数：汇总3列，单品牌根据卡片数量自适应
-  const gridCols = currentBrand === 'all'
+  const gridCols = activeBrand === 'all'
     ? 'grid-cols-1 md:grid-cols-3'
     : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4';
+
+  const dateRangeLabel = startDate === endDate
+    ? startDate
+    : `${startDate} ~ ${endDate}`;
 
   return (
     <div className="space-y-6">
@@ -155,13 +199,84 @@ export default function DashboardPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">首页概览</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {currentMonth} 月度数据总览
-          {currentBrand !== 'all' && (
+          {dateRangeLabel} 数据总览
+          {activeBrand !== 'all' && (
             <span className="ml-2">
-              · {BRANDS.find((b) => b.id === currentBrand)?.name}
+              · {BRANDS.find((b) => b.id === activeBrand)?.name}
             </span>
           )}
         </p>
+      </div>
+
+      {/* 筛选器：品牌切换 + 日期范围（同一行） */}
+      <div className="rounded-xl border border-border bg-card p-4 flex items-center gap-3 flex-wrap">
+        {/* 品牌 Tab */}
+        <div className="flex items-center gap-1 p-0.5 rounded-lg bg-secondary/60">
+          <button
+            onClick={() => setActiveBrand('all')}
+            className={cn(
+              'px-3 py-1.5 text-xs rounded-md transition font-medium',
+              activeBrand === 'all'
+                ? 'bg-primary text-primary-foreground shadow'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            汇总
+          </button>
+          {BRANDS.map((brand) => (
+            <button
+              key={brand.id}
+              onClick={() => setActiveBrand(brand.id)}
+              className={cn(
+                'px-3 py-1.5 text-xs rounded-md transition font-medium',
+                activeBrand === brand.id
+                  ? 'text-white shadow'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              style={activeBrand === brand.id ? { backgroundColor: brandColors[brand.id] || '#888' } : undefined}
+            >
+              {brand.name}
+            </button>
+          ))}
+        </div>
+
+        {/* 分隔 */}
+        <div className="h-6 w-px bg-border mx-1" />
+
+        {/* 日期范围 */}
+        <span className="text-xs text-muted-foreground">日期范围</span>
+        <input
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          className="bg-secondary/60 border border-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none"
+        />
+        <span className="text-muted-foreground text-xs">~</span>
+        <input
+          type="date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          className="bg-secondary/60 border border-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none"
+        />
+
+        {/* 快捷按钮 */}
+        <button
+          onClick={() => { setStartDate(getDaysAgo(7)); setEndDate(getToday()); }}
+          className="px-3 py-1.5 text-xs rounded-lg bg-secondary/60 border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition"
+        >近7天</button>
+        <button
+          onClick={() => { setStartDate(getMonthStart()); setEndDate(getToday()); }}
+          className="px-3 py-1.5 text-xs rounded-lg bg-secondary/60 border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition"
+        >本月</button>
+
+        {/* 刷新按钮 */}
+        <button
+          onClick={handleRefresh}
+          className="ml-auto px-3 py-1.5 text-xs rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition font-medium flex items-center gap-1.5"
+        >
+          <RefreshCw className="h-3 w-3" />
+          刷新
+        </button>
       </div>
 
       {/* 利润率卡片 */}
