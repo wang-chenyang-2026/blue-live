@@ -208,17 +208,50 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* 筛选器：品牌切换 + 日期范围（同一行） */}
-      <div className="rounded-xl border border-border bg-card p-4 flex items-center gap-3 flex-wrap">
-        {/* 品牌 Tab */}
-        <div className="flex items-center gap-1 p-0.5 rounded-lg bg-secondary/60">
+      {/* 筛选器：完全参照排班管理页面样式 —— 左侧日期范围+快捷+刷新，右侧品牌按钮组 */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        {/* 左侧：日期范围 + 近7天 + 本月 + 刷新 */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-sm text-zinc-400">日期范围</span>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
+          />
+          <span className="text-zinc-500">~</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
+          />
+          <button
+            onClick={() => { setStartDate(getDaysAgo(6)); setEndDate(getToday()); }}
+            className="px-3 py-2 text-xs rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition"
+          >近7天</button>
+          <button
+            onClick={() => { setStartDate(getMonthStart()); setEndDate(getToday()); }}
+            className="px-3 py-2 text-xs rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition"
+          >本月</button>
+          <button
+            onClick={handleRefresh}
+            className="px-4 py-2 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition font-medium flex items-center gap-1.5"
+          >
+            <RefreshCw className="h-3 w-3" />
+            刷新
+          </button>
+        </div>
+
+        {/* 右侧：品牌按钮组（与排班管理右上角完全一致） */}
+        <div className="flex items-center bg-zinc-800 rounded-lg p-1">
           <button
             onClick={() => setActiveBrand('all')}
             className={cn(
-              'px-3 py-1.5 text-xs rounded-md transition font-medium',
+              'px-4 py-1.5 text-sm rounded-md transition',
               activeBrand === 'all'
-                ? 'bg-primary text-primary-foreground shadow'
-                : 'text-muted-foreground hover:text-foreground'
+                ? 'bg-blue-600 text-white'
+                : 'text-zinc-400 hover:text-white'
             )}
           >
             汇总
@@ -228,55 +261,16 @@ export default function DashboardPage() {
               key={brand.id}
               onClick={() => setActiveBrand(brand.id)}
               className={cn(
-                'px-3 py-1.5 text-xs rounded-md transition font-medium',
+                'px-4 py-1.5 text-sm rounded-md transition',
                 activeBrand === brand.id
-                  ? 'text-white shadow'
-                  : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-zinc-400 hover:text-white'
               )}
-              style={activeBrand === brand.id ? { backgroundColor: brandColors[brand.id] || '#888' } : undefined}
             >
               {brand.name}
             </button>
           ))}
         </div>
-
-        {/* 分隔 */}
-        <div className="h-6 w-px bg-border mx-1" />
-
-        {/* 日期范围 */}
-        <span className="text-xs text-muted-foreground">日期范围</span>
-        <input
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          className="bg-secondary/60 border border-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none"
-        />
-        <span className="text-muted-foreground text-xs">~</span>
-        <input
-          type="date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          className="bg-secondary/60 border border-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none"
-        />
-
-        {/* 快捷按钮 */}
-        <button
-          onClick={() => { setStartDate(getDaysAgo(7)); setEndDate(getToday()); }}
-          className="px-3 py-1.5 text-xs rounded-lg bg-secondary/60 border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition"
-        >近7天</button>
-        <button
-          onClick={() => { setStartDate(getMonthStart()); setEndDate(getToday()); }}
-          className="px-3 py-1.5 text-xs rounded-lg bg-secondary/60 border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition"
-        >本月</button>
-
-        {/* 刷新按钮 */}
-        <button
-          onClick={handleRefresh}
-          className="ml-auto px-3 py-1.5 text-xs rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition font-medium flex items-center gap-1.5"
-        >
-          <RefreshCw className="h-3 w-3" />
-          刷新
-        </button>
       </div>
 
       {/* 利润率卡片 */}
