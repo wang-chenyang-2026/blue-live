@@ -85,7 +85,6 @@ const MODULE_LABELS: Record<ModuleKey, string> = {
   schedule: '排班管理',
   'data-overview': '数据概览',
   cost: '成本核算',
-  attendance: '考勤管理',
   visual: '视觉对接',
   sop: 'SOP管理',
   workstation: '主播工作台',
@@ -103,7 +102,6 @@ export const ROLES: Role[] = [
       'schedule',
       'data-overview',
       'cost',
-      'attendance',
       'visual',
       'sop',
       'workstation',
@@ -113,7 +111,7 @@ export const ROLES: Role[] = [
   {
     key: '运营',
     label: '运营',
-    modules: ['schedule', 'data-overview', 'cost', 'attendance', 'visual', 'sop'],
+    modules: ['schedule', 'data-overview', 'cost', 'visual', 'sop'],
   },
   {
     key: '中控',

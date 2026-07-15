@@ -62,7 +62,6 @@ export type ModuleKey =
   | 'schedule'
   | 'data-overview'
   | 'cost'
-  | 'attendance'
   | 'visual'
   | 'sop'
   | 'workstation'
