@@ -705,28 +705,28 @@ export default function DataOverviewPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="overflow-x-auto rounded-lg border border-zinc-700/60">
+              <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className="border-b border-zinc-700 text-zinc-400">
-                    <th className="text-left py-2 px-3 bg-zinc-900" rowSpan={2}>账号</th>
-                    <th className="text-center py-2 px-3 bg-zinc-900 border-l border-zinc-700" colSpan={4}>时长(h)</th>
-                    <th className="text-center py-2 px-3 bg-zinc-900 border-l border-zinc-700" colSpan={4}>GMV</th>
-                    <th className="text-center py-2 px-3 bg-zinc-900 border-l border-zinc-700" colSpan={4}>结算台数</th>
+                  <tr className="bg-zinc-800 text-zinc-100">
+                    <th className="text-left py-3 px-4 font-semibold border-b border-zinc-600 border-r border-zinc-700/60" rowSpan={2}>账号</th>
+                    <th className="text-center py-2 px-3 font-semibold border-b border-zinc-700/60 border-r border-zinc-700/60" colSpan={4}>时长 (h)</th>
+                    <th className="text-center py-2 px-3 font-semibold border-b border-zinc-700/60 border-r border-zinc-700/60" colSpan={4}>GMV</th>
+                    <th className="text-center py-2 px-3 font-semibold border-b border-zinc-700/60" colSpan={4}>结算台数</th>
                   </tr>
-                  <tr className="border-b border-zinc-700 text-zinc-400">
-                    <th className="text-right py-1 px-3 bg-zinc-900 border-l border-zinc-700">本月</th>
-                    <th className="text-right py-1 px-3 bg-zinc-900">上月</th>
-                    <th className="text-right py-1 px-3 bg-zinc-900">涨幅</th>
-                    <th className="text-right py-1 px-3 bg-zinc-900">增长率</th>
-                    <th className="text-right py-1 px-3 bg-zinc-900 border-l border-zinc-700">本月</th>
-                    <th className="text-right py-1 px-3 bg-zinc-900">上月</th>
-                    <th className="text-right py-1 px-3 bg-zinc-900">涨幅</th>
-                    <th className="text-right py-1 px-3 bg-zinc-900">增长率</th>
-                    <th className="text-right py-1 px-3 bg-zinc-900 border-l border-zinc-700">本月</th>
-                    <th className="text-right py-1 px-3 bg-zinc-900">上月</th>
-                    <th className="text-right py-1 px-3 bg-zinc-900">涨幅</th>
-                    <th className="text-right py-1 px-3 bg-zinc-900">增长率</th>
+                  <tr className="bg-zinc-800/70 text-zinc-300 text-xs">
+                    <th className="text-right py-2 px-3 font-medium border-b border-zinc-600 border-r border-zinc-700/40">本月</th>
+                    <th className="text-right py-2 px-3 font-medium border-b border-zinc-600 border-r border-zinc-700/40">上月</th>
+                    <th className="text-right py-2 px-3 font-medium border-b border-zinc-600 border-r border-zinc-700/40">涨幅</th>
+                    <th className="text-right py-2 px-3 font-medium border-b border-zinc-600 border-r border-zinc-700/60">增长率</th>
+                    <th className="text-right py-2 px-3 font-medium border-b border-zinc-600 border-r border-zinc-700/40">本月</th>
+                    <th className="text-right py-2 px-3 font-medium border-b border-zinc-600 border-r border-zinc-700/40">上月</th>
+                    <th className="text-right py-2 px-3 font-medium border-b border-zinc-600 border-r border-zinc-700/40">涨幅</th>
+                    <th className="text-right py-2 px-3 font-medium border-b border-zinc-600 border-r border-zinc-700/60">增长率</th>
+                    <th className="text-right py-2 px-3 font-medium border-b border-zinc-600 border-r border-zinc-700/40">本月</th>
+                    <th className="text-right py-2 px-3 font-medium border-b border-zinc-600 border-r border-zinc-700/40">上月</th>
+                    <th className="text-right py-2 px-3 font-medium border-b border-zinc-600 border-r border-zinc-700/40">涨幅</th>
+                    <th className="text-right py-2 px-3 font-medium border-b border-zinc-600">增长率</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -736,7 +736,7 @@ export default function DataOverviewPage() {
                       if (prev === 0) return cur > 0 ? 100 : 0;
                       return ((cur - prev) / prev) * 100;
                     };
-                    const colorClass = (val: number) => val > 0 ? 'text-emerald-400' : val < 0 ? 'text-red-400' : 'text-zinc-400';
+                    const colorClass = (val: number) => val > 0 ? 'text-emerald-400' : val < 0 ? 'text-red-400' : 'text-zinc-500';
 
                     const dDelta = calcDelta(row.curDuration, row.prevDuration);
                     const dRate = calcRate(row.curDuration, row.prevDuration);
@@ -745,30 +745,32 @@ export default function DataOverviewPage() {
                     const sDelta = calcDelta(row.curSales, row.prevSales);
                     const sRate = calcRate(row.curSales, row.prevSales);
 
+                    const rowBg = idx % 2 === 0 ? 'bg-zinc-900/40' : 'bg-zinc-900/10';
+
                     return (
-                      <tr key={idx} className="border-b border-zinc-800 hover:bg-zinc-800/50">
-                        <td className="py-2 px-3">
+                      <tr key={idx} className={`${rowBg} border-b border-zinc-800/70 hover:bg-zinc-800/60 transition-colors`}>
+                        <td className="py-3 px-4 border-r border-zinc-800/60">
                           <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: row.brandColor }} />
-                            <span className="text-zinc-300">{row.accountName}</span>
+                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: row.brandColor }} />
+                            <span className="text-zinc-100 font-medium">{row.accountName}</span>
                             <span className="text-xs text-zinc-500">({row.brand})</span>
                           </div>
                         </td>
                         {/* Duration */}
-                        <td className="py-2 px-3 text-right text-white">{row.curDuration}</td>
-                        <td className="py-2 px-3 text-right text-zinc-300">{row.prevDuration}</td>
-                        <td className={`py-2 px-3 text-right ${colorClass(dDelta)}`}>{dDelta >= 0 ? '+' : ''}{dDelta}</td>
-                        <td className={`py-2 px-3 text-right ${colorClass(dRate)}`}>{dRate >= 0 ? '+' : ''}{dRate.toFixed(1)}%</td>
+                        <td className="py-3 px-3 text-right text-white font-mono tabular-nums">{row.curDuration}</td>
+                        <td className="py-3 px-3 text-right text-zinc-400 font-mono tabular-nums">{row.prevDuration}</td>
+                        <td className={`py-3 px-3 text-right font-mono tabular-nums font-medium ${colorClass(dDelta)}`}>{dDelta >= 0 ? '+' : ''}{dDelta}</td>
+                        <td className={`py-3 px-3 text-right font-mono tabular-nums font-medium border-r border-zinc-800/60 ${colorClass(dRate)}`}>{dRate >= 0 ? '+' : ''}{dRate.toFixed(1)}%</td>
                         {/* GMV */}
-                        <td className="py-2 px-3 text-right text-white border-l border-zinc-800">{fmt(row.curGmv)}</td>
-                        <td className="py-2 px-3 text-right text-zinc-300">{fmt(row.prevGmv)}</td>
-                        <td className={`py-2 px-3 text-right ${colorClass(gDelta)}`}>{gDelta >= 0 ? '+' : ''}{fmt(gDelta)}</td>
-                        <td className={`py-2 px-3 text-right ${colorClass(gRate)}`}>{gRate >= 0 ? '+' : ''}{gRate.toFixed(1)}%</td>
+                        <td className="py-3 px-3 text-right text-white font-mono tabular-nums">{fmt(row.curGmv)}</td>
+                        <td className="py-3 px-3 text-right text-zinc-400 font-mono tabular-nums">{fmt(row.prevGmv)}</td>
+                        <td className={`py-3 px-3 text-right font-mono tabular-nums font-medium ${colorClass(gDelta)}`}>{gDelta >= 0 ? '+' : ''}{fmt(gDelta)}</td>
+                        <td className={`py-3 px-3 text-right font-mono tabular-nums font-medium border-r border-zinc-800/60 ${colorClass(gRate)}`}>{gRate >= 0 ? '+' : ''}{gRate.toFixed(1)}%</td>
                         {/* Sales */}
-                        <td className="py-2 px-3 text-right text-white border-l border-zinc-800">{fmt(row.curSales)}</td>
-                        <td className="py-2 px-3 text-right text-zinc-300">{fmt(row.prevSales)}</td>
-                        <td className={`py-2 px-3 text-right ${colorClass(sDelta)}`}>{sDelta >= 0 ? '+' : ''}{fmt(sDelta)}</td>
-                        <td className={`py-2 px-3 text-right ${colorClass(sRate)}`}>{sRate >= 0 ? '+' : ''}{sRate.toFixed(1)}%</td>
+                        <td className="py-3 px-3 text-right text-white font-mono tabular-nums">{fmt(row.curSales)}</td>
+                        <td className="py-3 px-3 text-right text-zinc-400 font-mono tabular-nums">{fmt(row.prevSales)}</td>
+                        <td className={`py-3 px-3 text-right font-mono tabular-nums font-medium ${colorClass(sDelta)}`}>{sDelta >= 0 ? '+' : ''}{fmt(sDelta)}</td>
+                        <td className={`py-3 px-3 text-right font-mono tabular-nums font-medium ${colorClass(sRate)}`}>{sRate >= 0 ? '+' : ''}{sRate.toFixed(1)}%</td>
                       </tr>
                     );
                   })}
@@ -1030,53 +1032,53 @@ export default function DataOverviewPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="overflow-x-auto rounded-lg border border-zinc-700/60">
+                <table className="w-full text-sm border-collapse">
                   <thead>
-                    <tr className="border-b border-zinc-700 text-zinc-400">
-                      <th className="text-left py-2 px-3">指标</th>
-                      <th className="text-right py-2 px-3">
+                    <tr className="bg-zinc-800 text-zinc-100">
+                      <th className="text-left py-3 px-4 font-semibold border-b border-zinc-600 border-r border-zinc-700/60">指标</th>
+                      <th className="text-right py-3 px-4 font-semibold border-b border-zinc-600 border-r border-zinc-700/60">
                         {(() => { const [y, m] = monthlyCompareData.currentMonth.split('-'); return `${y}年${parseInt(m)}月`; })()}
                       </th>
-                      <th className="text-right py-2 px-3">
+                      <th className="text-right py-3 px-4 font-semibold border-b border-zinc-600 border-r border-zinc-700/60">
                         {(() => { const [y, m] = monthlyCompareData.prevMonth.split('-'); return `${y}年${parseInt(m)}月`; })()}
                       </th>
-                      <th className="text-right py-2 px-3">环比变化</th>
+                      <th className="text-right py-3 px-4 font-semibold border-b border-zinc-600">环比变化</th>
                     </tr>
                   </thead>
                   <tbody>
                     {/* Duration Row */}
-                    <tr className="border-b border-zinc-800 hover:bg-zinc-800/50">
-                      <td className="py-2 px-3 text-zinc-300">直播时长</td>
-                      <td className="py-2 px-3 text-right text-white font-medium">{monthlyCompareData.current.duration}h</td>
-                      <td className="py-2 px-3 text-right text-zinc-300">{monthlyCompareData.prev.duration}h</td>
-                      <td className="py-2 px-3 text-right">
-                        <span className={`inline-flex items-center gap-0.5 ${monthlyCompareData.durationChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {monthlyCompareData.durationChange >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                    <tr className="bg-zinc-900/40 border-b border-zinc-800/70 hover:bg-zinc-800/60 transition-colors">
+                      <td className="py-3 px-4 text-zinc-200 font-medium border-r border-zinc-800/60">直播时长</td>
+                      <td className="py-3 px-4 text-right text-white font-semibold font-mono tabular-nums border-r border-zinc-800/60">{monthlyCompareData.current.duration}h</td>
+                      <td className="py-3 px-4 text-right text-zinc-400 font-mono tabular-nums border-r border-zinc-800/60">{monthlyCompareData.prev.duration}h</td>
+                      <td className="py-3 px-4 text-right">
+                        <span className={`inline-flex items-center gap-1 font-mono tabular-nums font-medium ${monthlyCompareData.durationChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {monthlyCompareData.durationChange >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
                           {monthlyCompareData.durationChange >= 0 ? '+' : ''}{monthlyCompareData.durationChange.toFixed(1)}%
                         </span>
                       </td>
                     </tr>
                     {/* GMV Row */}
-                    <tr className="border-b border-zinc-800 hover:bg-zinc-800/50">
-                      <td className="py-2 px-3 text-zinc-300">GMV</td>
-                      <td className="py-2 px-3 text-right text-white font-medium">{fmt(monthlyCompareData.current.gmv)}</td>
-                      <td className="py-2 px-3 text-right text-zinc-300">{fmt(monthlyCompareData.prev.gmv)}</td>
-                      <td className="py-2 px-3 text-right">
-                        <span className={`inline-flex items-center gap-0.5 ${monthlyCompareData.gmvChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {monthlyCompareData.gmvChange >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                    <tr className="bg-zinc-900/10 border-b border-zinc-800/70 hover:bg-zinc-800/60 transition-colors">
+                      <td className="py-3 px-4 text-zinc-200 font-medium border-r border-zinc-800/60">GMV</td>
+                      <td className="py-3 px-4 text-right text-white font-semibold font-mono tabular-nums border-r border-zinc-800/60">{fmt(monthlyCompareData.current.gmv)}</td>
+                      <td className="py-3 px-4 text-right text-zinc-400 font-mono tabular-nums border-r border-zinc-800/60">{fmt(monthlyCompareData.prev.gmv)}</td>
+                      <td className="py-3 px-4 text-right">
+                        <span className={`inline-flex items-center gap-1 font-mono tabular-nums font-medium ${monthlyCompareData.gmvChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {monthlyCompareData.gmvChange >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
                           {monthlyCompareData.gmvChange >= 0 ? '+' : ''}{monthlyCompareData.gmvChange.toFixed(1)}%
                         </span>
                       </td>
                     </tr>
                     {/* Sales Row */}
-                    <tr className="border-b border-zinc-800 hover:bg-zinc-800/50">
-                      <td className="py-2 px-3 text-zinc-300">结算台数</td>
-                      <td className="py-2 px-3 text-right text-white font-medium">{fmt(monthlyCompareData.current.sales)}</td>
-                      <td className="py-2 px-3 text-right text-zinc-300">{fmt(monthlyCompareData.prev.sales)}</td>
-                      <td className="py-2 px-3 text-right">
-                        <span className={`inline-flex items-center gap-0.5 ${monthlyCompareData.salesChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {monthlyCompareData.salesChange >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                    <tr className="bg-zinc-900/40 hover:bg-zinc-800/60 transition-colors">
+                      <td className="py-3 px-4 text-zinc-200 font-medium border-r border-zinc-800/60">结算台数</td>
+                      <td className="py-3 px-4 text-right text-white font-semibold font-mono tabular-nums border-r border-zinc-800/60">{fmt(monthlyCompareData.current.sales)}</td>
+                      <td className="py-3 px-4 text-right text-zinc-400 font-mono tabular-nums border-r border-zinc-800/60">{fmt(monthlyCompareData.prev.sales)}</td>
+                      <td className="py-3 px-4 text-right">
+                        <span className={`inline-flex items-center gap-1 font-mono tabular-nums font-medium ${monthlyCompareData.salesChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {monthlyCompareData.salesChange >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
                           {monthlyCompareData.salesChange >= 0 ? '+' : ''}{monthlyCompareData.salesChange.toFixed(1)}%
                         </span>
                       </td>
