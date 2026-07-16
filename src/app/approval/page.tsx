@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { getPendingUsers, approveUser, rejectUser } from '@/lib/store';
 import { BRANDS, POSITION_OPTIONS } from '@/lib/constants';
 import type { User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -14,57 +13,67 @@ import {
   UserCheck,
   RefreshCw,
 } from 'lucide-react';
-import { useCallback } from 'react';
 
 export default function ApprovalPage() {
-  const { isClient, currentUser, refreshPendingCount } = useApp();
+  const { isClient, refreshPendingCount } = useApp();
   const [pendingUsers, setPendingUsers] = useState<User[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [actioningId, setActioningId] = useState<string | null>(null);
 
-  const loadPending = useCallback(() => {
-    setPendingUsers(getPendingUsers());
+  const loadPending = useCallback(async () => {
+    try {
+      const res = await fetch('/api/users?status=pending', { cache: 'no-store' });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setPendingUsers(data.users || []);
+      }
+    } catch (err) {
+      console.error('load pending error', err);
+    }
     refreshPendingCount();
   }, [refreshPendingCount]);
 
   useEffect(() => {
     if (!isClient) return;
     loadPending();
-
-    // 1) 监听同浏览器跨 tab 的 storage 变化
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === 'lm_users' || e.key === null) loadPending();
-    };
-    window.addEventListener('storage', onStorage);
-
-    // 2) 页面聚焦时刷新（用户切回该 tab 时）
     const onFocus = () => loadPending();
     window.addEventListener('focus', onFocus);
-
-    // 3) 兜底轮询（每 5 秒刷一次，仅在此页面存在时）
-    const timer = setInterval(loadPending, 5000);
-
+    const timer = setInterval(loadPending, 8000);
     return () => {
-      window.removeEventListener('storage', onStorage);
       window.removeEventListener('focus', onFocus);
       clearInterval(timer);
     };
   }, [isClient, loadPending]);
 
-  const handleManualRefresh = () => {
+  const handleManualRefresh = async () => {
     setRefreshing(true);
-    loadPending();
+    await loadPending();
     setTimeout(() => setRefreshing(false), 400);
   };
 
-  const handleApprove = (userId: string) => {
-    approveUser(userId);
-    loadPending();
+  const updateStatus = async (userId: string, status: 'approved' | 'rejected') => {
+    setActioningId(userId);
+    try {
+      const res = await fetch(`/api/users/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        console.error('update status failed', data);
+        return;
+      }
+      await loadPending();
+    } catch (err) {
+      console.error('update status error', err);
+    } finally {
+      setActioningId(null);
+    }
   };
 
-  const handleReject = (userId: string) => {
-    rejectUser(userId);
-    loadPending();
-  };
+  const handleApprove = (userId: string) => updateStatus(userId, 'approved');
+  const handleReject = (userId: string) => updateStatus(userId, 'rejected');
 
   if (!isClient) {
     return (
@@ -164,6 +173,7 @@ export default function ApprovalPage() {
                   <Button
                     size="sm"
                     onClick={() => handleApprove(user.id)}
+                    disabled={actioningId === user.id}
                     className="gap-1"
                   >
                     <CheckCircle className="h-3.5 w-3.5" />
@@ -173,6 +183,7 @@ export default function ApprovalPage() {
                     size="sm"
                     variant="destructive"
                     onClick={() => handleReject(user.id)}
+                    disabled={actioningId === user.id}
                     className="gap-1"
                   >
                     <XCircle className="h-3.5 w-3.5" />

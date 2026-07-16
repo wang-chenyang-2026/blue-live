@@ -10,7 +10,7 @@ import type {
   ProblemFeedback,
   User,
 } from './types';
-import { DEFAULT_ADMIN } from './constants';
+// DEFAULT_ADMIN 现由服务端 Supabase 用户表管理，本文件不再使用
 
 // ==================== 安全 localStorage 操作 ====================
 // 所有函数都假设在客户端调用，SSR 阶段由调用方通过 useEffect 保护
@@ -367,81 +367,43 @@ export function calcProfitRateByAccount(brandId: string, accountId: string, mont
 }
 
 // ==================== 用户 & 认证 ====================
-const USER_KEY = 'lm_users';
 const AUTH_KEY = 'lm_auth';
 
-export function getUserList(): User[] {
-  const list = getStore<User[]>(USER_KEY, []);
-  // 首次访问时初始化默认管理员
-  if (list.length === 0) {
-    const init = [DEFAULT_ADMIN];
-    setStore(USER_KEY, init);
-    return init;
-  }
-  return list;
-}
+// ==================== 用户管理（存储在服务端 Supabase） ====================
+// 用户数据（注册/登录/审批）已全部迁移到服务端 API，参见：
+//   POST /api/auth/register
+//   POST /api/auth/login
+//   GET  /api/users?status=pending
+//   PUT  /api/users/[id]
+//   DELETE /api/users/[id]
+// 本地仅保留当前登录会话的 currentUser 缓存（AUTH_KEY），退出登录时清空。
 
-export function setUserList(users: User[]): void {
-  setStore(USER_KEY, users);
-}
-
-export function addUser(user: User): void {
-  const list = getUserList();
-  list.push(user);
-  setUserList(list);
-}
-
-export function updateUser(user: User): void {
-  const list = getUserList().map((u) => (u.id === user.id ? user : u));
-  setUserList(list);
-}
-
-export function findUserByPhone(phone: string): User | undefined {
-  return getUserList().find((u) => u.phone === phone);
-}
-
-export function getPendingUsers(): User[] {
-  return getUserList().filter((u) => u.status === 'pending');
-}
-
-export function approveUser(id: string): void {
-  const list = getUserList().map((u) =>
-    u.id === id ? { ...u, status: 'approved' as const } : u
-  );
-  setUserList(list);
-}
-
-export function rejectUser(id: string): void {
-  const list = getUserList().map((u) =>
-    u.id === id ? { ...u, status: 'rejected' as const } : u
-  );
-  setUserList(list);
-}
-
-export function login(phone: string, password: string): User | null {
-  const user = getUserList().find(
-    (u) => u.phone === phone && u.password === password && u.status === 'approved'
-  );
-  if (user) {
-    setStore(AUTH_KEY, { userId: user.id });
-    return user;
-  }
-  return null;
-}
-
-export function logout(): void {
+export function setCurrentUser(user: User | null): void {
   if (!isBrowser) return;
   try {
-    localStorage.removeItem(AUTH_KEY);
+    if (user) {
+      localStorage.setItem(AUTH_KEY, JSON.stringify(user));
+    } else {
+      localStorage.removeItem(AUTH_KEY);
+    }
   } catch {
     // ignore
   }
 }
 
+export function logout(): void {
+  setCurrentUser(null);
+}
+
 export function getCurrentUser(): User | null {
-  const auth = getStore<{ userId: string } | null>(AUTH_KEY, null);
-  if (!auth) return null;
-  return getUserList().find((u) => u.id === auth.userId) ?? null;
+  if (!isBrowser) return null;
+  try {
+    const raw = localStorage.getItem(AUTH_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as User;
+  } catch {
+    return null;
+  }
 }
 
 // ==================== ID 生成 ====================

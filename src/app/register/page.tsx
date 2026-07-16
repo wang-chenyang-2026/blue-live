@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/contexts/AppContext';
-import { addUser, findUserByPhone, genId } from '@/lib/store';
 import { POSITION_OPTIONS, REGISTER_PROJECT_OPTIONS } from '@/lib/constants';
 import type { RoleKey } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -38,7 +37,7 @@ export default function RegisterPage() {
     }
   }, [isClient, isAuthenticated, router, isClient]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -49,35 +48,32 @@ export default function RegisterPage() {
     if (!project) { setError('请选择项目'); return; }
     if (!position) { setError('请选择岗位'); return; }
 
-    // 检查手机号是否已注册
-    const existing = findUserByPhone(phone.trim());
-    if (existing) {
-      if (existing.status === 'pending') {
-        setError('该手机号已注册，等待审核中');
-      } else if (existing.status === 'approved') {
-        setError('该手机号已注册，请直接登录');
-      } else {
-        setError('该手机号注册已被拒绝，请联系管理员');
-      }
-      return;
-    }
-
     setLoading(true);
-    setTimeout(() => {
-      const user = {
-        id: genId(),
-        name: name.trim(),
-        phone: phone.trim(),
-        password,
-        projectScope: project,
-        role: position as RoleKey,
-        status: 'pending' as const,
-        createdAt: new Date().toISOString().split('T')[0],
-      };
-      addUser(user);
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          phone: phone.trim(),
+          password,
+          projectScope: project,
+          role: position as RoleKey,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || '注册失败，请稍后重试');
+        setLoading(false);
+        return;
+      }
       setSuccess(true);
+    } catch (err) {
+      console.error('register error', err);
+      setError('网络异常，请稍后重试');
+    } finally {
       setLoading(false);
-    }, 300);
+    }
   };
 
   if (!isClient) {

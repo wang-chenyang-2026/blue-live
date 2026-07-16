@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { RoleKey, User } from '@/lib/types';
 import { BRANDS } from '@/lib/constants';
-import { getCurrentUser, logout as storeLogout, getPendingUsers } from '@/lib/store';
+import { getCurrentUser, logout as storeLogout, setCurrentUser as persistCurrentUser } from '@/lib/store';
 
 interface AppState {
   currentBrand: string;      // 'all' | brandId
@@ -57,7 +57,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       // 待审核数量
-      setPendingCount(getPendingUsers().length);
+      fetch('/api/users?status=pending', { cache: 'no-store' })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d?.success) setPendingCount((d.users || []).length);
+        })
+        .catch(() => {});
     } catch {
       // ignore
     }
@@ -102,6 +107,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const handleSetUser = useCallback((user: User | null) => {
+    persistCurrentUser(user);
     setCurrentUser(user);
     setIsAuthenticated(!!user);
     if (user) {
@@ -110,7 +116,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshPendingCount = useCallback(() => {
-    setPendingCount(getPendingUsers().length);
+    fetch('/api/users?status=pending', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.success) setPendingCount((d.users || []).length);
+      })
+      .catch(() => {});
   }, []);
 
   const handleLogout = useCallback(() => {

@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/contexts/AppContext';
-import { login, findUserByPhone } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,7 +23,7 @@ export default function LoginPage() {
     }
   }, [isClient, isAuthenticated, router, isClient]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -38,25 +37,26 @@ export default function LoginPage() {
     }
 
     setLoading(true);
-    // 使用 setTimeout 让 UI 更新
-    setTimeout(() => {
-      const user = login(phone.trim(), password);
-      if (user) {
-        setUser(user);
-        refreshPendingCount();
-        router.push('/');
-      } else {
-        const existingUser = findUserByPhone(phone.trim());
-        if (existingUser && existingUser.status === 'pending') {
-          setError('账号待审核，请等待项目负责人审批');
-        } else if (existingUser && existingUser.status === 'rejected') {
-          setError('账号已被拒绝，请联系管理员');
-        } else {
-          setError('手机号或密码错误');
-        }
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phone.trim(), password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || '登录失败');
+        return;
       }
+      setUser(data.user);
+      refreshPendingCount();
+      router.push('/');
+    } catch (err) {
+      console.error('login error', err);
+      setError('网络异常，请稍后重试');
+    } finally {
       setLoading(false);
-    }, 300);
+    }
   };
 
   if (!isClient) {
