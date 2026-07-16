@@ -89,6 +89,8 @@ const MODULE_LABELS: Record<ModuleKey, string> = {
   sop: 'SOP管理',
   workstation: '主播工作台',
   'problem-feedback': '问题反馈',
+  'approval': '用户审批',
+  'account': '账号管理',
 };
 
 export { MODULE_LABELS };
@@ -106,6 +108,8 @@ export const ROLES: Role[] = [
       'sop',
       'workstation',
       'problem-feedback',
+      'approval',
+      'account',
     ],
   },
   {

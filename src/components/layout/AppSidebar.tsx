@@ -15,6 +15,7 @@ import {
   MonitorPlay,
   MessageSquareWarning,
   UserCheck,
+  UserCog,
   LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -29,6 +30,8 @@ const MODULE_ICONS: Record<ModuleKey, React.ReactNode> = {
   sop: <BookOpen className="h-4 w-4" />,
   workstation: <MonitorPlay className="h-4 w-4" />,
   'problem-feedback': <MessageSquareWarning className="h-4 w-4" />,
+  approval: <UserCheck className="h-4 w-4" />,
+  account: <UserCog className="h-4 w-4" />,
 };
 
 const MODULE_PATHS: Record<ModuleKey, string> = {
@@ -40,6 +43,8 @@ const MODULE_PATHS: Record<ModuleKey, string> = {
   sop: '/sop',
   workstation: '/workstation',
   'problem-feedback': '/feedback',
+  approval: '/approval',
+  account: '/account',
 };
 
 const SIDEBAR_ORDER: ModuleKey[] = [
@@ -47,6 +52,8 @@ const SIDEBAR_ORDER: ModuleKey[] = [
   'schedule',
   'cost',
   'data-overview',
+  'approval',
+  'account',
   'visual',
   'sop',
   'workstation',
