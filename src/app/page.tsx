@@ -256,6 +256,7 @@ export default function DashboardPage() {
 
 // 利润卡片组件
 function ProfitCard({ data, costLoading, costError }: { data: ProfitCardData; costLoading?: boolean; costError?: string }) {
+  console.log('[ProfitCard]', data.id, 'totalCost:', data.totalCost, 'costLoading:', costLoading, 'costError:', costError);
   const rate = (data.profitRate * 100).toFixed(1);
   const isPositive = data.profitRate >= 0;
 
