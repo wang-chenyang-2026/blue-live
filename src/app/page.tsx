@@ -56,6 +56,8 @@ export default function DashboardPage() {
   const [endDate, setEndDate] = useState<string>('');
   const [refreshTick, setRefreshTick] = useState<number>(0);
   const [brandStats, setBrandStats] = useState<Record<string, BrandStats>>({});
+  const [costByBrand, setCostByBrand] = useState<Record<string, number>>({});
+  const [costLoading, setCostLoading] = useState(false);
 
   useEffect(() => {
     const now = new Date();
@@ -105,6 +107,32 @@ export default function DashboardPage() {
     };
   }, [selectedMonth, refreshTick]);
 
+  // 拉取各品牌成本（来自成本核算API/飞书数据）
+  useEffect(() => {
+    if (!selectedMonth) return;
+    let cancelled = false;
+    setCostLoading(true);
+    fetch(`/api/cost-overview?month=${selectedMonth}&brand=all`)
+      .then((r) => r.json())
+      .then((res) => {
+        if (cancelled) return;
+        if (res.success && res.data?.byBrand) {
+          const map: Record<string, number> = {};
+          Object.entries(res.data.byBrand as Record<string, number>).forEach(([k, v]) => {
+            map[k.toLowerCase()] = Number(v) || 0;
+          });
+          setCostByBrand(map);
+        }
+      })
+      .catch((err) => console.error('fetch cost overview failed', err))
+      .finally(() => {
+        if (!cancelled) setCostLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMonth, refreshTick]);
+
   // 构建利润卡片数据 - 所有品牌
   const profitCards: ProfitCardData[] = useMemo(() => {
     if (!selectedMonth) return [];
@@ -112,13 +140,22 @@ export default function DashboardPage() {
     const cards: ProfitCardData[] = [];
 
     BRANDS.forEach((brand) => {
-      const data = calcProfitRate(brand.id, selectedMonth);
+      const localData = calcProfitRate(brand.id, selectedMonth);
       const stats = brandStats[brand.id.toLowerCase()];
+      // 优先使用飞书 API 返回的品牌成本（若已加载），否则回退到 localStorage
+      const apiCost = costByBrand[brand.id.toLowerCase()];
+      const totalCost = apiCost !== undefined ? apiCost : localData.totalCost;
+      const revenue = localData.revenue;
+      const profitRate = revenue > 0 ? (revenue - totalCost) / revenue : 0;
+
       cards.push({
         id: brand.id,
         name: `${brand.name}汇总`,
         color: brandColors[brand.id] || '#888',
-        ...data,
+        revenue,
+        totalCost,
+        profitRate,
+        kpiDeducted: localData.kpiDeducted,
         totalHours: stats?.totalHours ?? 0,
         partTimeAnchor: stats?.partTimeAnchor ?? 0,
         partTimeControl: stats?.partTimeControl ?? 0,
@@ -127,7 +164,7 @@ export default function DashboardPage() {
 
     return cards;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonth, refreshTick, brandStats]);
+  }, [selectedMonth, refreshTick, brandStats, costByBrand]);
 
   if (!isClient || !currentMonth) {
     return (
@@ -200,7 +237,7 @@ export default function DashboardPage() {
       {/* 利润率卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {profitCards.map((card) => (
-          <ProfitCard key={card.id} data={card} />
+          <ProfitCard key={card.id} data={card} costLoading={costLoading} />
         ))}
       </div>
 
@@ -209,7 +246,7 @@ export default function DashboardPage() {
 }
 
 // 利润卡片组件
-function ProfitCard({ data }: { data: ProfitCardData }) {
+function ProfitCard({ data, costLoading }: { data: ProfitCardData; costLoading?: boolean }) {
   const rate = (data.profitRate * 100).toFixed(1);
   const isPositive = data.profitRate >= 0;
 
@@ -269,7 +306,11 @@ function ProfitCard({ data }: { data: ProfitCardData }) {
           <div className="rounded-md bg-secondary p-2">
             <p className="text-muted-foreground">总成本</p>
             <p className="font-medium text-foreground">
-              ¥{data.totalCost.toLocaleString()}
+              {costLoading ? (
+                <span className="text-muted-foreground text-[11px]">加载中...</span>
+              ) : (
+                `¥${data.totalCost.toLocaleString()}`
+              )}
             </p>
           </div>
           <div className="rounded-md bg-secondary p-2">
