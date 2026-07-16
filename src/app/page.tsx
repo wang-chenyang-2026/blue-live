@@ -57,7 +57,8 @@ export default function DashboardPage() {
   const [refreshTick, setRefreshTick] = useState<number>(0);
   const [brandStats, setBrandStats] = useState<Record<string, BrandStats>>({});
   const [costByBrand, setCostByBrand] = useState<Record<string, number>>({});
-  const [costLoading, setCostLoading] = useState(false);
+  const [costLoading, setCostLoading] = useState(true);
+  const [costError, setCostError] = useState<string>('');
 
   useEffect(() => {
     const now = new Date();
@@ -112,7 +113,8 @@ export default function DashboardPage() {
     if (!selectedMonth) return;
     let cancelled = false;
     setCostLoading(true);
-    fetch(`/api/cost-overview?month=${selectedMonth}&brand=all`)
+    setCostError('');
+    fetch(`/api/cost-overview?month=${selectedMonth}&brand=all&t=${Date.now()}`)
       .then((r) => r.json())
       .then((res) => {
         if (cancelled) return;
@@ -121,10 +123,17 @@ export default function DashboardPage() {
           Object.entries(res.data.byBrand as Record<string, number>).forEach(([k, v]) => {
             map[k.toLowerCase()] = Number(v) || 0;
           });
+          console.log('[dashboard] costByBrand loaded:', map);
           setCostByBrand(map);
+        } else {
+          console.warn('[dashboard] cost-overview response missing byBrand:', res);
+          setCostError('数据格式异常');
         }
       })
-      .catch((err) => console.error('fetch cost overview failed', err))
+      .catch((err) => {
+        console.error('[dashboard] fetch cost overview failed', err);
+        if (!cancelled) setCostError('接口调用失败');
+      })
       .finally(() => {
         if (!cancelled) setCostLoading(false);
       });
@@ -237,7 +246,7 @@ export default function DashboardPage() {
       {/* 利润率卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {profitCards.map((card) => (
-          <ProfitCard key={card.id} data={card} costLoading={costLoading} />
+          <ProfitCard key={card.id} data={card} costLoading={costLoading} costError={costError} />
         ))}
       </div>
 
@@ -246,7 +255,7 @@ export default function DashboardPage() {
 }
 
 // 利润卡片组件
-function ProfitCard({ data, costLoading }: { data: ProfitCardData; costLoading?: boolean }) {
+function ProfitCard({ data, costLoading, costError }: { data: ProfitCardData; costLoading?: boolean; costError?: string }) {
   const rate = (data.profitRate * 100).toFixed(1);
   const isPositive = data.profitRate >= 0;
 
@@ -308,6 +317,8 @@ function ProfitCard({ data, costLoading }: { data: ProfitCardData; costLoading?:
             <p className="font-medium text-foreground">
               {costLoading ? (
                 <span className="text-muted-foreground text-[11px]">加载中...</span>
+              ) : costError ? (
+                <span className="text-destructive text-[11px]">{costError}</span>
               ) : (
                 `¥${data.totalCost.toLocaleString()}`
               )}
