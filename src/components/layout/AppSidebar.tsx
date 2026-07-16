@@ -53,7 +53,6 @@ const SIDEBAR_ORDER: ModuleKey[] = [
   'schedule',
   'cost',
   'data-overview',
-  'approval',
   'account',
   'visual',
   'sop',
@@ -119,6 +118,22 @@ export function AppSidebar() {
             </Link>
           );
         })}
+
+        {/* 审批入口 - 仅PM可见 */}
+        {currentRole === 'PM' && (
+          <Link
+            href="/approval"
+            className={cn(
+              'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+              pathname.startsWith('/approval')
+                ? 'bg-primary/15 text-primary font-medium'
+                : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+            )}
+          >
+            <UserCheck className="h-4 w-4" />
+            用户审批
+          </Link>
+        )}
 
         
       </nav>
