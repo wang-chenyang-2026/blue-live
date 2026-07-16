@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { RoleKey, User } from '@/lib/types';
-import { BRANDS } from '@/lib/constants';
+import { BRANDS, ROLES } from '@/lib/constants';
 import { getCurrentUser, logout as storeLogout, setCurrentUser as persistCurrentUser } from '@/lib/store';
 
 interface AppState {
@@ -39,7 +39,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const user = getCurrentUser();
       if (user) {
         setCurrentUser(user);
-        setCurrentRole(user.role || 'PM');
+        setCurrentRole(ROLES.some((r) => r.key === user.role) ? user.role : 'PM');
         setIsAuthenticated(true);
       }
 
@@ -111,7 +111,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCurrentUser(user);
     setIsAuthenticated(!!user);
     if (user) {
-      setCurrentRole(user.role || 'PM');
+      setCurrentRole(ROLES.some((r) => r.key === user.role) ? user.role : 'PM');
     }
   }, []);
 
