@@ -83,7 +83,7 @@ export function AppSidebar() {
         </div>
         {currentUser && (
           <div className="text-xs text-muted-foreground truncate px-1">
-            {currentUser.name} · {currentUser.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}
+            {currentUser.name} · {currentUser.phone ? currentUser.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2') : '未绑定手机'}
           </div>
         )}
       </div>
