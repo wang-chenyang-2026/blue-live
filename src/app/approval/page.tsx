@@ -12,28 +12,58 @@ import {
   XCircle,
   Clock,
   UserCheck,
+  RefreshCw,
 } from 'lucide-react';
+import { useCallback } from 'react';
 
 export default function ApprovalPage() {
   const { isClient, currentUser, refreshPendingCount } = useApp();
   const [pendingUsers, setPendingUsers] = useState<User[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadPending = useCallback(() => {
+    setPendingUsers(getPendingUsers());
+    refreshPendingCount();
+  }, [refreshPendingCount]);
 
   useEffect(() => {
-    if (isClient) {
-      setPendingUsers(getPendingUsers());
-    }
-  }, [isClient]);
+    if (!isClient) return;
+    loadPending();
+
+    // 1) 监听同浏览器跨 tab 的 storage 变化
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'lm_users' || e.key === null) loadPending();
+    };
+    window.addEventListener('storage', onStorage);
+
+    // 2) 页面聚焦时刷新（用户切回该 tab 时）
+    const onFocus = () => loadPending();
+    window.addEventListener('focus', onFocus);
+
+    // 3) 兜底轮询（每 5 秒刷一次，仅在此页面存在时）
+    const timer = setInterval(loadPending, 5000);
+
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('focus', onFocus);
+      clearInterval(timer);
+    };
+  }, [isClient, loadPending]);
+
+  const handleManualRefresh = () => {
+    setRefreshing(true);
+    loadPending();
+    setTimeout(() => setRefreshing(false), 400);
+  };
 
   const handleApprove = (userId: string) => {
     approveUser(userId);
-    setPendingUsers(getPendingUsers());
-    refreshPendingCount();
+    loadPending();
   };
 
   const handleReject = (userId: string) => {
     rejectUser(userId);
-    setPendingUsers(getPendingUsers());
-    refreshPendingCount();
+    loadPending();
   };
 
   if (!isClient) {
@@ -65,14 +95,26 @@ export default function ApprovalPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <UserCheck className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">用户审批</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            审核新注册用户，通过后方可登录使用
-          </p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <UserCheck className="h-6 w-6 text-primary" />
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">用户审批</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              审核新注册用户，通过后方可登录使用
+            </p>
+          </div>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleManualRefresh}
+          disabled={refreshing}
+          className="gap-2"
+        >
+          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          刷新
+        </Button>
       </div>
 
       {pendingUsers.length === 0 ? (
