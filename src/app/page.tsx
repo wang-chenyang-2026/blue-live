@@ -22,6 +22,15 @@ interface ProfitCardData {
   totalCost: number;
   kpiDeducted: boolean;
   isSummary?: boolean;
+  totalHours?: number;
+  partTimeAnchor?: number;
+  partTimeControl?: number;
+}
+
+interface BrandStats {
+  totalHours: number;
+  partTimeAnchor: number;
+  partTimeControl: number;
 }
 
 function getToday(): string {
@@ -46,6 +55,7 @@ export default function DashboardPage() {
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [refreshTick, setRefreshTick] = useState<number>(0);
+  const [brandStats, setBrandStats] = useState<Record<string, BrandStats>>({});
 
   useEffect(() => {
     const now = new Date();
@@ -73,6 +83,28 @@ export default function DashboardPage() {
     return startDate ? startDate.slice(0, 7) : currentMonth;
   }, [startDate, currentMonth]);
 
+  // 拉取品牌排班统计（总时长 + 兼职人数）
+  useEffect(() => {
+    if (!selectedMonth) return;
+    let cancelled = false;
+    fetch(`/api/brand-schedule-stats?month=${selectedMonth}`)
+      .then((r) => r.json())
+      .then((res) => {
+        if (cancelled) return;
+        if (res.success && res.data?.brands) {
+          const map: Record<string, BrandStats> = {};
+          Object.entries(res.data.brands as Record<string, BrandStats>).forEach(([k, v]) => {
+            map[k.toLowerCase()] = v;
+          });
+          setBrandStats(map);
+        }
+      })
+      .catch((err) => console.error('fetch brand stats failed', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMonth, refreshTick]);
+
   // 构建利润卡片数据 - 所有品牌
   const profitCards: ProfitCardData[] = useMemo(() => {
     if (!selectedMonth) return [];
@@ -81,17 +113,21 @@ export default function DashboardPage() {
 
     BRANDS.forEach((brand) => {
       const data = calcProfitRate(brand.id, selectedMonth);
+      const stats = brandStats[brand.id.toLowerCase()];
       cards.push({
         id: brand.id,
         name: `${brand.name}汇总`,
         color: brandColors[brand.id] || '#888',
         ...data,
+        totalHours: stats?.totalHours ?? 0,
+        partTimeAnchor: stats?.partTimeAnchor ?? 0,
+        partTimeControl: stats?.partTimeControl ?? 0,
       });
     });
 
     return cards;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonth, refreshTick]);
+  }, [selectedMonth, refreshTick, brandStats]);
 
   if (!isClient || !currentMonth) {
     return (
@@ -234,6 +270,18 @@ function ProfitCard({ data }: { data: ProfitCardData }) {
             <p className="text-muted-foreground">总成本</p>
             <p className="font-medium text-foreground">
               ¥{data.totalCost.toLocaleString()}
+            </p>
+          </div>
+          <div className="rounded-md bg-secondary p-2">
+            <p className="text-muted-foreground">总时长</p>
+            <p className="font-medium text-foreground font-mono">
+              {(data.totalHours ?? 0).toLocaleString()} h
+            </p>
+          </div>
+          <div className="rounded-md bg-secondary p-2">
+            <p className="text-muted-foreground">兼职人数（主播/中控）</p>
+            <p className="font-medium text-foreground font-mono">
+              {data.partTimeAnchor ?? 0} / {data.partTimeControl ?? 0}
             </p>
           </div>
         </div>
