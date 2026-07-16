@@ -19,7 +19,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
+
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
 const MODULE_ICONS: Record<ModuleKey, React.ReactNode> = {
@@ -120,26 +120,7 @@ export function AppSidebar() {
           );
         })}
 
-        {/* 审批入口 - 仅PM可见 */}
-        {currentRole === 'PM' && (
-          <Link
-            href="/approval"
-            className={cn(
-              'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-              pathname.startsWith('/approval')
-                ? 'bg-primary/15 text-primary font-medium'
-                : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-            )}
-          >
-            <UserCheck className="h-4 w-4" />
-            <span className="flex-1">用户审批</span>
-            {pendingCount > 0 && (
-              <Badge className="h-5 min-w-[20px] flex items-center justify-center px-1 text-[10px] bg-destructive text-destructive-foreground">
-                {pendingCount}
-              </Badge>
-            )}
-          </Link>
-        )}
+        
       </nav>
 
       {/* Footer */}
