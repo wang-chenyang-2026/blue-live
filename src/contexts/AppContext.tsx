@@ -39,7 +39,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const user = getCurrentUser();
       if (user) {
         setCurrentUser(user);
-        setCurrentRole(user.role);
+        setCurrentRole(user.role || 'PM');
         setIsAuthenticated(true);
       }
 
@@ -111,12 +111,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCurrentUser(user);
     setIsAuthenticated(!!user);
     if (user) {
-      setCurrentRole(user.role);
+      setCurrentRole(user.role || 'PM');
     }
   }, []);
 
   const refreshPendingCount = useCallback(() => {
-    fetch('/api/users?status=pending', { cache: 'no-store' })
+    fetch('/api/users/pending', { cache: 'no-store' })
       .then((r) => r.json())
       .then((d) => {
         if (d?.success) setPendingCount((d.users || []).length);
