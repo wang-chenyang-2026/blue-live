@@ -57,8 +57,6 @@ export default function DashboardPage() {
   const [currentMonth, setCurrentMonth] = useState<string>('');
   const [weekStartStr, setWeekStartStr] = useState<string>('');
   const [weekEndStr, setWeekEndStr] = useState<string>('');
-  // 本地品牌筛选（不再依赖全局 currentBrand）
-  const [activeBrand, setActiveBrand] = useState<string>('all');
   // 日期范围（默认当月1日~今天）
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
@@ -105,49 +103,25 @@ export default function DashboardPage() {
     return startDate ? startDate.slice(0, 7) : currentMonth;
   }, [startDate, currentMonth]);
 
-  // 构建利润卡片数据 - 必须在 early return 之前调用 hooks
+  // 构建利润卡片数据 - 所有品牌
   const profitCards: ProfitCardData[] = useMemo(() => {
     if (!selectedMonth) return [];
 
     const cards: ProfitCardData[] = [];
 
-    if (activeBrand === 'all') {
-      BRANDS.forEach((brand) => {
-        const data = calcProfitRate(brand.id, selectedMonth);
-        cards.push({
-          id: brand.id,
-          name: `${brand.name}汇总`,
-          color: brandColors[brand.id] || '#888',
-          ...data,
-        });
+    BRANDS.forEach((brand) => {
+      const data = calcProfitRate(brand.id, selectedMonth);
+      cards.push({
+        id: brand.id,
+        name: `${brand.name}汇总`,
+        color: brandColors[brand.id] || '#888',
+        ...data,
       });
-    } else {
-      const brand = BRANDS.find((b) => b.id === activeBrand);
-      if (brand) {
-        const brandData = calcProfitRate(brand.id, selectedMonth);
-        cards.push({
-          id: brand.id,
-          name: `${brand.name}汇总`,
-          color: brandColors[brand.id] || '#888',
-          ...brandData,
-          isSummary: true,
-        });
-
-        brand.accounts.forEach((account) => {
-          const accountData = calcProfitRateByAccount(brand.id, account.id, selectedMonth);
-          cards.push({
-            id: account.id,
-            name: account.name,
-            color: brandColors[brand.id] || '#888',
-            ...accountData,
-          });
-        });
-      }
-    }
+    });
 
     return cards;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBrand, selectedMonth, refreshTick]);
+  }, [selectedMonth, refreshTick]);
 
   if (!isClient || !currentMonth) {
     return (
@@ -165,29 +139,21 @@ export default function DashboardPage() {
     );
   }
 
-  // 根据品牌筛选排班/考勤（使用本地 activeBrand）
-  const filterByBrand = <T extends { brandId?: string }>(items: T[]): T[] => {
-    if (activeBrand === 'all') return items;
-    return items.filter((item) => item.brandId === activeBrand);
-  };
-
-  // 本周排班概况
-  const weekSchedules = filterByBrand(
-    schedules.filter((s) => s.date >= weekStartStr && s.date <= weekEndStr)
+  // 本周排班概况（不按品牌筛选）
+  const weekSchedules = schedules.filter(
+    (s) => s.date >= weekStartStr && s.date <= weekEndStr
   );
 
-  // 考勤异常
-  const abnormalAttendances = filterByBrand(
-    attendances.filter((a) => a.date.startsWith(selectedMonth) && a.status !== '正常')
+  // 考勤异常（不按品牌筛选）
+  const abnormalAttendances = attendances.filter(
+    (a) => a.date.startsWith(selectedMonth) && a.status !== '正常'
   );
 
   // 成本预警（所有可见卡片中成本超收入50%的）
   const costWarnings = profitCards.filter((d) => d.revenue > 0 && d.totalCost > d.revenue * 0.5);
 
-  // 网格列数：汇总3列，单品牌根据卡片数量自适应
-  const gridCols = activeBrand === 'all'
-    ? 'grid-cols-1 md:grid-cols-3'
-    : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4';
+  // 网格列数：3列
+  const gridCols = 'grid-cols-1 md:grid-cols-3';
 
   const dateRangeLabel = startDate === endDate
     ? startDate
@@ -200,11 +166,6 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-bold text-foreground">首页概览</h1>
         <p className="text-sm text-muted-foreground mt-1">
           {dateRangeLabel} 数据总览
-          {activeBrand !== 'all' && (
-            <span className="ml-2">
-              · {BRANDS.find((b) => b.id === activeBrand)?.name}
-            </span>
-          )}
         </p>
       </div>
 
@@ -243,34 +204,7 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {/* 右侧：品牌按钮组（与排班管理右上角完全一致） */}
-        <div className="flex items-center bg-zinc-800 rounded-lg p-1">
-          <button
-            onClick={() => setActiveBrand('all')}
-            className={cn(
-              'px-4 py-1.5 text-sm rounded-md transition',
-              activeBrand === 'all'
-                ? 'bg-blue-600 text-white'
-                : 'text-zinc-400 hover:text-white'
-            )}
-          >
-            汇总
-          </button>
-          {BRANDS.map((brand) => (
-            <button
-              key={brand.id}
-              onClick={() => setActiveBrand(brand.id)}
-              className={cn(
-                'px-4 py-1.5 text-sm rounded-md transition',
-                activeBrand === brand.id
-                  ? 'bg-blue-600 text-white'
-                  : 'text-zinc-400 hover:text-white'
-              )}
-            >
-              {brand.name}
-            </button>
-          ))}
-        </div>
+        {/* 右侧：品牌按钮组已移除 */}
       </div>
 
       {/* 利润率卡片 */}
