@@ -22,7 +22,7 @@ export default function ApprovalPage() {
 
   const loadPending = useCallback(async () => {
     try {
-      const res = await fetch('/api/users?status=pending', { cache: 'no-store' });
+      const res = await fetch('/api/users/pending', { cache: 'no-store' });
       const data = await res.json();
       if (res.ok && data.success) {
         setPendingUsers(data.users || []);

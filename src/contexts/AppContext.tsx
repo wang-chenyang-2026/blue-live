@@ -57,7 +57,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       // 待审核数量
-      fetch('/api/users?status=pending', { cache: 'no-store' })
+      fetch('/api/users/pending', { cache: 'no-store' })
         .then((r) => r.json())
         .then((d) => {
           if (d?.success) setPendingCount((d.users || []).length);
