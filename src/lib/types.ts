@@ -22,7 +22,7 @@ export interface Account {
 }
 
 // ==================== 用户 & 认证 ====================
-export type UserStatus = 'pending' | 'approved' | 'rejected';
+export type UserStatus = 'pending' | 'approved' | 'rejected' | 'terminated';
 
 export interface User {
   id: string;
@@ -66,6 +66,7 @@ export type ModuleKey =
   | 'sop'
   | 'workstation'
   | 'problem-feedback'
+  | 'personnel'
   | 'approval'
   | 'account';
 

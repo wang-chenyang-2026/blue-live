@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 interface UpdateBody {
-  status?: 'approved' | 'rejected';
+  status?: 'pending' | 'approved' | 'rejected' | 'terminated';
   remark?: string;
   role?: string;
   brand?: string;
@@ -26,7 +26,7 @@ export async function PUT(
     const updates: Record<string, string> = {};
 
     if (body.status) {
-      if (!['pending', 'approved', 'rejected'].includes(body.status)) {
+      if (!['pending', 'approved', 'rejected', 'terminated'].includes(body.status)) {
         return NextResponse.json({ error: '非法状态值' }, { status: 400 });
       }
       updates.status = body.status;

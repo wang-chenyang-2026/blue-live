@@ -14,6 +14,7 @@ import {
   BookOpen,
   MonitorPlay,
   MessageSquareWarning,
+  Users,
   UserCheck,
   UserCog,
   LogOut,
@@ -31,6 +32,7 @@ const MODULE_ICONS: Record<ModuleKey, React.ReactNode> = {
   sop: <BookOpen className="h-4 w-4" />,
   workstation: <MonitorPlay className="h-4 w-4" />,
   'problem-feedback': <MessageSquareWarning className="h-4 w-4" />,
+  personnel: <Users className="h-4 w-4" />,
   approval: <UserCheck className="h-4 w-4" />,
   account: <UserCog className="h-4 w-4" />,
 };
@@ -44,6 +46,7 @@ const MODULE_PATHS: Record<ModuleKey, string> = {
   sop: '/sop',
   workstation: '/workstation',
   'problem-feedback': '/feedback',
+  personnel: '/personnel',
   approval: '/approval',
   account: '/account',
 };
@@ -58,6 +61,7 @@ const SIDEBAR_ORDER: ModuleKey[] = [
   'sop',
   'workstation',
   'problem-feedback',
+  'personnel',
 ];
 
 export function AppSidebar() {
