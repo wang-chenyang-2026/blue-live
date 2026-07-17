@@ -8,6 +8,7 @@ interface UpdateBody {
   brand?: string;
   projectScope?: string;
   name?: string;
+  phone?: string;
 }
 
 /**
@@ -37,6 +38,24 @@ export async function PUT(
     const brand = body.brand ?? body.projectScope;
     if (typeof brand === 'string') updates.brand = brand;
     if (body.name) updates.name = body.name;
+    if (typeof body.phone === 'string' && body.phone.trim()) {
+      const phone = body.phone.trim();
+      if (!/^1\d{10}$/.test(phone)) {
+        return NextResponse.json({ error: '手机号格式不正确' }, { status: 400 });
+      }
+      // 检查手机号唯一性（排除自己）
+      const client0 = getSupabaseClient();
+      const { data: dup } = await client0
+        .from('users')
+        .select('id')
+        .eq('phone', phone)
+        .neq('id', id)
+        .maybeSingle();
+      if (dup) {
+        return NextResponse.json({ error: '手机号已被其他用户使用' }, { status: 409 });
+      }
+      updates.phone = phone;
+    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: '无更新字段' }, { status: 400 });
@@ -53,7 +72,18 @@ export async function PUT(
     if (error) throw new Error(`更新失败: ${error.message}`);
     if (!data) return NextResponse.json({ error: '用户不存在' }, { status: 404 });
 
-    return NextResponse.json({ success: true, user: data });
+    // 字段映射 brand → projectScope
+    const user = {
+      id: data.id,
+      name: data.name,
+      phone: data.phone,
+      role: data.role,
+      projectScope: data.brand,
+      status: data.status,
+      remark: data.remark ?? '',
+      createdAt: data.created_at,
+    };
+    return NextResponse.json({ success: true, user });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });

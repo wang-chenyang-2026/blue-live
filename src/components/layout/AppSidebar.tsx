@@ -46,7 +46,7 @@ const MODULE_PATHS: Record<ModuleKey, string> = {
   sop: '/sop',
   workstation: '/workstation',
   'problem-feedback': '/feedback',
-  personnel: '/personnel',
+  personnel: '/admin/user-management',
   approval: '/approval',
   account: '/account',
 };

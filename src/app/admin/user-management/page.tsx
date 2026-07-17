@@ -6,8 +6,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, RefreshCcw, UsersRound } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Loader2, RefreshCcw, UsersRound, Save } from 'lucide-react';
 
 interface UserRow {
   id: string;
@@ -38,6 +45,7 @@ const STATUS_OPTIONS: { value: UserRow['status']; label: string }[] = [
 ];
 
 const PROJECT_OPTIONS = [
+  { value: 'all', label: '全部项目' },
   { value: 'vivo', label: 'vivo' },
   { value: 'iqoo_douyin', label: 'iQOO抖音' },
   { value: 'iqoo_kuaishou', label: 'iQOO快手' },
@@ -60,6 +68,7 @@ function statusBadge(status: UserRow['status']) {
 function projectLabel(brand: string | null): string {
   if (!brand) return '未指定';
   const lower = brand.toLowerCase();
+  if (lower === 'all') return '全部项目';
   if (lower.includes('iqoo_douyin') || lower.includes('iqoo-douyin') || lower === 'iqoo抖音' || lower === 'douyin') return 'iQOO抖音';
   if (lower.includes('iqoo_kuaishou') || lower.includes('iqoo-kuaishou') || lower === 'iqoo快手' || lower === 'kuaishou') return 'iQOO快手';
   if (lower.includes('iqoo')) return 'iQOO';
@@ -80,36 +89,64 @@ function matchesProject(brand: string, filter: string): boolean {
 function formatDate(iso: string): string {
   try {
     const d = new Date(iso);
-    return d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+    return d.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
   } catch {
     return iso;
   }
 }
 
-export default function PersonnelPage() {
+interface Draft {
+  phone: string;
+  role: string;
+  projectScope: string;
+  status: UserRow['status'];
+}
+
+export default function UserManagementPage() {
   const { currentRole, isClient } = useApp();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [projectFilter, setProjectFilter] = useState('all');
   const [tab, setTab] = useState<'detail' | 'permission'>('detail');
-  const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
   const [refreshTick, setRefreshTick] = useState(0);
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/users?t=${Date.now()}`);
+      const url = `/api/users/list?brand=${projectFilter}&t=${Date.now()}`;
+      const res = await fetch(url);
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || '加载失败');
-      setUsers(Array.isArray(data.users) ? data.users : []);
+      const list: UserRow[] = Array.isArray(data.users) ? data.users : [];
+      setUsers(list);
+      // 重置草稿
+      const nextDrafts: Record<string, Draft> = {};
+      for (const u of list) {
+        nextDrafts[u.id] = {
+          phone: u.phone,
+          role: u.role || '',
+          projectScope: u.projectScope || '',
+          status: u.status,
+        };
+      }
+      setDrafts(nextDrafts);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [projectFilter]);
 
   useEffect(() => {
     if (!isClient) return;
@@ -120,30 +157,50 @@ export default function PersonnelPage() {
     return users.filter((u) => matchesProject(u.projectScope, projectFilter));
   }, [users, projectFilter]);
 
-  const updateUser = useCallback(
-    async (id: string, patch: Partial<Pick<UserRow, 'role' | 'projectScope' | 'status'>>) => {
-      setSavingIds((prev) => new Set(prev).add(id));
-      try {
-        const res = await fetch(`/api/users/${id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(patch),
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) throw new Error(data.error || '更新失败');
-        setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...patch } : u)));
-      } catch (e) {
-        alert(`更新失败：${e instanceof Error ? e.message : String(e)}`);
-      } finally {
-        setSavingIds((prev) => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-        });
-      }
-    },
-    []
-  );
+  const updateDraft = (id: string, patch: Partial<Draft>) => {
+    setDrafts((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+  };
+
+  const savePermission = async (id: string) => {
+    const draft = drafts[id];
+    if (!draft) return;
+    setSavingIds((prev) => new Set(prev).add(id));
+    try {
+      const res = await fetch(`/api/users/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: draft.phone,
+          role: draft.role,
+          projectScope: draft.projectScope,
+          status: draft.status,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || '保存失败');
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === id
+            ? {
+                ...u,
+                phone: draft.phone,
+                role: draft.role,
+                projectScope: draft.projectScope,
+                status: draft.status,
+              }
+            : u
+        )
+      );
+    } catch (e) {
+      alert(`保存失败：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSavingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  };
 
   if (!isClient) {
     return (
@@ -177,7 +234,9 @@ export default function PersonnelPage() {
             <UsersRound className="h-6 w-6" />
             注册人员管理
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">统一管理已注册人员的详情与权限</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            统一管理已注册人员的详情与权限
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2">
@@ -209,7 +268,9 @@ export default function PersonnelPage() {
 
       {error && (
         <Card className="border-red-500/50">
-          <CardContent className="pt-6 text-red-400 text-sm">加载失败：{error}</CardContent>
+          <CardContent className="pt-6 text-red-400 text-sm">
+            加载失败：{error}
+          </CardContent>
         </Card>
       )}
 
@@ -239,7 +300,9 @@ export default function PersonnelPage() {
                   加载中...
                 </div>
               ) : filteredUsers.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">当前筛选下无人员数据</div>
+                <div className="text-center py-12 text-muted-foreground">
+                  当前筛选下无人员数据
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -286,7 +349,7 @@ export default function PersonnelPage() {
               <CardTitle className="text-base">
                 权限设置
                 <span className="text-sm text-muted-foreground ml-2 font-normal">
-                  修改后自动保存
+                  修改后点击保存按钮提交
                 </span>
               </CardTitle>
             </CardHeader>
@@ -297,90 +360,123 @@ export default function PersonnelPage() {
                   加载中...
                 </div>
               ) : filteredUsers.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">当前筛选下无人员数据</div>
+                <div className="text-center py-12 text-muted-foreground">
+                  当前筛选下无人员数据
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border/50 bg-muted/30">
-                        <th className="text-left py-2 px-3 font-medium">姓名</th>
-                        <th className="text-left py-2 px-3 font-medium">手机号</th>
+                        <th className="text-left py-2 px-3 font-medium w-24">姓名</th>
+                        <th className="text-left py-2 px-3 font-medium w-40">手机号</th>
                         <th className="text-left py-2 px-3 font-medium w-32">角色</th>
                         <th className="text-left py-2 px-3 font-medium w-40">所属项目</th>
                         <th className="text-left py-2 px-3 font-medium w-36">状态</th>
-                        <th className="text-left py-2 px-3 font-medium w-16">保存</th>
+                        <th className="text-left py-2 px-3 font-medium w-24">操作</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredUsers.map((u, i) => (
-                        <tr
-                          key={u.id}
-                          className={`border-b border-border/30 hover:bg-muted/20 transition ${
-                            i % 2 === 0 ? '' : 'bg-muted/10'
-                          }`}
-                        >
-                          <td className="py-2 px-3">{u.name || '-'}</td>
-                          <td className="py-2 px-3 font-mono text-xs">{u.phone}</td>
-                          <td className="py-2 px-3">
-                            <Select
-                              value={u.role || ''}
-                              onValueChange={(v) => updateUser(u.id, { role: v })}
-                            >
-                              <SelectTrigger className="h-8">
-                                <SelectValue placeholder="选择角色" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {ROLE_OPTIONS.map((r) => (
-                                  <SelectItem key={r} value={r}>
-                                    {r}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </td>
-                          <td className="py-2 px-3">
-                            <Select
-                              value={u.projectScope || ''}
-                              onValueChange={(v) => updateUser(u.id, { projectScope: v })}
-                            >
-                              <SelectTrigger className="h-8">
-                                <SelectValue placeholder="选择项目" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {PROJECT_OPTIONS.map((p) => (
-                                  <SelectItem key={p.value} value={p.value}>
-                                    {p.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </td>
-                          <td className="py-2 px-3">
-                            <Select
-                              value={u.status}
-                              onValueChange={(v) => updateUser(u.id, { status: v as UserRow['status'] })}
-                            >
-                              <SelectTrigger className="h-8">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {STATUS_OPTIONS.map((s) => (
-                                  <SelectItem key={s.value} value={s.value}>
-                                    {s.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </td>
-                          <td className="py-2 px-3 text-center">
-                            {savingIds.has(u.id) ? (
-                              <Loader2 className="h-4 w-4 animate-spin inline text-muted-foreground" />
-                            ) : (
-                              <span className="text-xs text-muted-foreground">-</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                      {filteredUsers.map((u, i) => {
+                        const draft = drafts[u.id] || {
+                          phone: u.phone,
+                          role: u.role || '',
+                          projectScope: u.projectScope || '',
+                          status: u.status,
+                        };
+                        const isDirty =
+                          draft.phone !== u.phone ||
+                          draft.role !== (u.role || '') ||
+                          draft.projectScope !== (u.projectScope || '') ||
+                          draft.status !== u.status;
+                        return (
+                          <tr
+                            key={u.id}
+                            className={`border-b border-border/30 hover:bg-muted/20 transition ${
+                              i % 2 === 0 ? '' : 'bg-muted/10'
+                            }`}
+                          >
+                            <td className="py-2 px-3">{u.name || '-'}</td>
+                            <td className="py-2 px-3">
+                              <Input
+                                value={draft.phone}
+                                onChange={(e) => updateDraft(u.id, { phone: e.target.value })}
+                                className="h-8 font-mono text-xs"
+                              />
+                            </td>
+                            <td className="py-2 px-3">
+                              <Select
+                                value={draft.role || ''}
+                                onValueChange={(v) => updateDraft(u.id, { role: v })}
+                              >
+                                <SelectTrigger className="h-8">
+                                  <SelectValue placeholder="选择角色" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {ROLE_OPTIONS.map((r) => (
+                                    <SelectItem key={r} value={r}>
+                                      {r}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className="py-2 px-3">
+                              <Select
+                                value={draft.projectScope || ''}
+                                onValueChange={(v) => updateDraft(u.id, { projectScope: v })}
+                              >
+                                <SelectTrigger className="h-8">
+                                  <SelectValue placeholder="选择项目" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {PROJECT_OPTIONS.map((p) => (
+                                    <SelectItem key={p.value} value={p.value}>
+                                      {p.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className="py-2 px-3">
+                              <Select
+                                value={draft.status}
+                                onValueChange={(v) =>
+                                  updateDraft(u.id, { status: v as UserRow['status'] })
+                                }
+                              >
+                                <SelectTrigger className="h-8">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {STATUS_OPTIONS.map((s) => (
+                                    <SelectItem key={s.value} value={s.value}>
+                                      {s.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className="py-2 px-3">
+                              <Button
+                                size="sm"
+                                variant={isDirty ? 'default' : 'outline'}
+                                disabled={!isDirty || savingIds.has(u.id)}
+                                onClick={() => savePermission(u.id)}
+                              >
+                                {savingIds.has(u.id) ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Save className="h-3.5 w-3.5 mr-1" />
+                                    保存
+                                  </>
+                                )}
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
