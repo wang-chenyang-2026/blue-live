@@ -91,7 +91,7 @@ const MODULE_LABELS: Record<ModuleKey, string> = {
   'problem-feedback': '问题反馈',
   'personnel': '注册人员管理',
   'approval': '用户审批',
-  'account': '账号管理',
+  
 };
 
 export { MODULE_LABELS };
@@ -111,7 +111,6 @@ export const ROLES: Role[] = [
       'problem-feedback',
       'personnel',
       'approval',
-      'account',
     ],
   },
   {

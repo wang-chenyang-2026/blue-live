@@ -67,8 +67,7 @@ export type ModuleKey =
   | 'workstation'
   | 'problem-feedback'
   | 'personnel'
-  | 'approval'
-  | 'account';
+  | 'approval';
 
 // ==================== 排班 ====================
 export type LiveType = '日常直播' | '双人直播' | '法定节假日直播';

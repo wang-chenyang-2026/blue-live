@@ -34,7 +34,6 @@ const MODULE_ICONS: Record<ModuleKey, React.ReactNode> = {
   'problem-feedback': <MessageSquareWarning className="h-4 w-4" />,
   personnel: <Users className="h-4 w-4" />,
   approval: <UserCheck className="h-4 w-4" />,
-  account: <UserCog className="h-4 w-4" />,
 };
 
 const MODULE_PATHS: Record<ModuleKey, string> = {
@@ -48,7 +47,6 @@ const MODULE_PATHS: Record<ModuleKey, string> = {
   'problem-feedback': '/feedback',
   personnel: '/admin/user-management',
   approval: '/approval',
-  account: '/account',
 };
 
 const SIDEBAR_ORDER: ModuleKey[] = [
@@ -56,7 +54,6 @@ const SIDEBAR_ORDER: ModuleKey[] = [
   'schedule',
   'cost',
   'data-overview',
-  'account',
   'visual',
   'sop',
   'workstation',
