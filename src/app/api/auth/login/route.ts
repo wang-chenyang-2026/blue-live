@@ -41,17 +41,8 @@ export async function POST(request: NextRequest) {
       created_at: string;
     };
 
-    if (u.status === 'pending') {
-      return NextResponse.json({ error: '账号待审核，请等待项目负责人审批', status: 'pending' }, { status: 403 });
-    }
-    if (u.status === 'rejected') {
-      return NextResponse.json({ error: '账号已被拒绝，请联系管理员', status: 'rejected' }, { status: 403 });
-    }
-    if (u.status === 'terminated') {
-      return NextResponse.json({ error: '账号已停止合作，如有疑问请联系项目负责人', status: 'terminated' }, { status: 403 });
-    }
     if (u.status !== 'approved') {
-      return NextResponse.json({ error: '账号状态异常' }, { status: 403 });
+      return NextResponse.json({ error: '您没有登录权限，可与管理员联系', status: u.status }, { status: 403 });
     }
 
     if (!verifyPassword(password, u.password_hash)) {
