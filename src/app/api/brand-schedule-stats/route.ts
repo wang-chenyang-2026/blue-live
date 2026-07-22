@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Feishu API configuration (与 cost-overview 保持一致)
-const FEISHU_APP_ID = "cli_aab083b6c2b99be3";
-const FEISHU_APP_SECRET = "3eg03VsphXSTYxBDyZYA8gLL4JGS8XBI";
+// Feishu API configuration
+const FEISHU_APP_ID = process.env.FEISHU_APP_ID || 'cli_a93b8a95d3785bd6';
+const FEISHU_APP_SECRET = process.env.FEISHU_APP_SECRET || '';
 
 const NICKNAME_SHEET_TOKEN = "QmESw57otiab5WkLVqdcblCmnue";
 const NICKNAME_SHEETS = {

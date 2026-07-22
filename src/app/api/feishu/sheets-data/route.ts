@@ -81,7 +81,7 @@ const BRAND_META: Record<string, { accounts: string[]; brandLabel: string; color
 
 /* ========== Feishu API Helpers ========== */
 async function getTenantAccessToken(): Promise<string> {
-  const appId = process.env.FEISHU_APP_ID || 'cli_aab083b6c2b99be3';
+  const appId = process.env.FEISHU_APP_ID || 'cli_a93b8a95d3785bd6';
   const appSecret = process.env.FEISHU_APP_SECRET || '';
 
   if (!appSecret) {

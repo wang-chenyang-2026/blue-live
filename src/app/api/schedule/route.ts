@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 // 飞书API配置
-const FEISHU_APP_ID = process.env.FEISHU_APP_ID || 'cli_aab083b6c2b99be3';
+const FEISHU_APP_ID = process.env.FEISHU_APP_ID || 'cli_a93b8a95d3785bd6';
 
 // 多品牌排班表格配置
 const BRAND_CONFIGS: Record<string, {
