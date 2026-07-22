@@ -74,19 +74,20 @@ function getSupabaseCredentials(): SupabaseCredentials {
   const url = process.env.COZE_SUPABASE_URL;
   const anonKey = process.env.COZE_SUPABASE_ANON_KEY;
 
-  if (!url) {
-    throw new Error('COZE_SUPABASE_URL is not set');
-  }
-  if (!anonKey) {
-    throw new Error('COZE_SUPABASE_ANON_KEY is not set');
+  if (url && anonKey) {
+    return { url, anonKey };
   }
 
-  return { url, anonKey };
+  // Fallback: hardcoded credentials for enterprise deployment
+  return {
+    url: 'https://rxwvyjcpsphravdokrd.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4d3Z5amNwc2hwcmF2ZG9rcmRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNzY5NjMsImV4cCI6MjA5OTc1Mjk2M30.lHuiwPc0HfMj3B0To7j7bGpZEXFOlgpCPFRUSL-nyLs',
+  };
 }
 
 function getSupabaseServiceRoleKey(): string | undefined {
   loadEnv();
-  return process.env.COZE_SUPABASE_SERVICE_ROLE_KEY;
+  return process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4d3Z5amNwc2hwcmF2ZG9rcmRkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NDE3Njk2MywiZXhwIjoyMDk5NzUyOTYzfQ.w2sZE8fyiQ9ckD0TUa21HEJjkT-gb4vOTBTe4jy9vZE';
 }
 
 function getSupabaseClient(token?: string): SupabaseClient {
