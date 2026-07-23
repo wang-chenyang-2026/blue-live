@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 // Feishu API configuration
 const FEISHU_APP_ID = process.env.FEISHU_APP_ID || 'cli_a93b8a95d3785bd6';
-const FEISHU_APP_SECRET = process.env.FEISHU_APP_SECRET || '';
+const FEISHU_APP_SECRET = process.env.FEISHU_APP_SECRET || '2eLgcn3eAp3WvIyBdXZS5dX2fX0mX2jR';
 
 const NICKNAME_SHEET_TOKEN = "QmESw57otiab5WkLVqdcblCmnue";
 const NICKNAME_SHEETS = {
