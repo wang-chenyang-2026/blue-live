@@ -1,6 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { execSync } from 'child_process';
-import { getReportBuffer, createWrappedFetch } from 'coze-coding-dev-sdk';
 
 let envLoaded = false;
 
@@ -104,14 +103,6 @@ function getSupabaseClient(token?: string): SupabaseClient {
   const globalOptions: Record<string, any> = {};
   if (token) {
     globalOptions.headers = { Authorization: `Bearer ${token}` };
-  }
-  try {
-    const buffer = getReportBuffer();
-    if (buffer) {
-      globalOptions.fetch = createWrappedFetch(buffer, 'supabase');
-    }
-  } catch {
-    // Silent — reporting setup failure should not block client creation
   }
 
   return createClient(url, key, {
