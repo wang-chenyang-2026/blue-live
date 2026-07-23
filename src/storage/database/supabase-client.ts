@@ -79,7 +79,7 @@ function getSupabaseCredentials(): SupabaseCredentials {
 
   // Fallback: hardcoded credentials for enterprise deployment
   return {
-    url: 'https://rxwvyjcpsphravdokrd.supabase.co',
+    url: 'https://rxwvyjcpshpravdokrdd.supabase.co',
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4d3Z5amNwc2hwcmF2ZG9rcmRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNzY5NjMsImV4cCI6MjA5OTc1Mjk2M30.lHuiwPc0HfMj3B0To7j7bGpZEXFOlgpCPFRUSL-nyLs',
   };
 }
