@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 // 飞书API配置
-const FEISHU_APP_ID = process.env.FEISHU_APP_ID || 'cli_a93b8a95d3785bd6';
+const FEISHU_APP_ID = process.env.FEISHU_APP_ID || 'cli_aad6eadc8d381cde';
 
 // 多品牌排班表格配置
 const BRAND_CONFIGS: Record<string, {
@@ -94,7 +94,7 @@ const TIME_SLOTS = [
 
 // 获取飞书 tenant_access_token
 async function getFeishuToken(): Promise<string> {
-  const appSecret = process.env.FEISHU_APP_SECRET || '2eLgcn3eAp3WvIyBdXZS5dX2fX0mX2jR';
+  const appSecret = process.env.FEISHU_APP_SECRET || 'ejUyI30c9sYDW1NWha0lqeABBMPYFZca';
   const response = await fetch('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

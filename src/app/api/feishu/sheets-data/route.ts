@@ -81,8 +81,8 @@ const BRAND_META: Record<string, { accounts: string[]; brandLabel: string; color
 
 /* ========== Feishu API Helpers ========== */
 async function getTenantAccessToken(): Promise<string> {
-  const appId = process.env.FEISHU_APP_ID || 'cli_a93b8a95d3785bd6';
-  const appSecret = process.env.FEISHU_APP_SECRET || '2eLgcn3eAp3WvIyBdXZS5dX2fX0mX2jR';
+  const appId = process.env.FEISHU_APP_ID || 'cli_aad6eadc8d381cde';
+  const appSecret = process.env.FEISHU_APP_SECRET || 'ejUyI30c9sYDW1NWha0lqeABBMPYFZca';
 
   if (!appSecret) {
     throw new Error('FEISHU_APP_SECRET environment variable is not set');
