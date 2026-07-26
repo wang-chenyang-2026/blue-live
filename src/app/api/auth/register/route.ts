@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { hashPassword } from '@/lib/password';
+import { notifyNewRegistration } from '@/lib/feishu-notify';
 
 interface RegisterBody {
   name?: string;
@@ -56,6 +57,14 @@ export async function POST(request: NextRequest) {
       .select('id, name, phone, role, brand, status, created_at')
       .single();
     if (insertError) throw new Error(`注册失败: ${insertError.message}`);
+
+    // 异步通知管理员（不阻塞注册响应）
+    notifyNewRegistration({
+      name: (inserted as any).name || name,
+      phone: (inserted as any).phone || phone,
+      role: (inserted as any).role || role,
+      brand: (inserted as any).brand || projectScope,
+    }).catch(() => {});
 
     return NextResponse.json({ success: true, user: inserted });
   } catch (err) {
