@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useApp } from '@/contexts/AppContext';
+import { BRANDS } from '@/lib/constants';
 
 // ===== 类型定义 =====
 interface PersonSummary {
@@ -66,9 +68,26 @@ const ACCOUNT_COLORS: Record<string, string> = {
 
 // ===== 组件 =====
 export default function SchedulePage() {
+  const { getVisibleBrands } = useApp();
   // 品牌和角色状态
   const [brand, setBrand] = useState<'vivo' | 'iQOO'>('vivo');
   const [role, setRole] = useState<'anchor' | 'control'>('anchor');
+
+  // 根据用户权限过滤可用品牌
+  const availableBrands = useMemo(() => {
+    const allowed = getVisibleBrands('schedule');
+    const brandOptions: { id: 'vivo' | 'iQOO'; label: string }[] = [];
+    if (allowed.includes('vivo')) brandOptions.push({ id: 'vivo', label: 'vivo' });
+    if (allowed.includes('iqoo')) brandOptions.push({ id: 'iQOO', label: 'iQOO' });
+    return brandOptions;
+  }, [getVisibleBrands]);
+
+  // 如果当前选中品牌不在可用列表中，自动切换到第一个可用品牌
+  useEffect(() => {
+    if (availableBrands.length > 0 && !availableBrands.find(b => b.id === brand)) {
+      setBrand(availableBrands[0].id);
+    }
+  }, [availableBrands, brand]);
 
   // 日期区间
   const [startDate, setStartDate] = useState('2026-05-01');
@@ -197,26 +216,19 @@ export default function SchedulePage() {
         <div className="flex items-center gap-4">
           {/* 品牌切换 Tab */}
           <div className="flex items-center bg-zinc-800 rounded-lg p-1">
-            <button
-              onClick={() => setBrand('vivo')}
-              className={`px-4 py-1.5 text-sm rounded-md transition ${
-                brand === 'vivo'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              vivo
-            </button>
-            <button
-              onClick={() => setBrand('iQOO')}
-              className={`px-4 py-1.5 text-sm rounded-md transition ${
-                brand === 'iQOO'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              iQOO
-            </button>
+            {availableBrands.map((b) => (
+              <button
+                key={b.id}
+                onClick={() => setBrand(b.id)}
+                className={`px-4 py-1.5 text-sm rounded-md transition ${
+                  brand === b.id
+                    ? 'bg-blue-600 text-white'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                {b.label}
+              </button>
+            ))}
           </div>
 
           {/* 角色切换 Toggle */}

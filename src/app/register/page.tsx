@@ -8,6 +8,7 @@ import type { RoleKey } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -25,7 +26,7 @@ export default function RegisterPage() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [project, setProject] = useState('');
+  const [projects, setProjects] = useState<string[]>([]);
   const [position, setPosition] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -45,7 +46,7 @@ export default function RegisterPage() {
     if (!phone.trim() || phone.length !== 11) { setError('请输入11位手机号'); return; }
     if (!password || password.length < 8) { setError('密码不少于8位字符'); return; }
     if (password !== confirmPassword) { setError('两次输入密码不一致'); return; }
-    if (!project) { setError('请选择项目'); return; }
+    if (projects.length === 0) { setError('请至少选择一个项目'); return; }
     if (!position) { setError('请选择岗位'); return; }
 
     setLoading(true);
@@ -57,7 +58,7 @@ export default function RegisterPage() {
           name: name.trim(),
           phone: phone.trim(),
           password,
-          projectScope: project,
+          projectScope: projects.join(','),
           role: position as RoleKey,
         }),
       });
@@ -185,19 +186,25 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm text-muted-foreground">项目</Label>
-              <Select value={project} onValueChange={(v) => { setProject(v); setError(''); }}>
-                <SelectTrigger className="h-11 bg-card border-border">
-                  <SelectValue placeholder="请选择项目" />
-                </SelectTrigger>
-                <SelectContent>
-                  {REGISTER_PROJECT_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-sm text-muted-foreground">项目（可多选）</Label>
+              <div className="flex flex-wrap gap-3 rounded-lg border border-border bg-card p-3">
+                {REGISTER_PROJECT_OPTIONS.map((opt) => (
+                  <label key={opt.value} className="flex items-center gap-2 cursor-pointer text-sm">
+                    <Checkbox
+                      checked={projects.includes(opt.value)}
+                      onCheckedChange={(checked) => {
+                        setError('');
+                        if (checked) {
+                          setProjects((prev) => [...prev, opt.value]);
+                        } else {
+                          setProjects((prev) => prev.filter((p) => p !== opt.value));
+                        }
+                      }}
+                    />
+                    <span className="text-foreground">{opt.label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
 
             <div className="space-y-2">

@@ -29,10 +29,16 @@ export interface User {
   name: string;
   phone: string;
   password: string;
-  projectScope: string; // 'all' | accountId
+  projectScope: string; // 逗号分隔的品牌ID，如 'vivo,iqoo-douyin'；'all' 表示全部
   role: RoleKey;
   status: UserStatus;
   createdAt: string;
+}
+
+/** 将 projectScope 字符串解析为品牌ID数组 */
+export function parseBrands(projectScope: string): string[] {
+  if (!projectScope || projectScope === 'all') return ['all'];
+  return projectScope.split(',').map(s => s.trim()).filter(Boolean);
 }
 
 // ==================== 人员 ====================
@@ -55,6 +61,7 @@ export interface Role {
   key: RoleKey;
   label: string;
   modules: ModuleKey[];
+  brandScopedModules: ModuleKey[]; // 这些模块受品牌限制，只显示用户注册品牌；其余模块可看全部品牌
 }
 
 export type ModuleKey =

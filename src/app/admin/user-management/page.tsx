@@ -67,23 +67,33 @@ function statusBadge(status: UserRow['status']) {
 
 function projectLabel(brand: string | null): string {
   if (!brand) return '未指定';
-  const lower = brand.toLowerCase();
-  if (lower === 'all') return '全部项目';
-  if (lower.includes('iqoo_douyin') || lower.includes('iqoo-douyin') || lower === 'iqoo抖音' || lower === 'douyin') return 'iQOO抖音';
-  if (lower.includes('iqoo_kuaishou') || lower.includes('iqoo-kuaishou') || lower === 'iqoo快手' || lower === 'kuaishou') return 'iQOO快手';
-  if (lower.includes('iqoo')) return 'iQOO';
-  if (lower.includes('vivo')) return 'vivo';
-  if (lower.includes('iot')) return 'IOT';
-  return brand;
+  if (brand.toLowerCase() === 'all') return '全部项目';
+  // 支持逗号分隔的多品牌
+  const parts = brand.split(',').map(s => s.trim()).filter(Boolean);
+  if (parts.length === 0) return '未指定';
+  const labels = parts.map(p => {
+    const lower = p.toLowerCase();
+    if (lower === 'all') return '全部';
+    if (lower === 'iqoo_douyin' || lower === 'iqoo-douyin' || lower === 'iqoo抖音' || lower === 'douyin') return 'iQOO抖音';
+    if (lower === 'iqoo_kuaishou' || lower === 'iqoo-kuaishou' || lower === 'iqoo快手' || lower === 'kuaishou') return 'iQOO快手';
+    if (lower.includes('iqoo')) return 'iQOO';
+    if (lower.includes('vivo')) return 'vivo';
+    if (lower.includes('iot')) return 'IOT';
+    return p;
+  });
+  return [...new Set(labels)].join('、');
 }
 
 function matchesProject(brand: string, filter: string): boolean {
   if (filter === 'all') return true;
   if (!brand) return false;
-  const lower = brand.toLowerCase();
+  // 支持逗号分隔的多品牌匹配
+  const parts = brand.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   const cfg = PROJECT_FILTERS.find((p) => p.key === filter);
   if (!cfg || !cfg.match) return true;
-  return cfg.match.some((m) => lower.includes(m.toLowerCase()));
+  return parts.some(part =>
+    cfg.match!.some((m) => part.includes(m.toLowerCase()))
+  );
 }
 
 function formatDate(iso: string): string {

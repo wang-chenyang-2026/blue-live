@@ -1,7 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { RoleKey, User } from '@/lib/types';
+import type { RoleKey, User, ModuleKey } from '@/lib/types';
+import { parseBrands } from '@/lib/types';
 import { BRANDS, ROLES } from '@/lib/constants';
 import { getCurrentUser, logout as storeLogout, setCurrentUser as persistCurrentUser } from '@/lib/store';
 
@@ -10,6 +11,7 @@ interface AppState {
   currentAccount: string;    // 'all' | accountId
   currentRole: RoleKey;
   currentUser: User | null;
+  userBrands: string[];      // 用户注册时选择的品牌列表
   pendingCount: number;
   isClient: boolean;
   isAuthenticated: boolean;
@@ -19,6 +21,8 @@ interface AppState {
   setUser: (user: User | null) => void;
   refreshPendingCount: () => void;
   handleLogout: () => void;
+  /** 获取当前用户在指定模块下可见的品牌ID列表 */
+  getVisibleBrands: (moduleKey?: ModuleKey) => string[];
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -28,6 +32,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentAccount, setCurrentAccount] = useState<string>('all');
   const [currentRole, setCurrentRole] = useState<RoleKey>('PM');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [userBrands, setUserBrands] = useState<string[]>(['all']);
   const [pendingCount, setPendingCount] = useState(0);
   const [isClient, setIsClient] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -39,6 +44,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const user = getCurrentUser();
       if (user) {
         setCurrentUser(user);
+        setUserBrands(parseBrands(user.projectScope || ''));
         setCurrentRole(ROLES.some((r) => r.key === user.role) ? user.role : 'PM');
         setIsAuthenticated(true);
       }
@@ -111,9 +117,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCurrentUser(user);
     setIsAuthenticated(!!user);
     if (user) {
+      setUserBrands(parseBrands(user.projectScope || ''));
       setCurrentRole(ROLES.some((r) => r.key === user.role) ? user.role : 'PM');
+    } else {
+      setUserBrands(['all']);
     }
   }, []);
+
+  const getVisibleBrands = useCallback((moduleKey?: ModuleKey): string[] => {
+    // PM 不受品牌限制
+    if (currentRole === 'PM') return BRANDS.map(b => b.id);
+    // 没有用户品牌信息，返回全部
+    if (userBrands.includes('all')) return BRANDS.map(b => b.id);
+    // 检查当前模块是否受品牌限制
+    if (moduleKey) {
+      const roleConfig = ROLES.find(r => r.key === currentRole);
+      if (roleConfig && !roleConfig.brandScopedModules.includes(moduleKey)) {
+        // 该模块不受品牌限制，返回全部品牌
+        return BRANDS.map(b => b.id);
+      }
+    }
+    // 受品牌限制的模块，只返回用户的品牌
+    return userBrands.filter(b => BRANDS.some(br => br.id === b));
+  }, [currentRole, userBrands]);
 
   const refreshPendingCount = useCallback(() => {
     fetch('/api/users/pending', { cache: 'no-store' })
@@ -137,6 +163,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         currentAccount,
         currentRole,
         currentUser,
+        userBrands,
         pendingCount,
         isClient,
         isAuthenticated,
@@ -146,6 +173,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setUser: handleSetUser,
         refreshPendingCount,
         handleLogout,
+        getVisibleBrands,
       }}
     >
       {children}

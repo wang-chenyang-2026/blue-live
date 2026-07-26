@@ -112,21 +112,28 @@ export const ROLES: Role[] = [
       'personnel',
       'approval',
     ],
+    brandScopedModules: [], // PM 全部品牌不受限
   },
   {
     key: '运营',
     label: '运营',
-    modules: ['schedule', 'data-overview', 'cost', 'visual', 'sop'],
+    modules: ['dashboard', 'schedule', 'data-overview', 'cost', 'visual', 'sop', 'workstation', 'problem-feedback'],
+    brandScopedModules: ['dashboard', 'schedule', 'data-overview', 'cost', 'workstation'],
+    // visual、sop、problem-feedback 可看全部品牌
   },
   {
     key: '中控',
     label: '中控',
-    modules: ['workstation', 'problem-feedback'],
+    modules: ['schedule', 'data-overview', 'visual', 'sop', 'problem-feedback'],
+    brandScopedModules: ['schedule', 'data-overview'],
+    // visual、sop、problem-feedback 可看全部品牌
   },
   {
     key: '主播',
     label: '主播',
-    modules: ['workstation'],
+    modules: ['schedule', 'visual', 'sop', 'workstation', 'problem-feedback'],
+    brandScopedModules: ['schedule'],
+    // visual、sop、workstation、problem-feedback 可看全部品牌
   },
 ];
 

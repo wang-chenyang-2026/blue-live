@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useApp } from '@/contexts/AppContext';
 import {
   RefreshCw,
   TrendingUp,
@@ -140,6 +141,7 @@ const QUICK_OPTIONS: Array<{ label: string; getRange: () => DateRange }> = [
 
 /* ========== Main Component ========== */
 export default function DataOverviewPage() {
+  const { getVisibleBrands } = useApp();
   const [isClient, setIsClient] = useState(false);
   const [brandDataMap, setBrandDataMap] = useState<Record<string, BrandData>>({});
   const [loading, setLoading] = useState(true);
@@ -166,6 +168,18 @@ export default function DataOverviewPage() {
 
   // Compare month (YYYY-MM)
   const [compareMonth, setCompareMonth] = useState('');
+
+  // 根据用户权限过滤品牌tab
+  const visibleBrandTabs = useMemo(() => {
+    const allowed = getVisibleBrands('data-overview');
+    // 映射品牌tab ID到实际品牌ID
+    const brandIdMap: Record<string, string> = { vivo: 'vivo', iQOO: 'iqoo', IOT: 'iot' };
+    return BRAND_TABS.filter(tab => {
+      if (tab.id === 'all') return allowed.length > 0; // 如果有任何品牌权限就显示"全部"
+      const brandId = brandIdMap[tab.id];
+      return brandId ? allowed.includes(brandId) : false;
+    });
+  }, [getVisibleBrands]);
 
   useEffect(() => {
     setIsClient(true);
@@ -1195,7 +1209,7 @@ export default function DataOverviewPage() {
     <div className="space-y-6">
       {/* Row 1: Brand Tabs */}
       <div className="flex items-center gap-2">
-        {BRAND_TABS.map((tab) => (
+        {visibleBrandTabs.map((tab) => (
           <Button
             key={tab.id}
             variant={activeBrand === tab.id ? 'default' : 'outline'}

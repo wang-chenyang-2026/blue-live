@@ -171,11 +171,17 @@ export function AppSidebar() {
                   {(() => {
                     const scope = currentUser?.projectScope || '';
                     if (!scope) return '-';
-                    const opt = REGISTER_PROJECT_OPTIONS.find((o) => o.value === scope);
-                    if (opt) return opt.label;
-                    const brand = BRANDS.find((b) => b.id === scope);
-                    if (brand) return brand.name;
-                    return scope;
+                    if (scope === 'all') return '全部项目';
+                    // 支持逗号分隔的多品牌
+                    const parts = scope.split(',').map(s => s.trim()).filter(Boolean);
+                    const labels = parts.map(p => {
+                      const opt = REGISTER_PROJECT_OPTIONS.find((o) => o.value === p);
+                      if (opt) return opt.label;
+                      const brand = BRANDS.find((b) => b.id === p);
+                      if (brand) return brand.name;
+                      return p;
+                    });
+                    return [...new Set(labels)].join('、');
                   })()}
                 </span>
               </div>
