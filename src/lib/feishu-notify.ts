@@ -50,11 +50,12 @@ export async function notifyAdmin(content: { title: string; fields: { label: str
   try {
     const token = await getTenantToken();
 
-    // 构造富文本消息
-    const lines = content.fields.map(f => [
-      { tag: 'text', text: `${f.label}：` },
-      { tag: 'text', text: f.value },
-    ]);
+    // 构造卡片消息
+    const fieldText = content.fields
+      .map(f => `**${f.label}：** ${f.value}`)
+      .join('\n');
+
+    const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
 
     const body = {
       receive_id: ADMIN_OPEN_ID,
@@ -68,15 +69,13 @@ export async function notifyAdmin(content: { title: string; fields: { label: str
         elements: [
           {
             tag: 'div',
-            fields: lines.map(line => ({
-              is_short: false,
-              text: { tag: 'lark_md', content: `**${line[0].text}**${line[1].text}` },
-            })),
+            text: { tag: 'lark_md', content: fieldText },
           },
+          { tag: 'hr' },
           {
             tag: 'note',
             elements: [
-              { tag: 'plain_text', text: `Blue直播管理系统 · ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}` },
+              { tag: 'plain_text', content: `Blue直播管理系统 · ${now}` },
             ],
           },
         ],
