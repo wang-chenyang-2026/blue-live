@@ -94,7 +94,7 @@ const TIME_SLOTS = [
 
 // 获取飞书 tenant_access_token
 async function getFeishuToken(): Promise<string> {
-  const appSecret = process.env.FEISHU_APP_SECRET || 'ejUyI30c9sYDW1NWha0lqeABBMPYFZca';
+  const appSecret = process.env.FEISHU_APP_SECRET || 'ejUxI30c9sYDW1NWha0lqeABBMPYFZca';
   const response = await fetch('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
