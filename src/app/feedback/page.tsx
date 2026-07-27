@@ -44,7 +44,7 @@ import { Plus, MessageSquare, CheckCircle, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function FeedbackPage() {
-  const { currentBrand, isClient } = useApp();
+  const { currentBrand, isClient, currentUser } = useApp();
   const [feedbacks, setFeedbacks] = useState<ProblemFeedback[]>([]);
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -56,6 +56,8 @@ export default function FeedbackPage() {
   // Form state
   const [formAccountId, setFormAccountId] = useState('');
   const [formContent, setFormContent] = useState('');
+
+  const isPM = currentUser?.role === 'PM';
 
   useEffect(() => {
     setFeedbacks(getFeedbackList());
@@ -70,11 +72,18 @@ export default function FeedbackPage() {
 
   const filteredFeedbacks = useMemo(() => {
     return feedbacks.filter((f) => {
+      // 品牌过滤
       if (currentBrand !== 'all' && f.brandId !== currentBrand) return false;
+      // 状态过滤
       if (filterStatus !== 'all' && f.status !== filterStatus) return false;
+      // 权限过滤：非PM只能看到自己提交的反馈
+      if (!isPM) {
+        const submitterName = f.staffId.startsWith('user:') ? f.staffId.slice(5) : (staffMap[f.staffId]?.name || f.staffId);
+        if (submitterName !== currentUser?.name) return false;
+      }
       return true;
     }).sort((a, b) => b.date.localeCompare(a.date));
-  }, [feedbacks, currentBrand, filterStatus]);
+  }, [feedbacks, currentBrand, filterStatus, isPM, currentUser, staffMap]);
 
   // 统计
   const stats = useMemo(() => {
@@ -95,21 +104,21 @@ export default function FeedbackPage() {
     if (!formContent || !formAccountId) return;
 
     const brandId = currentBrand !== 'all' ? currentBrand : BRANDS[0].id;
-    // 找到当前用户（中控）- 使用staffList中第一个中控
-    const currentUser = staffList.find((s) => s.role === '中控');
+    // 使用当前登录用户名作为提交人标识
+    const submitterId = currentUser ? `user:${currentUser.name}` : '';
 
     addFeedbackItem({
       id: genId(),
       brandId,
       accountId: formAccountId,
-      staffId: currentUser?.id || '',
+      staffId: submitterId,
       date: new Date().toISOString().split('T')[0],
       content: formContent,
       status: '待处理',
     });
     setFeedbacks(getFeedbackList());
     setDialogOpen(false);
-  }, [formContent, formAccountId, currentBrand, staffList]);
+  }, [formContent, formAccountId, currentBrand, currentUser]);
 
   const handleReply = useCallback((item: ProblemFeedback) => {
     setReplyingItem(item);
@@ -234,7 +243,8 @@ export default function FeedbackPage() {
               ) : (
                 filteredFeedbacks.map((f) => {
                   const account = BRANDS.flatMap((b) => b.accounts).find((a) => a.id === f.accountId);
-                  const staff = staffMap[f.staffId];
+                  // 解析提交人：新格式 user:xxx 存的是用户名，旧格式是 staffId
+                  const submitterName = f.staffId.startsWith('user:') ? f.staffId.slice(5) : (staffMap[f.staffId]?.name || f.staffId || '-');
                   const brand = BRANDS.find((b) => b.id === f.brandId);
 
                   return (
@@ -246,7 +256,7 @@ export default function FeedbackPage() {
                           {account?.name || '-'}
                         </span>
                       </TableCell>
-                      <TableCell className="text-foreground text-sm">{staff?.name || '-'}</TableCell>
+                      <TableCell className="text-foreground text-sm">{submitterName}</TableCell>
                       <TableCell className="text-foreground text-sm max-w-xs truncate">{f.content}</TableCell>
                       <TableCell>
                         <Badge className={cn('text-[10px]', f.status === '待处理' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400')}>
@@ -255,7 +265,7 @@ export default function FeedbackPage() {
                       </TableCell>
                       <TableCell className="text-muted-foreground text-xs max-w-xs truncate">{f.reply || '-'}</TableCell>
                       <TableCell className="text-right">
-                        {f.status === '待处理' && (
+                        {isPM && f.status === '待处理' && (
                           <Button variant="ghost" size="sm" onClick={() => handleReply(f)}>
                             回复
                           </Button>
