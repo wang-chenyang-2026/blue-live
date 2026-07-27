@@ -65,8 +65,12 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { currentRole, currentUser, pendingCount, handleLogout } = useApp();
 
-  const roleConfig = ROLES.find((r) => r.key === currentRole);
-  const allowedModules = roleConfig?.modules ?? [];
+  // 先从 context 的 currentRole 查找，再 fallback 到 currentUser.role
+  const resolvedRole = currentRole || currentUser?.role;
+  const roleConfig = ROLES.find((r) => r.key === resolvedRole);
+
+  // 防御：如果角色配置找不到，显示提示而非错误模块
+  const allowedModules: ModuleKey[] = roleConfig?.modules ?? [];
   const visibleModules = SIDEBAR_ORDER.filter((m) => allowedModules.includes(m));
 
   return (
@@ -98,6 +102,11 @@ export function AppSidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-2">
+        {!roleConfig && resolvedRole && (
+          <div className="px-3 py-2 text-xs text-destructive bg-destructive/10 rounded-lg mb-2">
+            角色配置异常: {resolvedRole}
+          </div>
+        )}
         {visibleModules.map((mod) => {
           const path = MODULE_PATHS[mod];
           const isActive =

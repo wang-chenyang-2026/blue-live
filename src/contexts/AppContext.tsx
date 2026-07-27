@@ -45,21 +45,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (user) {
         setCurrentUser(user);
         setUserBrands(parseBrands(user.projectScope || ''));
-        setCurrentRole(ROLES.some((r) => r.key === user.role) ? user.role : 'PM');
+        // 始终以数据库中用户真实角色为准，不用 localStorage 缓存的角色
+        const userRole = user.role as RoleKey;
+        const validRole = ROLES.find((r) => r.key === userRole);
+        setCurrentRole(validRole ? userRole : 'PM');
         setIsAuthenticated(true);
       }
 
-      // 恢复 UI 偏好
+      // 恢复 UI 偏好（仅恢复品牌和账号，角色以用户数据库记录为准）
       const saved = localStorage.getItem('lm_app_state');
       if (saved) {
         const parsed = JSON.parse(saved) as {
           brand?: string;
           account?: string;
-          role?: RoleKey;
         };
         if (parsed.brand) setCurrentBrand(parsed.brand);
         if (parsed.account) setCurrentAccount(parsed.account);
-        if (parsed.role && !user) setCurrentRole(parsed.role);
+        // 不再从 localStorage 恢复 role，避免角色残留
       }
 
       // 待审核数量
@@ -102,14 +104,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const handleSetRole = useCallback((role: RoleKey) => {
     setCurrentRole(role);
-    try {
-      const saved = localStorage.getItem('lm_app_state');
-      const parsed = saved ? JSON.parse(saved) : {};
-      parsed.role = role;
-      localStorage.setItem('lm_app_state', JSON.stringify(parsed));
-    } catch {
-      // ignore
-    }
+    // 角色不再持久化到 localStorage，由登录用户的数据库记录决定
   }, []);
 
   const handleSetUser = useCallback((user: User | null) => {
@@ -154,6 +149,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     storeLogout();
     setCurrentUser(null);
     setIsAuthenticated(false);
+    setCurrentRole('PM'); // 重置为默认
+    setUserBrands(['all']);
+    // 清除 localStorage 中残留的角色状态，避免下次登录时读到旧值
+    try {
+      const saved = localStorage.getItem('lm_app_state');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        delete parsed.role;
+        localStorage.setItem('lm_app_state', JSON.stringify(parsed));
+      }
+    } catch { /* ignore */ }
   }, []);
 
   return (

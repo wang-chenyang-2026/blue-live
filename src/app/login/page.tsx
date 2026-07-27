@@ -3,11 +3,26 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/contexts/AppContext';
+import { ROLES } from '@/lib/constants';
+import type { ModuleKey } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MonitorPlay } from 'lucide-react';
 import Link from 'next/link';
+
+const MODULE_PATHS: Record<ModuleKey, string> = {
+  dashboard: '/',
+  schedule: '/schedule',
+  'data-overview': '/data-overview',
+  cost: '/cost',
+  visual: '/visual',
+  sop: '/sop',
+  workstation: '/workstation',
+  'problem-feedback': '/feedback',
+  personnel: '/admin/user-management',
+  approval: '/approval',
+};
 
 export default function LoginPage() {
   const router = useRouter();
@@ -50,7 +65,11 @@ export default function LoginPage() {
       }
       setUser(data.user);
       refreshPendingCount();
-      router.push('/');
+      // 跳转到该角色允许的第一个模块，而非固定跳首页
+      const roleConfig = ROLES.find((r) => r.key === data.user.role);
+      const firstModule = roleConfig?.modules?.[0] || 'dashboard';
+      const targetPath = MODULE_PATHS[firstModule as ModuleKey] || '/';
+      router.push(targetPath);
     } catch (err) {
       console.error('login error', err);
       setError('网络异常，请稍后重试');
