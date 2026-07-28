@@ -40,8 +40,11 @@ async function getAccessToken(): Promise<string> {
   return cachedToken;
 }
 
-export async function GET(request: NextRequest) {
-  const token = request.nextUrl.searchParams.get('token');
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { token: string } }
+) {
+  const token = params?.token;
   if (!token) {
     return NextResponse.json({ error: 'Missing fileToken' }, { status: 400 });
   }

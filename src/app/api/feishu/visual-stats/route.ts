@@ -89,8 +89,8 @@ function extractImageUrl(val: unknown): string {
   if (typeof val === 'object' && !Array.isArray(val)) {
     const obj = val as EmbedImage;
     if (obj.type === 'embed-image' && obj.fileToken) {
-      // Return a proxy URL that our server will fetch with auth
-      return `/api/feishu/image-proxy?token=${encodeURIComponent(obj.fileToken)}`;
+      // Use path-based URL (CDN reliably forwards path params)
+      return `/api/feishu/image-proxy/${encodeURIComponent(obj.fileToken)}`;
     }
     if (obj.link) return obj.link;
   }
