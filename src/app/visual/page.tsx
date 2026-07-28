@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -166,6 +166,7 @@ export default function VisualPage() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([...CATEGORY_OPTIONS]);
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<VisualItem | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   /* ========== Data Fetching ========== */
   const fetchAllData = useCallback(async () => {
@@ -186,6 +187,18 @@ export default function VisualPage() {
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
+
+  /* ========== Click away to close category dropdown ========== */
+  useEffect(() => {
+    if (!categoryDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setCategoryDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [categoryDropdownOpen]);
 
   /* ========== Filtered Display Items ========== */
   const displayItems = useMemo(() => {
@@ -281,7 +294,7 @@ export default function VisualPage() {
         <div className="h-5 w-px bg-zinc-700" />
 
         {/* Category Filter (Dropdown) */}
-        <div className="relative flex items-center gap-2">
+        <div ref={dropdownRef} className="relative flex items-center gap-2">
           <span className="text-xs text-zinc-500">分类:</span>
           <button
             type="button"
