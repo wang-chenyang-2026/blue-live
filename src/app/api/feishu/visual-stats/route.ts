@@ -67,12 +67,35 @@ async function getSheetValues(
 }
 
 /* ========== Parse Helpers ========== */
+interface EmbedImage {
+  type?: string;
+  fileToken?: string;
+  link?: string;
+}
+
 function safeString(val: unknown): string {
   if (val === null || val === undefined) return '';
   if (typeof val === 'string') return val;
   if (typeof val === 'number' || typeof val === 'boolean') return String(val);
   if (Array.isArray(val)) return val.map((v) => String(v || '')).join(',');
   if (typeof val === 'object') return JSON.stringify(val);
+  return '';
+}
+
+/** Extract imageUrl from cell value. Handles embed-image objects from Feishu */
+function extractImageUrl(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val.trim();
+  if (typeof val === 'object' && !Array.isArray(val)) {
+    const obj = val as EmbedImage;
+    if (obj.type === 'embed-image' && obj.fileToken) {
+      // Return a proxy URL that our server will fetch with auth
+      return `/api/feishu/image-proxy?token=${encodeURIComponent(obj.fileToken)}`;
+    }
+    if (obj.link) return obj.link;
+  }
+  if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+  if (Array.isArray(val)) return val.map((v) => String(v || '')).join(',');
   return '';
 }
 
@@ -89,7 +112,7 @@ function parseRow(row: string[]): VisualItem {
     creator: s(1),
     category: s(2),
     name: s(3),
-    imageUrl: s(4),
+    imageUrl: extractImageUrl(row[4]),
     startDate: s(5),
     endDate: s(6),
     exposureRatePeople: parseNumber(s(7)),
