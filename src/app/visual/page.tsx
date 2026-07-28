@@ -164,6 +164,7 @@ export default function VisualPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedBrand, setSelectedBrand] = useState<string>('top');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([...CATEGORY_OPTIONS]);
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<VisualItem | null>(null);
 
   /* ========== Data Fetching ========== */
@@ -279,22 +280,42 @@ export default function VisualPage() {
 
         <div className="h-5 w-px bg-zinc-700" />
 
-        {/* Category Filter (Right) */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-zinc-500 mr-1">分类:</span>
-          {CATEGORY_OPTIONS.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => toggleCategory(cat)}
-              className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
-                selectedCategories.includes(cat)
-                  ? 'bg-zinc-700 text-zinc-100 font-medium'
-                  : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+        {/* Category Filter (Dropdown) */}
+        <div className="relative flex items-center gap-2">
+          <span className="text-xs text-zinc-500">分类:</span>
+          <button
+            type="button"
+            onClick={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
+            className="flex items-center gap-1.5 rounded-md bg-zinc-800 border border-zinc-700 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 transition-colors"
+          >
+            <span>
+              {selectedCategories.length === CATEGORY_OPTIONS.length
+                ? '全部'
+                : selectedCategories.join('、')}
+            </span>
+            <svg className={`h-4 w-4 text-zinc-400 transition-transform ${categoryDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {categoryDropdownOpen && (
+            <div className="absolute top-full left-0 mt-1 z-50 w-36 rounded-md border border-zinc-700 bg-zinc-800 py-1 shadow-lg">
+              {CATEGORY_OPTIONS.map((cat) => (
+                <label
+                  key={cat}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 cursor-pointer"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedCategories.includes(cat)}
+                    onChange={() => toggleCategory(cat)}
+                    className="rounded border-zinc-600 bg-zinc-900 text-zinc-400 focus:ring-zinc-600"
+                  />
+                  {cat}
+                </label>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

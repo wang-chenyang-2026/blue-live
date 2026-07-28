@@ -67,28 +67,38 @@ async function getSheetValues(
 }
 
 /* ========== Parse Helpers ========== */
-function parseNumber(val: string | undefined): number | null {
+function safeString(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+  if (Array.isArray(val)) return val.map((v) => String(v || '')).join(',');
+  if (typeof val === 'object') return JSON.stringify(val);
+  return '';
+}
+
+function parseNumber(val: string): number | null {
   if (!val || val.trim() === '') return null;
   const num = parseFloat(val);
   return isNaN(num) ? null : num;
 }
 
 function parseRow(row: string[]): VisualItem {
+  const s = (idx: number) => safeString(row[idx]);
   return {
-    brand: (row[0] || '').trim(),
-    creator: (row[1] || '').trim(),
-    category: (row[2] || '').trim(),
-    name: (row[3] || '').trim(),
-    imageUrl: (row[4] || '').trim(),
-    startDate: (row[5] || '').trim(),
-    endDate: (row[6] || '').trim(),
-    exposureRatePeople: parseNumber(row[7]),
-    exposureRateCount: parseNumber(row[8]),
-    avgStayDuration: (row[9] || '').trim(),
-    avgFollowRate: (row[10] || '').trim(),
-    designInspiration: (row[11] || '').trim(),
-    designPlan: (row[12] || '').trim(),
-    evaluation: (row[13] || '').trim(),
+    brand: s(0),
+    creator: s(1),
+    category: s(2),
+    name: s(3),
+    imageUrl: s(4),
+    startDate: s(5),
+    endDate: s(6),
+    exposureRatePeople: parseNumber(s(7)),
+    exposureRateCount: parseNumber(s(8)),
+    avgStayDuration: s(9),
+    avgFollowRate: s(10),
+    designInspiration: s(11),
+    designPlan: s(12),
+    evaluation: s(13),
   };
 }
 
@@ -110,7 +120,10 @@ export async function GET(request: NextRequest) {
     // Skip header row (index 0), parse data rows
     const items: VisualItem[] = rawValues
       .slice(1)
-      .filter((row) => row.some((cell) => cell && cell.trim() !== ''))
+      .filter((row) => row.some((cell) => {
+        const s = safeString(cell);
+        return s.trim() !== '';
+      }))
       .map(parseRow);
 
     // Apply filters
