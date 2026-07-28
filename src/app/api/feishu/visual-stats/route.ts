@@ -17,8 +17,8 @@ export interface VisualItem {
   endDate: string;
   exposureRatePeople: number | null;
   exposureRateCount: number | null;
-  avgStayDuration: string;
-  avgFollowRate: string;
+  avgStayDuration: number | null;
+  avgFollowRate: number | null;
   designInspiration: string;
   designPlan: string;
   evaluation: string;
@@ -125,6 +125,13 @@ function parseNumber(val: string): number | null {
   return isNaN(num) ? null : num;
 }
 
+/** Convert small decimal (0-1) to percentage number (0-100) for display */
+function toPercentage(val: number | null): number | null {
+  if (val === null) return null;
+  if (val > 0 && val < 1) return Math.round(val * 100);
+  return val;
+}
+
 /** Parse a row, converting Excel serial dates and extracting image info */
 function parseRow(row: unknown[]): VisualItem {
   const s = (idx: number) => safeString(row[idx]);
@@ -145,10 +152,10 @@ function parseRow(row: unknown[]): VisualItem {
     imageHeight: imgInfo.height,
     startDate,
     endDate,
-    exposureRatePeople: parseNumber(s(7)),
-    exposureRateCount: parseNumber(s(8)),
-    avgStayDuration: s(9),
-    avgFollowRate: s(10),
+    exposureRatePeople: toPercentage(parseNumber(s(7))),
+    exposureRateCount: toPercentage(parseNumber(s(8))),
+    avgStayDuration: toPercentage(parseNumber(s(9))),
+    avgFollowRate: toPercentage(parseNumber(s(10))),
     designInspiration: s(11),
     designPlan: s(12),
     evaluation: s(13),

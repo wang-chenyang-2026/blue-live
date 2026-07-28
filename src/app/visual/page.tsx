@@ -35,8 +35,8 @@ interface VisualItem {
   endDate: string;
   exposureRatePeople: number | null;
   exposureRateCount: number | null;
-  avgStayDuration: string;
-  avgFollowRate: string;
+  avgStayDuration: number | null;
+  avgFollowRate: number | null;
   designInspiration: string;
   designPlan: string;
   evaluation: string;
@@ -382,8 +382,9 @@ export default function VisualPage() {
               >
                 <Card className="border-zinc-700 bg-zinc-800/50 overflow-hidden hover:border-zinc-500 transition-colors">
                   <div
-                    className="relative overflow-hidden"
+                    className="relative overflow-hidden mx-auto"
                     style={{
+                      maxWidth: '220px',
                       aspectRatio:
                         item.imageWidth && item.imageHeight
                           ? `${item.imageWidth}/${item.imageHeight}`
@@ -425,7 +426,7 @@ export default function VisualPage() {
                     </p>
                     {item.exposureRatePeople !== null && (
                       <p className="text-xs text-zinc-500 mt-1">
-                        曝光进入率（人数）: {item.exposureRatePeople}
+                        曝光进入率（人数）: {item.exposureRatePeople}%
                       </p>
                     )}
                   </CardContent>
@@ -458,8 +459,9 @@ export default function VisualPage() {
               onClick={() => setSelectedItem(item)}
             >
               <div
-                className="relative rounded-lg overflow-hidden bg-zinc-800 border border-zinc-700/50 group-hover:border-zinc-500 transition-colors"
+                className="relative rounded-lg overflow-hidden bg-zinc-800 border border-zinc-700/50 group-hover:border-zinc-500 transition-colors mx-auto"
                 style={{
+                  maxWidth: '180px',
                   aspectRatio:
                     item.imageWidth && item.imageHeight
                       ? `${item.imageWidth}/${item.imageHeight}`
@@ -545,8 +547,9 @@ function DetailModal({ item, onClose }: { item: VisualItem; onClose: () => void 
             {/* Left: Image */}
             <div className="space-y-4">
               <div
-                className="rounded-lg overflow-hidden bg-zinc-800 border border-zinc-700"
+                className="rounded-lg overflow-hidden bg-zinc-800 border border-zinc-700 mx-auto"
                 style={{
+                  maxWidth: '280px',
                   aspectRatio:
                     item.imageWidth && item.imageHeight
                       ? `${item.imageWidth}/${item.imageHeight}`
@@ -644,22 +647,22 @@ function DetailModal({ item, onClose }: { item: VisualItem; onClose: () => void 
                   <InfoRow
                     icon={<Users className="h-3.5 w-3.5" />}
                     label="曝光进入率（人数）"
-                    value={item.exposureRatePeople !== null ? String(item.exposureRatePeople) : '暂无数据'}
+                    value={item.exposureRatePeople !== null ? `${item.exposureRatePeople}%` : '暂无数据'}
                   />
                   <InfoRow
                     icon={<Users className="h-3.5 w-3.5" />}
                     label="曝光进入率（次数）"
-                    value={item.exposureRateCount !== null ? String(item.exposureRateCount) : '暂无数据'}
+                    value={item.exposureRateCount !== null ? `${item.exposureRateCount}%` : '暂无数据'}
                   />
                   <InfoRow
                     icon={<Clock className="h-3.5 w-3.5" />}
                     label="周期平均停留时长"
-                    value={item.avgStayDuration || '暂无数据'}
+                    value={item.avgStayDuration !== null ? `${item.avgStayDuration}%` : '暂无数据'}
                   />
                   <InfoRow
                     icon={<TrendingUp className="h-3.5 w-3.5" />}
                     label="周期平均转粉率"
-                    value={item.avgFollowRate || '暂无数据'}
+                    value={item.avgFollowRate !== null ? `${item.avgFollowRate}%` : '暂无数据'}
                   />
                 </CardContent>
               </Card>
