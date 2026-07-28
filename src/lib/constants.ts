@@ -85,7 +85,7 @@ const MODULE_LABELS: Record<ModuleKey, string> = {
   schedule: '排班管理',
   'data-overview': '数据概览',
   cost: '成本核算',
-  visual: '视觉对接',
+  visual: '视觉统计',
   sop: 'SOP管理',
   workstation: '主播工作台',
   'problem-feedback': '问题反馈',
