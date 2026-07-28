@@ -29,6 +29,8 @@ interface VisualItem {
   category: string;
   name: string;
   imageUrl: string;
+  imageWidth?: number;
+  imageHeight?: number;
   startDate: string;
   endDate: string;
   exposureRatePeople: number | null;
@@ -56,7 +58,8 @@ const PLACEHOLDER_IMAGE = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWl
 function daysBetween(startStr: string, endStr: string): number {
   if (!startStr || !endStr) return 0;
   const start = new Date(startStr);
-  const end = new Date(endStr);
+  // "使用中" means still in use, treat as today
+  const end = endStr === '使用中' ? new Date() : new Date(endStr);
   if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
   return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
 }
@@ -71,88 +74,82 @@ function brandFilterToApiParam(filterId: string): string {
   }
 }
 
+/* ========== Helper: Classify item brand to one of our 3 categories ========== */
+function classifyBrand(brand: string): string | null {
+  const b = brand.toLowerCase();
+  if (b === 'vivo') return 'vivo';
+  if (b.includes('iqoo') && (b.includes('抖音') || b.includes('douyin'))) return 'iQOO抖音';
+  if (b.includes('iqoo') && (b.includes('快手') || b.includes('kuaishou'))) return 'iQOO快手';
+  if (b.includes('iqoo')) return 'iQOO抖音'; // default fallback
+  return null;
+}
+
 /* ========== TOP视觉 Logic ========== */
-function computeTopVisuals(allItems: VisualItem[]): VisualItem[] {
+interface TopVisualResult {
+  vivo: VisualItem | null;
+  iQOO抖音: VisualItem | null;
+  iQOO快手: VisualItem | null;
+}
+
+function computeTopVisuals(allItems: VisualItem[]): TopVisualResult {
   // Step 1: Filter items with usage period > 7 days
   const eligible = allItems.filter((item) => daysBetween(item.startDate, item.endDate) > 7);
 
-  // Step 2: Group by name, compute average exposureRatePeople per name
-  const nameGroups = new Map<string, { items: VisualItem[]; avgExposure: number }>();
+  // Step 2: Group by name, compute average exposureRatePeople per name within each brand category
+  const nameGroups = new Map<string, { items: VisualItem[] }>();
   for (const item of eligible) {
     if (!item.name) continue;
     const existing = nameGroups.get(item.name);
     if (existing) {
       existing.items.push(item);
-      const exposures = existing.items
-        .map((i) => i.exposureRatePeople)
-        .filter((v): v is number => v !== null);
-      existing.avgExposure = exposures.length > 0
-        ? exposures.reduce((s, v) => s + v, 0) / exposures.length
-        : 0;
     } else {
-      const exp = item.exposureRatePeople ?? 0;
-      nameGroups.set(item.name, { items: [item], avgExposure: exp });
+      nameGroups.set(item.name, { items: [item] });
     }
   }
 
-  // Step 3: Group by brand, find the highest exposureRatePeople in each brand
-  // Map brand names from data to our filter categories
-  const brandMap: Record<string, string> = {};
-  for (const item of allItems) {
-    const b = item.brand.toLowerCase();
-    if (b === 'vivo') brandMap[item.brand] = 'vivo';
-    else if (b.includes('iqoo') && b.includes('抖音')) brandMap[item.brand] = 'iQOO抖音';
-    else if (b.includes('iqoo') && b.includes('快手')) brandMap[item.brand] = 'iQOO快手';
-    else if (b.includes('iqoo')) {
-      // Default iQOO without platform specification
-      brandMap[item.brand] = 'iQOO抖音';
-    }
-  }
-
-  // For each brand category, find the best visual (highest avg exposure)
-  const brandBest = new Map<string, { name: string; avgExposure: number; representative: VisualItem }>();
+  // Step 3: For each brand category, find the visual with highest avg exposureRatePeople
+  const result: TopVisualResult = { vivo: null, iQOO抖音: null, iQOO快手: null };
 
   for (const [name, group] of nameGroups) {
-    // Determine which brand categories this name's items belong to
-    const brandCategories = new Set<string>();
+    // Group items by brand category
+    const brandItems = new Map<string, VisualItem[]>();
     for (const item of group.items) {
-      const mapped = brandMap[item.brand];
-      if (mapped) brandCategories.add(mapped);
+      const brandCat = classifyBrand(item.brand);
+      if (!brandCat) continue;
+      const arr = brandItems.get(brandCat) || [];
+      arr.push(item);
+      brandItems.set(brandCat, arr);
     }
 
-    for (const brandCat of brandCategories) {
-      const itemsForBrand = group.items.filter(
-        (item) => brandMap[item.brand] === brandCat
-      );
-      if (itemsForBrand.length === 0) continue;
-
-      // Compute brand-specific avg exposure
-      const exposures = itemsForBrand
+    // For each brand category, compute avg exposure and find best
+    for (const [brandCat, items] of brandItems) {
+      const exposures = items
         .map((i) => i.exposureRatePeople)
         .filter((v): v is number => v !== null);
-      const brandAvg = exposures.length > 0
+      const avgExposure = exposures.length > 0
         ? exposures.reduce((s, v) => s + v, 0) / exposures.length
         : 0;
 
-      const current = brandBest.get(brandCat);
-      if (!current || brandAvg > current.avgExposure) {
-        // Use the item with highest individual exposure as representative
-        const bestItem = itemsForBrand.reduce((best, curr) =>
+      const current = result[brandCat as keyof TopVisualResult];
+      if (!current) {
+        // No current best, use this one
+        const bestItem = items.reduce((best, curr) =>
           (curr.exposureRatePeople ?? 0) > (best.exposureRatePeople ?? 0) ? curr : best
         );
-        brandBest.set(brandCat, { name, avgExposure: brandAvg, representative: bestItem });
+        result[brandCat as keyof TopVisualResult] = bestItem;
+      } else {
+        // Compare with current best
+        const currentExposure = current.exposureRatePeople ?? 0;
+        if (avgExposure > currentExposure) {
+          const bestItem = items.reduce((best, curr) =>
+            (curr.exposureRatePeople ?? 0) > (best.exposureRatePeople ?? 0) ? curr : best
+          );
+          result[brandCat as keyof TopVisualResult] = bestItem;
+        }
       }
     }
   }
 
-  // Step 4: Return one per brand, max 3
-  const result: VisualItem[] = [];
-  for (const brandId of ['vivo', 'iQOO抖音', 'iQOO快手']) {
-    const best = brandBest.get(brandId);
-    if (best) {
-      result.push(best.representative);
-    }
-  }
   return result;
 }
 
@@ -201,29 +198,28 @@ export default function VisualPage() {
   }, [categoryDropdownOpen]);
 
   /* ========== Filtered Display Items ========== */
-  const displayItems = useMemo(() => {
-    let items: VisualItem[];
+  const displayMode = useMemo<'top' | 'grid'>(() => {
+    return selectedBrand === 'top' ? 'top' : 'grid';
+  }, [selectedBrand]);
 
-    if (selectedBrand === 'top') {
-      // TOP视觉: apply category filter then compute top
-      let pool = allItems;
-      if (selectedCategories.length < CATEGORY_OPTIONS.length) {
-        pool = pool.filter((item) => selectedCategories.includes(item.category));
-      }
-      items = computeTopVisuals(pool);
-    } else {
-      // Brand-specific filter
-      const apiParam = brandFilterToApiParam(selectedBrand);
-      items = allItems.filter(
-        (item) => item.brand.toLowerCase() === apiParam.toLowerCase()
-      );
-      // Apply category filter
-      if (selectedCategories.length < CATEGORY_OPTIONS.length) {
-        items = items.filter((item) => selectedCategories.includes(item.category));
-      }
+  const topVisuals = useMemo<TopVisualResult>(() => {
+    if (selectedBrand !== 'top') return { vivo: null, iQOO抖音: null, iQOO快手: null };
+    let pool = allItems;
+    if (selectedCategories.length < CATEGORY_OPTIONS.length) {
+      pool = pool.filter((item) => selectedCategories.includes(item.category));
     }
+    return computeTopVisuals(pool);
+  }, [allItems, selectedBrand, selectedCategories]);
 
-    // Limit to 10
+  const gridItems = useMemo<VisualItem[]>(() => {
+    if (selectedBrand === 'top') return [];
+    const apiParam = brandFilterToApiParam(selectedBrand);
+    let items = allItems.filter(
+      (item) => item.brand.toLowerCase() === apiParam.toLowerCase()
+    );
+    if (selectedCategories.length < CATEGORY_OPTIONS.length) {
+      items = items.filter((item) => selectedCategories.includes(item.category));
+    }
     return items.slice(0, 10);
   }, [allItems, selectedBrand, selectedCategories]);
 
@@ -231,7 +227,6 @@ export default function VisualPage() {
   const toggleCategory = (cat: string) => {
     setSelectedCategories((prev) => {
       if (prev.includes(cat)) {
-        // Don't allow deselecting all
         if (prev.length === 1) return prev;
         return prev.filter((c) => c !== cat);
       }
@@ -275,15 +270,9 @@ export default function VisualPage() {
               variant={selectedBrand === bf.id ? 'default' : 'outline'}
               size="sm"
               className={
-                selectedBrand === bf.id
-                  ? 'hover:opacity-90'
-                  : 'border-zinc-600 text-zinc-300'
+                selectedBrand === bf.id ? 'hover:opacity-90' : 'border-zinc-600 text-zinc-300'
               }
-              style={
-                selectedBrand === bf.id
-                  ? { backgroundColor: bf.color }
-                  : {}
-              }
+              style={selectedBrand === bf.id ? { backgroundColor: bf.color } : {}}
               onClick={() => setSelectedBrand(bf.id)}
             >
               {bf.label}
@@ -306,7 +295,12 @@ export default function VisualPage() {
                 ? '全部'
                 : selectedCategories.join('、')}
             </span>
-            <svg className={`h-4 w-4 text-zinc-400 transition-transform ${categoryDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg
+              className={`h-4 w-4 text-zinc-400 transition-transform ${categoryDropdownOpen ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           </button>
@@ -352,35 +346,130 @@ export default function VisualPage() {
         </div>
       )}
 
-      {/* Empty State */}
-      {!loading && !error && displayItems.length === 0 && (
+      {/* ===== TOP视觉 Mode: Always show 3 brand slots ===== */}
+      {displayMode === 'top' && !loading && !error && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          {(['vivo', 'iQOO抖音', 'iQOO快手'] as const).map((brandKey) => {
+            const item = topVisuals[brandKey];
+            const brandLabel = brandKey === 'vivo' ? 'vivo' : brandKey;
+            const brandColor =
+              brandKey === 'vivo' ? '#415FFF' : '#FF6B35';
+
+            if (!item) {
+              // Empty placeholder
+              return (
+                <Card key={brandKey} className="border-zinc-700 bg-zinc-800/50">
+                  <CardContent className="py-10 flex flex-col items-center justify-center text-center">
+                    <div
+                      className="h-10 w-10 rounded-full flex items-center justify-center mb-3"
+                      style={{ backgroundColor: brandColor + '22' }}
+                    >
+                      <Palette className="h-5 w-5" style={{ color: brandColor }} />
+                    </div>
+                    <p className="text-sm font-medium text-zinc-400">{brandLabel}</p>
+                    <p className="text-xs text-zinc-600 mt-1">暂无TOP视觉数据</p>
+                  </CardContent>
+                </Card>
+              );
+            }
+
+            // Has data
+            return (
+              <div
+                key={brandKey}
+                className="group cursor-pointer"
+                onClick={() => setSelectedItem(item)}
+              >
+                <Card className="border-zinc-700 bg-zinc-800/50 overflow-hidden hover:border-zinc-500 transition-colors">
+                  <div
+                    className="relative overflow-hidden"
+                    style={{
+                      aspectRatio:
+                        item.imageWidth && item.imageHeight
+                          ? `${item.imageWidth}/${item.imageHeight}`
+                          : '9/16',
+                    }}
+                  >
+                    <img
+                      src={item.imageUrl || PLACEHOLDER_IMAGE}
+                      alt={item.name || '视觉素材'}
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = PLACEHOLDER_IMAGE;
+                      }}
+                    />
+                    {/* Brand badge */}
+                    <div className="absolute top-2 left-2">
+                      <Badge
+                        variant="secondary"
+                        className="text-[10px] text-white border-none"
+                        style={{ backgroundColor: brandColor }}
+                      >
+                        {brandLabel}
+                      </Badge>
+                    </div>
+                    {/* TOP badge */}
+                    <div className="absolute top-2 right-2">
+                      <Badge className="text-[10px] bg-yellow-500/90 text-black border-none font-bold">
+                        TOP
+                      </Badge>
+                    </div>
+                    {/* Hover overlay */}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                      <Eye className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </div>
+                  <CardContent className="py-3 px-4">
+                    <p className="text-sm text-zinc-200 font-medium truncate">
+                      {item.name || '未命名'}
+                    </p>
+                    {item.exposureRatePeople !== null && (
+                      <p className="text-xs text-zinc-500 mt-1">
+                        曝光进入率（人数）: {item.exposureRatePeople}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ===== Grid Mode: Normal brand filter ===== */}
+      {displayMode === 'grid' && !loading && !error && gridItems.length === 0 && (
         <Card className="border-border bg-card">
           <CardContent className="py-16 text-center">
             <Palette className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-foreground mb-2">
-              暂无视觉数据
-            </h3>
+            <h3 className="text-lg font-medium text-foreground mb-2">暂无视觉数据</h3>
             <p className="text-sm text-muted-foreground">
-              数据源待填充，请在飞书电子表格中添加视觉素材数据
+              当前分类下暂无数据，请切换分类或刷新
             </p>
           </CardContent>
         </Card>
       )}
 
-      {/* Visual Grid */}
-      {displayItems.length > 0 && (
+      {displayMode === 'grid' && gridItems.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {displayItems.map((item, idx) => (
+          {gridItems.map((item, idx) => (
             <div
               key={`${item.name}-${idx}`}
               className="group cursor-pointer"
               onClick={() => setSelectedItem(item)}
             >
-              <div className="relative aspect-square rounded-lg overflow-hidden bg-zinc-800 border border-zinc-700/50 group-hover:border-zinc-500 transition-colors">
+              <div
+                className="relative rounded-lg overflow-hidden bg-zinc-800 border border-zinc-700/50 group-hover:border-zinc-500 transition-colors"
+                style={{
+                  aspectRatio:
+                    item.imageWidth && item.imageHeight
+                      ? `${item.imageWidth}/${item.imageHeight}`
+                      : '9/16',
+                }}
+              >
                 <img
                   src={item.imageUrl || PLACEHOLDER_IMAGE}
                   alt={item.name || '视觉素材'}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain"
                   onError={(e) => {
                     (e.target as HTMLImageElement).src = PLACEHOLDER_IMAGE;
                   }}
@@ -391,20 +480,14 @@ export default function VisualPage() {
                 </div>
                 {/* Brand badge */}
                 <div className="absolute top-2 left-2">
-                  <Badge
-                    variant="secondary"
-                    className="text-[10px] bg-black/60 text-white border-none"
-                  >
+                  <Badge variant="secondary" className="text-[10px] bg-black/60 text-white border-none">
                     {item.brand}
                   </Badge>
                 </div>
                 {/* Category badge */}
                 {item.category && (
                   <div className="absolute top-2 right-2">
-                    <Badge
-                      variant="outline"
-                      className="text-[10px] bg-black/60 text-zinc-300 border-zinc-600"
-                    >
+                    <Badge variant="outline" className="text-[10px] bg-black/60 text-zinc-300 border-zinc-600">
                       {item.category}
                     </Badge>
                   </div>
@@ -419,9 +502,7 @@ export default function VisualPage() {
       )}
 
       {/* Detail Modal */}
-      {selectedItem && (
-        <DetailModal item={selectedItem} onClose={() => setSelectedItem(null)} />
-      )}
+      {selectedItem && <DetailModal item={selectedItem} onClose={() => setSelectedItem(null)} />}
     </div>
   );
 }
@@ -431,19 +512,14 @@ function DetailModal({ item, onClose }: { item: VisualItem; onClose: () => void 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal Content */}
       <div className="relative z-10 bg-zinc-900 border border-zinc-700 rounded-xl w-[95vw] max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-700">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-bold text-foreground">
-              {item.name || '视觉详情'}
-            </h2>
+            <h2 className="text-lg font-bold text-foreground">{item.name || '视觉详情'}</h2>
             <div className="flex items-center gap-2">
               <Badge variant="secondary" className="text-xs bg-zinc-800 text-zinc-300 border-zinc-600">
                 {item.brand}
@@ -468,7 +544,15 @@ function DetailModal({ item, onClose }: { item: VisualItem; onClose: () => void 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Left: Image */}
             <div className="space-y-4">
-              <div className="aspect-square rounded-lg overflow-hidden bg-zinc-800 border border-zinc-700">
+              <div
+                className="rounded-lg overflow-hidden bg-zinc-800 border border-zinc-700"
+                style={{
+                  aspectRatio:
+                    item.imageWidth && item.imageHeight
+                      ? `${item.imageWidth}/${item.imageHeight}`
+                      : '9/16',
+                }}
+              >
                 <img
                   src={item.imageUrl || PLACEHOLDER_IMAGE}
                   alt={item.name || '视觉素材'}
@@ -530,11 +614,19 @@ function DetailModal({ item, onClose }: { item: VisualItem; onClose: () => void 
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <InfoRow icon={<Calendar className="h-3.5 w-3.5" />} label="开始日期" value={item.startDate || '未设置'} />
-                  <InfoRow icon={<Calendar className="h-3.5 w-3.5" />} label="结束日期" value={item.endDate || '未设置'} />
-                  {item.startDate && item.endDate && (
+                  <InfoRow
+                    icon={<Calendar className="h-3.5 w-3.5" />}
+                    label="开始日期"
+                    value={item.startDate || '未设置'}
+                  />
+                  <InfoRow
+                    icon={<Calendar className="h-3.5 w-3.5" />}
+                    label="结束日期"
+                    value={item.endDate || '未设置'}
+                  />
+                  {item.startDate && (
                     <div className="text-xs text-zinc-500 pl-5">
-                      共计 {daysBetween(item.startDate, item.endDate)} 天
+                      已使用 {daysBetween(item.startDate, item.endDate || '使用中')} 天
                     </div>
                   )}
                 </CardContent>
@@ -552,12 +644,12 @@ function DetailModal({ item, onClose }: { item: VisualItem; onClose: () => void 
                   <InfoRow
                     icon={<Users className="h-3.5 w-3.5" />}
                     label="曝光进入率（人数）"
-                    value={item.exposureRatePeople !== null ? `${item.exposureRatePeople}%` : '暂无数据'}
+                    value={item.exposureRatePeople !== null ? String(item.exposureRatePeople) : '暂无数据'}
                   />
                   <InfoRow
                     icon={<Users className="h-3.5 w-3.5" />}
                     label="曝光进入率（次数）"
-                    value={item.exposureRateCount !== null ? `${item.exposureRateCount}%` : '暂无数据'}
+                    value={item.exposureRateCount !== null ? String(item.exposureRateCount) : '暂无数据'}
                   />
                   <InfoRow
                     icon={<Clock className="h-3.5 w-3.5" />}

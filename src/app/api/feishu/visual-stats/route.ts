@@ -11,6 +11,8 @@ export interface VisualItem {
   category: string;       // 日播 | 发布会 | 主题
   name: string;
   imageUrl: string;
+  imageWidth?: number;
+  imageHeight?: number;
   startDate: string;
   endDate: string;
   exposureRatePeople: number | null;
@@ -71,6 +73,8 @@ interface EmbedImage {
   type?: string;
   fileToken?: string;
   link?: string;
+  width?: number;
+  height?: number;
 }
 
 function safeString(val: unknown): string {
@@ -82,21 +86,37 @@ function safeString(val: unknown): string {
   return '';
 }
 
+/** Convert Excel date serial number to YYYY-MM-DD string */
+function excelSerialToDate(serial: string): string {
+  const num = parseInt(serial, 10);
+  if (isNaN(num) || num < 1) return serial; // not a serial, return as-is
+  // Excel serial: days since 1900-01-01 (with the Lotus 1-2-3 leap year bug)
+  const epoch = new Date(1899, 11, 30); // Dec 30, 1899
+  const date = new Date(epoch.getTime() + num * 86400000);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 /** Extract imageUrl from cell value. Handles embed-image objects from Feishu */
-function extractImageUrl(val: unknown): string {
-  if (val === null || val === undefined) return '';
-  if (typeof val === 'string') return val.trim();
+function extractImageUrl(val: unknown): { url: string; width?: number; height?: number } {
+  if (val === null || val === undefined) return { url: '' };
+  if (typeof val === 'string') return { url: val.trim() };
   if (typeof val === 'object' && !Array.isArray(val)) {
     const obj = val as EmbedImage;
     if (obj.type === 'embed-image' && obj.fileToken) {
-      // Use path-based URL (CDN reliably forwards path params)
-      return `/api/feishu/image-proxy/${encodeURIComponent(obj.fileToken)}`;
+      return {
+        url: `/api/feishu/image-proxy/${encodeURIComponent(obj.fileToken)}`,
+        width: obj.width,
+        height: obj.height,
+      };
     }
-    if (obj.link) return obj.link;
+    if (obj.link) return { url: obj.link, width: obj.width, height: obj.height };
   }
-  if (typeof val === 'number' || typeof val === 'boolean') return String(val);
-  if (Array.isArray(val)) return val.map((v) => String(v || '')).join(',');
-  return '';
+  if (typeof val === 'number' || typeof val === 'boolean') return { url: String(val) };
+  if (Array.isArray(val)) return { url: val.map((v) => String(v || '')).join(',') };
+  return { url: '' };
 }
 
 function parseNumber(val: string): number | null {
@@ -105,16 +125,26 @@ function parseNumber(val: string): number | null {
   return isNaN(num) ? null : num;
 }
 
-function parseRow(row: string[]): VisualItem {
+/** Parse a row, converting Excel serial dates and extracting image info */
+function parseRow(row: unknown[]): VisualItem {
   const s = (idx: number) => safeString(row[idx]);
+  const imgInfo = extractImageUrl(row[4]);
+  // Convert Excel serial dates (numeric strings like "46223") to proper date format
+  const startDateRaw = s(5);
+  const endDateRaw = s(6);
+  const startDate = /^\d{4,6}$/.test(startDateRaw) ? excelSerialToDate(startDateRaw) : startDateRaw;
+  const endDate = /^\d{4,6}$/.test(endDateRaw) ? excelSerialToDate(endDateRaw) : endDateRaw;
+
   return {
     brand: s(0),
     creator: s(1),
     category: s(2),
     name: s(3),
-    imageUrl: extractImageUrl(row[4]),
-    startDate: s(5),
-    endDate: s(6),
+    imageUrl: imgInfo.url,
+    imageWidth: imgInfo.width,
+    imageHeight: imgInfo.height,
+    startDate,
+    endDate,
     exposureRatePeople: parseNumber(s(7)),
     exposureRateCount: parseNumber(s(8)),
     avgStayDuration: s(9),
