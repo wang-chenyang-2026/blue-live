@@ -112,7 +112,7 @@ async function getSheetValues(
 ): Promise<string[][]> {
   const fullRange = `${sheetId}!${range}`;
   const encodedRange = encodeURIComponent(fullRange);
-  const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${encodedRange}`;
+  const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${encodedRange}?valueRenderOption=FORMATTED_VALUE&dateTimeRenderOption=FormattedString`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   });

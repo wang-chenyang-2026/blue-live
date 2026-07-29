@@ -197,7 +197,7 @@ async function readColumn(
 ): Promise<Array<{ timeSlot: string; value: string }>> {
   const colName = colToLetter(colIndex);
   const range = `${colName}${startRow}:${colName}${endRow}`;
-  const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${sheetId}!${range}`;
+  const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${sheetId}!${range}?valueRenderOption=FORMATTED_VALUE&dateTimeRenderOption=FormattedString`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   const json = await res.json();
   if (json.code !== 0 || !json.data?.valueRange?.values) return [];
@@ -206,7 +206,7 @@ async function readColumn(
   // 同时读取 B 列获取时间段标签
   const bColName = 'B';
   const bRange = `${bColName}${startRow}:${bColName}${endRow}`;
-  const bUrl = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${sheetId}!${bRange}`;
+  const bUrl = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${sheetId}!${bRange}?valueRenderOption=FORMATTED_VALUE&dateTimeRenderOption=FormattedString`;
   const bRes = await fetch(bUrl, { headers: { Authorization: `Bearer ${token}` } });
   const bJson = await bRes.json();
   const bValues: string[][] = bJson.data?.valueRange?.values || [];
