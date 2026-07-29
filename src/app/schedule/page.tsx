@@ -468,7 +468,8 @@ function DateGroup({
       <div
         className={`transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}
       >
-        <div className="px-5 pb-4 space-y-4">
+        <div className="px-5 pb-4 space-y-4 overflow-x-auto">
+          <div className="min-w-[600px]">
           {dateItem.accounts.map(account => {
             const personCount = account.stats?.personCount || 0;
             if (personCount === 0) return null;
@@ -511,6 +512,7 @@ function DateGroup({
               </section>
             );
           })}
+          </div>
         </div>
       </div>
     </article>
