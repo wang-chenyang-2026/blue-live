@@ -78,6 +78,16 @@ const CATEGORY_CONFIG: Record<string, {
     dimKey: 'fulltime',
     role: '中控',
   },
+  '全职运营成本': {
+    label: '全职运营',
+    icon: null,
+    bg: 'rgba(16,185,129,0.1)',
+    text: '#10B981',
+    tagBg: 'rgba(16,185,129,0.1)',
+    tagText: '#10B981',
+    dimKey: 'fulltime',
+    role: '运营',
+  },
   '日常物料成本': {
     label: '日常物料',
     icon: null,
@@ -144,6 +154,7 @@ const CATEGORY_ICONS: Record<string, { icon: React.ReactNode; color: string; bg:
   '兼职中控成本': { icon: <MonitorIcon color="#7B61FF" />, color: '#7B61FF', bg: 'rgba(123,97,255,0.15)' },
   '全职主播成本': { icon: <PersonIcon color="#6B7FE8" />, color: '#6B7FE8', bg: 'rgba(65,88,208,0.1)' },
   '全职中控成本': { icon: <MonitorIcon color="#9B85FF" />, color: '#9B85FF', bg: 'rgba(123,97,255,0.1)' },
+  '全职运营成本': { icon: <PersonIcon color="#10B981" />, color: '#10B981', bg: 'rgba(16,185,129,0.1)' },
   '日常物料成本': { icon: <BoxIcon color="#6B7280" />, color: '#6B7280', bg: 'rgba(107,114,128,0.15)' },
   '其它成本': { icon: <DocumentIcon color="#6B7280" />, color: '#6B7280', bg: 'rgba(107,114,128,0.1)' },
 };
@@ -400,7 +411,9 @@ export default function CostPagePM() {
     });
 
     feishuData.dimensions.fulltime.details.forEach((d, i) => {
-      const cat = d.role === '主播' ? '全职主播成本' : '全职中控成本';
+      let cat = '全职中控成本';
+      if (d.role === '主播') cat = '全职主播成本';
+      else if (d.role === '运营') cat = '全职运营成本';
       rows.push({
         id: `fulltime-${i}`,
         category: cat,

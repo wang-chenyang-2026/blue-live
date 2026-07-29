@@ -58,20 +58,39 @@ const ANCHOR_RATES: Record<string, number> = {
   "孙悦": 150, "詹琪琪": 150, "汪恒莉": 150, "张宁": 150,
 };
 
-// Full-time employee configuration
-const FULLTIME_CONFIG: Record<string, { brand: string; base: number; subsidy: number; role: string }> = {
-  "张厚羿": { brand: "vivo", base: 7000, subsidy: 500, role: "中控" },
-  "刘慈航": { brand: "vivo", base: 6000, subsidy: 500, role: "中控" },
-  "倪休": { brand: "iQOO", base: 8000, subsidy: 500, role: "运营" },
-  "张睿": { brand: "iQOO", base: 12500, subsidy: 500, role: "运营" },
-  "陈世杰": { brand: "vivo", base: 13000, subsidy: 500, role: "运营" },
-  "高新权": { brand: "iQOO", base: 15000, subsidy: 500, role: "运营" },
-  "袁智恒": { brand: "IOT", base: 6500, subsidy: 500, role: "运营" },
-  "曲峰君": { brand: "IOT", base: 13500, subsidy: 0, role: "运营" },
-  "洪元媛": { brand: "iQOO", base: 6000, subsidy: 500, role: "中控" }, // 7月转全职
-  "曾令飞": { brand: "iQOO", base: 6000, subsidy: 500, role: "中控" }, // 7月转全职
-  "石一淇": { brand: "vivo", base: 12000, subsidy: 500, role: "主播" },
-};
+// Build full-time employee config dynamically from Feishu salary sheet
+async function buildFulltimeConfig(feishuToken: string): Promise<Record<string, { brand: string; base: number; subsidy: number; role: string }>> {
+  const config: Record<string, { brand: string; base: number; subsidy: number; role: string }> = {};
+  
+  try {
+    const values = await readSheet(feishuToken, NICKNAME_SHEET_TOKEN, `${NICKNAME_SHEETS.fullTime}!A1:D100`);
+    for (let i = 1; i < values.length; i++) {
+      const rawProject = String(values[i][0] || "").trim();
+      const name = String(values[i][1] || "").trim();
+      const role = String(values[i][2] || "").trim();
+      const base = Number(values[i][3]) || 0;
+      
+      if (!name || !rawProject || !role || !base) continue;
+      
+      // Normalize brand name from sheet to match SCHEDULE_CONFIG keys
+      let brand = rawProject;
+      if (rawProject.includes("iQOO")) brand = "iQOO";
+      else if (rawProject.includes("vivo")) brand = "vivo";
+      else if (rawProject.toUpperCase().includes("IOT")) brand = "IOT";
+      
+      config[name] = {
+        brand,
+        base,
+        subsidy: 500, // 固定补贴，所有全职岗位统一 500
+        role,
+      };
+    }
+  } catch (e) {
+    console.error("Failed to build fulltime config:", e);
+  }
+  
+  return config;
+}
 
 // Helper: Get Feishu tenant access token
 async function getFeishuToken(): Promise<string> {
@@ -296,7 +315,8 @@ async function calcControlCost(
   feishuToken: string,
   month: string,
   brand: string,
-  nicknameMapping?: { nicknameToReal: Record<string, string>; allNames: Set<string> }
+  nicknameMapping?: { nicknameToReal: Record<string, string>; allNames: Set<string> },
+  fulltimeConfig?: Record<string, { brand: string; base: number; subsidy: number; role: string }>
 ): Promise<{ total: number; details: Array<{ name: string; hours: number; cost: number; mode: string }> }> {
   const [year, monthNum] = month.split("-").map(Number);
   
@@ -342,7 +362,7 @@ async function calcControlCost(
             // Resolve nickname to real name if mapping is available
             const resolvedName = nicknameMapping ? resolveName(cleanName, nicknameMapping) : cleanName;
             // Skip full-time employees and day labels
-            if (resolvedName in FULLTIME_CONFIG) continue;
+            if (fulltimeConfig && resolvedName in fulltimeConfig) continue;
             if (isDayLabel(resolvedName)) continue;
             nameHours[resolvedName] = (nameHours[resolvedName] || 0) + 1;
           }
@@ -412,7 +432,8 @@ async function calcControlCost(
 async function calcFulltimeCost(
   feishuToken: string,
   month: string,
-  brand: string
+  brand: string,
+  fulltimeConfig: Record<string, { brand: string; base: number; subsidy: number; role: string }>
 ): Promise<{ total: number; details: Array<{ name: string; base: number; subsidy: number; cost: number; role: string }> }> {
   const [year, monthNum] = month.split("-").map(Number);
   const daysInMonth = new Date(year, monthNum, 0).getDate();
@@ -469,7 +490,7 @@ async function calcFulltimeCost(
   const nameUniqueDays: Record<string, Set<string>> = {};
   for (const schedule of Object.values(SCHEDULE_CONFIG)) {
     for (const sheetId of [schedule.anchorSheet, schedule.controlSheet]) {
-      const values = await readSheet(feishuToken, schedule.wikiToken, `${sheetId}!A1:H50`);
+      const values = await readSheet(feishuToken, schedule.wikiToken, `${sheetId}!A1:CV200`);
       if (!values.length) continue;
       
       const header = values[0];
@@ -506,7 +527,7 @@ async function calcFulltimeCost(
   }
   
   // Filter by brand and calculate cost
-  const details = Object.entries(FULLTIME_CONFIG)
+  const details = Object.entries(fulltimeConfig)
     .filter(([_, config]) => {
       if (brand === "all") return true;
       return config.brand === brand;
@@ -520,14 +541,26 @@ async function calcFulltimeCost(
       
       if (!isFulltimeMonth) return null;
       
+      // 运营不参与排班，月度成本 = 底薪 + 补贴 + 社保
+      if (config.role === '运营') {
+        const socialInsurance = 1600;
+        const totalCost = config.base + config.subsidy + socialInsurance;
+        
+        return {
+          name,
+          base: config.base,
+          subsidy: config.subsidy,
+          cost: totalCost,
+          role: config.role,
+        };
+      }
+      
       const attendanceDays = nameUniqueDays[name]?.size || 0;
       const actualHours = nameAttendance[name]?.hours || 0;
       
       let expectedHours = 0;
       if (config.role === "主播") {
         expectedHours = 90; // Fixed for anchors
-      } else if (config.role === "运营") {
-        expectedHours = 0; // Operations have 0 expected hours
       } else {
         expectedHours = workDays * 8;
       }
@@ -669,11 +702,14 @@ export async function GET(request: NextRequest) {
     // Build nickname → real name mapping from salary table
     const nicknameMapping = await buildNicknameMapping(feishuToken);
     
+    // Build full-time employee config dynamically from Feishu salary sheet
+    const fulltimeConfig = await buildFulltimeConfig(feishuToken);
+    
     // Calculate all dimensions
     const [anchorResult, controlResult, fulltimeResult, purchaseResult] = await Promise.all([
       calcAnchorCost(feishuToken, month, brand, nicknameMapping),
-      calcControlCost(feishuToken, month, brand, nicknameMapping),
-      calcFulltimeCost(feishuToken, month, brand),
+      calcControlCost(feishuToken, month, brand, nicknameMapping, fulltimeConfig),
+      calcFulltimeCost(feishuToken, month, brand, fulltimeConfig),
       calcPurchaseCost(feishuToken, month, brand),
     ]);
     
@@ -684,24 +720,24 @@ export async function GET(request: NextRequest) {
     if (brand === "all") {
       const [vivoAnchor, vivoControl, vivoFulltime, vivoPurchase] = await Promise.all([
         calcAnchorCost(feishuToken, month, "vivo", nicknameMapping),
-        calcControlCost(feishuToken, month, "vivo", nicknameMapping),
-        calcFulltimeCost(feishuToken, month, "vivo"),
+        calcControlCost(feishuToken, month, "vivo", nicknameMapping, fulltimeConfig),
+        calcFulltimeCost(feishuToken, month, "vivo", fulltimeConfig),
         calcPurchaseCost(feishuToken, month, "vivo"),
       ]);
       byBrand.vivo = vivoAnchor.total + vivoControl.total + vivoFulltime.total + vivoPurchase.total;
       
       const [iqooAnchor, iqooControl, iqooFulltime, iqooPurchase] = await Promise.all([
         calcAnchorCost(feishuToken, month, "iQOO", nicknameMapping),
-        calcControlCost(feishuToken, month, "iQOO", nicknameMapping),
-        calcFulltimeCost(feishuToken, month, "iQOO"),
+        calcControlCost(feishuToken, month, "iQOO", nicknameMapping, fulltimeConfig),
+        calcFulltimeCost(feishuToken, month, "iQOO", fulltimeConfig),
         calcPurchaseCost(feishuToken, month, "iQOO"),
       ]);
       byBrand.iQOO = iqooAnchor.total + iqooControl.total + iqooFulltime.total + iqooPurchase.total;
       
       const [iotAnchor, iotControl, iotFulltime, iotPurchase] = await Promise.all([
         calcAnchorCost(feishuToken, month, "IOT", nicknameMapping),
-        calcControlCost(feishuToken, month, "IOT", nicknameMapping),
-        calcFulltimeCost(feishuToken, month, "IOT"),
+        calcControlCost(feishuToken, month, "IOT", nicknameMapping, fulltimeConfig),
+        calcFulltimeCost(feishuToken, month, "IOT", fulltimeConfig),
         calcPurchaseCost(feishuToken, month, "IOT"),
       ]);
       byBrand.IOT = iotAnchor.total + iotControl.total + iotFulltime.total + iotPurchase.total;

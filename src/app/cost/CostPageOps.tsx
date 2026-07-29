@@ -78,6 +78,16 @@ const CATEGORY_CONFIG: Record<string, {
     dimKey: 'fulltime',
     role: '中控',
   },
+  '全职运营成本': {
+    label: '全职运营',
+    icon: <Users className="w-4 h-4" />,
+    bg: 'rgba(16,185,129,0.1)',
+    text: '#10B981',
+    tagBg: 'rgba(16,185,129,0.1)',
+    tagText: '#10B981',
+    dimKey: 'fulltime',
+    role: '运营',
+  },
   '日常物料成本': {
     label: '日常物料',
     icon: <Package className="w-4 h-4" />,
@@ -335,7 +345,9 @@ export default function CostPageOps() {
 
     // 全职
     feishuData.dimensions.fulltime.details.forEach((d, i) => {
-      const cat = d.role === '主播' ? '全职主播成本' : '全职中控成本';
+      let cat = '全职中控成本';
+      if (d.role === '主播') cat = '全职主播成本';
+      else if (d.role === '运营') cat = '全职运营成本';
       rows.push({
         id: `fulltime-${i}`,
         category: cat,
