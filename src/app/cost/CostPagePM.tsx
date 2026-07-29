@@ -1,52 +1,149 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo, memo } from 'react';
-import dynamic from 'next/dynamic';
 import { useApp } from '@/contexts/AppContext';
 import { BRANDS, COST_CATEGORIES } from '@/lib/constants';
-
-// 成本分类颜色配置（常量，避免每次渲染重建）
-const COST_CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string; dot: string }> = {
-  '兼职主播成本': { bg: 'bg-pink-500/10', border: 'border-pink-500', text: 'text-pink-400', dot: 'bg-pink-500' },
-  '兼职中控成本': { bg: 'bg-amber-500/10', border: 'border-amber-500', text: 'text-amber-400', dot: 'bg-amber-500' },
-  '全职主播成本': { bg: 'bg-blue-500/10', border: 'border-blue-500', text: 'text-blue-400', dot: 'bg-blue-500' },
-  '全职中控成本': { bg: 'bg-purple-500/10', border: 'border-purple-500', text: 'text-purple-400', dot: 'bg-purple-500' },
-  '日常物料成本': { bg: 'bg-emerald-500/10', border: 'border-emerald-500', text: 'text-emerald-400', dot: 'bg-emerald-500' },
-  '其它成本': { bg: 'bg-zinc-500/10', border: 'border-zinc-500', text: 'text-zinc-400', dot: 'bg-zinc-500' },
-};
 import {
-  getCostList,
-  addCostItem,
-  updateCostItem,
-  deleteCostItem,
   getRevenueList,
-  addRevenueItem,
-  deleteRevenueItem,
   getKPIList,
-  addKPIItem,
   updateKPIItem,
   calcProfitRate,
-  genId,
 } from '@/lib/store';
-import type { CostItem, RevenueItem, KPIItem } from '@/lib/types';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import type { RevenueItem, KPIItem } from '@/lib/types';
+import { cn } from '@/lib/utils';
+import { useSafeMonth } from '@/lib/hooks';
 import {
-  Trash2,
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
-  PieChart,
-  AlertTriangle,
+  Search,
+  Download,
+  RefreshCw,
+  ExternalLink,
+  Mic,
+  Monitor,
+  Users,
+  Package,
+  MoreHorizontal,
   CheckCircle2,
   XCircle,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useSafeMonth } from '@/lib/hooks';
 
-// ===== 工具函数 =====
+// ==================== 常量定义 ====================
+
+const BRAND_COLORS: Record<string, string> = {
+  vivo: '#4158D0',
+  iqoo: '#7B61FF',
+  all: '#4158D0',
+  iot: '#10B981',
+};
+
+const CATEGORY_CONFIG: Record<string, {
+  label: string;
+  icon: React.ReactNode;
+  bg: string;
+  text: string;
+  tagBg: string;
+  tagText: string;
+  dimKey?: string;
+  role?: string;
+}> = {
+  '兼职主播成本': {
+    label: '兼职主播',
+    icon: <Mic className="w-4 h-4" />,
+    bg: 'rgba(65,88,208,0.15)',
+    text: '#4158D0',
+    tagBg: 'rgba(65,88,208,0.15)',
+    tagText: '#4158D0',
+    dimKey: 'anchor',
+  },
+  '兼职中控成本': {
+    label: '兼职中控',
+    icon: <Monitor className="w-4 h-4" />,
+    bg: 'rgba(123,97,255,0.15)',
+    text: '#7B61FF',
+    tagBg: 'rgba(123,97,255,0.15)',
+    tagText: '#7B61FF',
+    dimKey: 'control',
+  },
+  '全职主播成本': {
+    label: '全职主播',
+    icon: <Users className="w-4 h-4" />,
+    bg: 'rgba(65,88,208,0.1)',
+    text: '#6B7FE8',
+    tagBg: 'rgba(65,88,208,0.1)',
+    tagText: '#6B7FE8',
+    dimKey: 'fulltime',
+    role: '主播',
+  },
+  '全职中控成本': {
+    label: '全职中控',
+    icon: <Monitor className="w-4 h-4" />,
+    bg: 'rgba(123,97,255,0.1)',
+    text: '#9B85FF',
+    tagBg: 'rgba(123,97,255,0.1)',
+    tagText: '#9B85FF',
+    dimKey: 'fulltime',
+    role: '中控',
+  },
+  '日常物料成本': {
+    label: '日常物料',
+    icon: <Package className="w-4 h-4" />,
+    bg: 'rgba(107,114,128,0.15)',
+    text: '#6B7280',
+    tagBg: 'rgba(107,114,128,0.15)',
+    tagText: '#6B7280',
+    dimKey: 'purchase',
+  },
+  '其它成本': {
+    label: '其它',
+    icon: <MoreHorizontal className="w-4 h-4" />,
+    bg: 'rgba(107,114,128,0.1)',
+    text: '#6B7280',
+    tagBg: 'rgba(107,114,128,0.1)',
+    tagText: '#6B7280',
+  },
+};
+
+// ==================== 类型定义 ====================
+interface FeishuDimension {
+  total: number;
+  details: Array<{
+    name: string;
+    hours?: number;
+    rate?: number;
+    cost: number;
+    role?: string;
+    base?: number;
+    subsidy?: number;
+    remark?: string;
+    mode?: string;
+  }>;
+}
+
+interface FeishuData {
+  month: string;
+  brand: string;
+  dimensions: {
+    anchor: FeishuDimension;
+    control: FeishuDimension;
+    fulltime: FeishuDimension;
+    purchase: FeishuDimension;
+  };
+  totalCost: number;
+  byBrand: Record<string, number>;
+}
+
+interface TableRow {
+  id: string;
+  category: string;
+  name: string;
+  amount: number;
+  remark: string;
+}
+
+// ==================== 工具函数 ====================
+function formatCurrency(n: number): string {
+  return `¥${n.toLocaleString('zh-CN')}`;
+}
+
 function getToday(): string {
   return new Date().toISOString().split('T')[0];
 }
@@ -57,124 +154,86 @@ function getDaysAgo(days: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-// recharts 动态导入，禁用 SSR 以避免 window/document 访问导致 hydration 错误
-const RechartsBarChart = dynamic(
-  () => import('recharts').then((mod) => {
-    const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = mod;
-    return function DynamicBarChart(props: React.ComponentProps<typeof BarChart> & { data: unknown[]; bars: { dataKey: string; fill: string; name: string }[] }) {
-      return (
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={props.data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-            <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" fontSize={12} />
-            <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} />
-            <Tooltip />
-            <Legend />
-            {props.bars.map((bar) => (
-              <Bar key={bar.dataKey} dataKey={bar.dataKey} fill={bar.fill} name={bar.name} />
-            ))}
-          </BarChart>
-        </ResponsiveContainer>
-      );
-    };
-  }),
-  { ssr: false, loading: () => <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">图表加载中...</div> }
-);
+function getMonthRange(month: string): { start: string; end: string } {
+  if (!month) return { start: '', end: '' };
+  const [y, m] = month.split('-').map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const today = getToday();
+  const monthEnd = `${y}-${String(m).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+  return {
+    start: `${y}-${String(m).padStart(2, '0')}-01`,
+    end: today > monthEnd ? monthEnd : today,
+  };
+}
 
-const RechartsLineChart = dynamic(
-  () => import('recharts').then((mod) => {
-    const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = mod;
-    return function DynamicLineChart(props: React.ComponentProps<typeof LineChart> & { data: unknown[]; lines: { dataKey: string; stroke: string; name: string }[] }) {
-      return (
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={props.data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-            <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" fontSize={12} />
-            <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} />
-            <Tooltip />
-            <Legend />
-            {props.lines.map((line) => (
-              <Line key={line.dataKey} type="monotone" dataKey={line.dataKey} stroke={line.stroke} name={line.name} strokeWidth={2} dot={{ r: 3 }} />
-            ))}
-          </LineChart>
-        </ResponsiveContainer>
-      );
-    };
-  }),
-  { ssr: false, loading: () => <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">图表加载中...</div> }
-);
+function formatDisplayDate(dateStr: string): string {
+  if (!dateStr) return '';
+  return dateStr.replace(/-/g, '/');
+}
 
+// ==================== 主组件 ====================
 export default function CostPagePM() {
   const { currentBrand, isClient } = useApp();
   const safeMonth = useSafeMonth();
-  const [costs, setCosts] = useState<CostItem[]>([]);
-  const [revenues, setRevenues] = useState<RevenueItem[]>([]);
+
+  // 状态
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [activeBrand, setActiveBrand] = useState('all');
+  const [feishuData, setFeishuData] = useState<FeishuData | null>(null);
+  const [feishuLoading, setFeishuLoading] = useState(false);
   const [kpis, setKpis] = useState<KPIItem[]>([]);
+  const [revenues, setRevenues] = useState<RevenueItem[]>([]);
+  const [activeTab, setActiveTab] = useState<'cost' | 'revenue' | 'kpi' | 'profit'>('cost');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
 
-  // 日期范围状态（替代月份选择器）- 必须在 selectedMonth 之前声明
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
-
-  // 月份从日期范围的开始日期直接推导（不再使用独立 state）
   const selectedMonth = useMemo(() => {
     if (!startDate) return '';
-    return startDate.slice(0, 7); // "2026-07-01" → "2026-07"
+    return startDate.slice(0, 7);
   }, [startDate]);
 
-  const [activeBrand, setActiveBrand] = useState<string>('vivo');
+  const brandColor = BRAND_COLORS[activeBrand] || '#4158D0';
 
-  // 飞书数据状态
-  const [feishuData, setFeishuData] = useState<{
-    month: string;
-    brand: string;
-    dimensions: {
-      anchor: { total: number; details: Array<{ name: string; hours: number; rate: number; cost: number }> };
-      control: { total: number; details: Array<{ name: string; hours: number; cost: number; mode: string }> };
-      fulltime: { total: number; details: Array<{ name: string; base: number; subsidy: number; cost: number; role: string }> };
-      purchase: { total: number; details: unknown[] };
-    };
-    totalCost: number;
-    byBrand: { vivo: number; iQOO: number; IOT: number };
-  } | null>(null);
-  const [feishuLoading, setFeishuLoading] = useState(false);
+  // 初始化日期
+  useEffect(() => {
+    if (safeMonth && !startDate) {
+      const range = getMonthRange(safeMonth);
+      setStartDate(range.start);
+      setEndDate(range.end);
+    }
+  }, [safeMonth]);
 
+  // 同步全局品牌
+  useEffect(() => {
+    if (currentBrand !== 'all') {
+      setActiveBrand(currentBrand);
+    }
+  }, [currentBrand]);
+
+  // 加载数据
   const loadData = useCallback(() => {
-    setCosts(getCostList());
     setRevenues(getRevenueList());
     setKpis(getKPIList());
   }, []);
 
   useEffect(() => {
-    // 使用 useSafeMonth hook 提供的安全月份值初始化日期范围
-    if (safeMonth && !startDate) {
-      const [y, m] = safeMonth.split('-').map(Number);
-      const daysInMonth = new Date(y, m, 0).getDate();
-      const today = getToday();
-      const monthEnd = `${y}-${String(m).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
-      setStartDate(`${y}-${String(m).padStart(2, '0')}-01`);
-      setEndDate(today > monthEnd ? monthEnd : today);
-    }
     loadData();
-  }, [loadData, safeMonth]);
-
-  useEffect(() => {
-    if (currentBrand !== 'all') setActiveBrand(currentBrand);
-  }, [currentBrand]);
-
-  // selectedMonth 已通过 useMemo 从 startDate 自动推导，无需额外 useEffect
+  }, [loadData]);
 
   // 获取飞书数据
   const fetchFeishuData = useCallback(async (month: string, brand: string) => {
     if (!month) return;
     setFeishuLoading(true);
     try {
-      const res = await fetch(`/api/cost-overview?month=${month}&brand=${brand}`);
+      const brandParam = brand === 'iqoo' ? 'iQOO' : brand === 'iot' ? 'IOT' : brand === 'all' ? 'all' : brand;
+      const res = await fetch(`/api/cost-overview?month=${month}&brand=${brandParam}`);
       const data = await res.json();
       if (data.success) {
         setFeishuData(data.data);
       }
     } catch (error) {
-      console.error('Failed to fetch feishu data:', error);
+      console.error('Failed to fetch cost data:', error);
     } finally {
       setFeishuLoading(false);
     }
@@ -186,28 +245,7 @@ export default function CostPagePM() {
     }
   }, [selectedMonth, activeBrand, fetchFeishuData]);
 
-  // 所有 Hooks 必须在条件返回之前声明，遵守 React Rules of Hooks
-  const brandAccounts = useMemo(
-    () => BRANDS.find((b) => b.id === activeBrand)?.accounts ?? [],
-    [activeBrand],
-  );
-
-  // 当前品牌当月数据（useMemo 缓存 filter 结果）
-  const brandCosts = useMemo(
-    () => costs.filter((c) => (activeBrand === 'all' || c.brandId === activeBrand) && c.month === selectedMonth),
-    [costs, activeBrand, selectedMonth],
-  );
-  const brandRevenues = useMemo(
-    () => revenues.filter((r) => (activeBrand === 'all' || r.brandId === activeBrand) && r.month === selectedMonth),
-    [revenues, activeBrand, selectedMonth],
-  );
-  const brandKPIs = useMemo(
-    () => kpis.filter((k) => (activeBrand === 'all' || k.brandId === activeBrand) && k.month === selectedMonth),
-    [kpis, activeBrand, selectedMonth],
-  );
-
-  // 利润率计算 - 使用飞书API数据作为成本来源
-  // useMemo 缓存 profit 计算，避免每次渲染都重算
+  // 利润数据
   const profitData = useMemo(() => {
     const localStorageProfit = activeBrand === 'all'
       ? BRANDS.reduce((acc, b) => {
@@ -233,108 +271,244 @@ export default function CostPagePM() {
       revenue: effectiveRevenue,
       totalCost: effectiveCost,
       profitRate: effectiveProfitRate,
-      costs: localStorageProfit.costs,
+      grossProfit: effectiveRevenue - effectiveCost,
       kpiDeducted: localStorageProfit.kpiDeducted,
     };
   }, [activeBrand, selectedMonth, feishuData]);
 
-  // 从飞书API获取各维度成本（useMemo 缓存）
-  const feishuAnchorCost = feishuData?.dimensions?.anchor?.total ?? 0;
-  const feishuControlCost = feishuData?.dimensions?.control?.total ?? 0;
-  const feishuFulltimeCost = feishuData?.dimensions?.fulltime?.total ?? 0;
-  const feishuPurchaseCost = feishuData?.dimensions?.purchase?.total ?? 0;
-
-  // 利润率看板数据 - 所有品牌当月（useMemo 缓存，避免每次渲染都重算）
-  const allBrandProfit = useMemo(
-    () =>
-      BRANDS.map((b) => ({
-        brand: b.name,
-        ...calcProfitRate(b.id, selectedMonth),
-      })),
-    [selectedMonth],
+  // 品牌收入过滤
+  const brandRevenues = useMemo(
+    () => revenues.filter((r) => (activeBrand === 'all' || r.brandId === activeBrand) && r.month === selectedMonth),
+    [revenues, activeBrand, selectedMonth],
   );
 
-  // 月度对比数据（近6个月）- 使用 selectedMonth 作为锚点避免 new Date()
-  const monthlyComparison = useMemo(() => {
-    if (!selectedMonth) return [];
-    return Array.from({ length: 6 }, (_, i) => {
-      const [y, m] = selectedMonth.split('-').map(Number);
-      const targetMonth = m - i;
-      const adjustedYear = targetMonth <= 0 ? y - 1 : y;
-      const adjustedMonth = targetMonth <= 0 ? targetMonth + 12 : targetMonth;
-      const month = `${adjustedYear}-${String(adjustedMonth).padStart(2, '0')}`;
-      const data = calcProfitRate(activeBrand, month);
+  // 成本分类计算
+  const categoryData = useMemo(() => {
+    if (!feishuData) return [];
+    const dims = feishuData.dimensions;
+    const totalCost = feishuData.totalCost || 1;
+
+    const items = COST_CATEGORIES.map((cat) => {
+      const config = CATEGORY_CONFIG[cat];
+      let cost = 0;
+      let count = 0;
+
+      if (config.dimKey === 'anchor') {
+        cost = dims.anchor.total;
+        count = dims.anchor.details.length;
+      } else if (config.dimKey === 'control') {
+        cost = dims.control.total;
+        count = dims.control.details.length;
+      } else if (config.dimKey === 'fulltime' && config.role) {
+        const details = dims.fulltime.details.filter((d) => d.role === config.role);
+        cost = details.reduce((s, d) => s + d.cost, 0);
+        count = details.length;
+      } else if (config.dimKey === 'purchase') {
+        cost = dims.purchase.total;
+        count = dims.purchase.details.length;
+      }
+
       return {
-        month: month.slice(5),
-        利润率: Number((data.profitRate * 100).toFixed(1)),
-        收入: data.revenue,
-        成本: data.totalCost,
+        key: cat,
+        label: config.label,
+        cost,
+        count,
+        ratio: cost / totalCost,
+        config,
       };
-    }).reverse();
-  }, [selectedMonth, activeBrand]);
+    });
 
-  const brandColors: Record<string, string> = {
-    vivo: '#415FFF',
-    iqoo: '#FF6B35',
-    iot: '#00C9A7',
-  };
+    return items;
+  }, [feishuData]);
 
-  const isPositive = profitData.profitRate >= 0;
-  const costRatio = profitData.revenue > 0 ? (profitData.totalCost / profitData.revenue * 100).toFixed(1) : '0';
+  // 表格数据
+  const tableRows = useMemo((): TableRow[] => {
+    if (!feishuData) return [];
+    const rows: TableRow[] = [];
 
-  // 客户端数据未就绪时返回骨架屏（在 Hooks 之后执行，不违反 Rules of Hooks）
+    feishuData.dimensions.anchor.details.forEach((d, i) => {
+      rows.push({
+        id: `anchor-${i}`,
+        category: '兼职主播成本',
+        name: d.name,
+        amount: d.cost,
+        remark: d.remark || (d.hours ? `${d.hours}h × ¥${d.rate || 0}/h` : ''),
+      });
+    });
+
+    feishuData.dimensions.control.details.forEach((d, i) => {
+      rows.push({
+        id: `control-${i}`,
+        category: '兼职中控成本',
+        name: d.name,
+        amount: d.cost,
+        remark: d.remark || '',
+      });
+    });
+
+    feishuData.dimensions.fulltime.details.forEach((d, i) => {
+      const cat = d.role === '主播' ? '全职主播成本' : '全职中控成本';
+      rows.push({
+        id: `fulltime-${i}`,
+        category: cat,
+        name: d.name,
+        amount: d.cost,
+        remark: d.remark || '',
+      });
+    });
+
+    (feishuData.dimensions.purchase.details as Array<{ name?: string; amount?: number; date?: string }>).forEach((d, i) => {
+      rows.push({
+        id: `purchase-${i}`,
+        category: '日常物料成本',
+        name: d.name || d.date || '物料采买',
+        amount: d.amount || 0,
+        remark: '',
+      });
+    });
+
+    return rows.sort((a, b) => b.amount - a.amount);
+  }, [feishuData]);
+
+  // 过滤后的表格数据
+  const filteredRows = useMemo(() => {
+    let rows = tableRows;
+    if (categoryFilter !== 'all') {
+      rows = rows.filter((r) => r.category === categoryFilter);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      rows = rows.filter((r) =>
+        r.name.toLowerCase().includes(q) ||
+        r.category.toLowerCase().includes(q) ||
+        r.remark.toLowerCase().includes(q)
+      );
+    }
+    return rows;
+  }, [tableRows, categoryFilter, searchQuery]);
+
+  // KPI过滤
+  const brandKPIs = useMemo(() => {
+    return kpis.filter((k) => {
+      if (activeBrand === 'all') return true;
+      return k.brandId === activeBrand;
+    }).filter((k) => {
+      if (!selectedMonth) return true;
+      return k.month === selectedMonth;
+    });
+  }, [kpis, activeBrand, selectedMonth]);
+
+  // 导出CSV
+  const exportCSV = useCallback(() => {
+    const headers = ['类别', '姓名', '金额', '占比', '备注'];
+    const total = feishuData?.totalCost || 1;
+    const csvRows = filteredRows.map((r) => [
+      r.category,
+      r.name,
+      r.amount,
+      `${(r.amount / total * 100).toFixed(1)}%`,
+      r.remark,
+    ]);
+    const csvContent = [headers, ...csvRows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `成本明细_${selectedMonth || 'export'}_${activeBrand}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [filteredRows, selectedMonth, activeBrand, feishuData]);
+
+  // 成本占比
+  const costRatio = profitData.revenue > 0 ? (profitData.totalCost / profitData.revenue * 100).toFixed(0) : '0';
+
+  // 加载骨架
   if (!isClient || !selectedMonth || !startDate) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">成本核算</h1>
-          <p className="text-sm text-muted-foreground mt-1">加载中...</p>
+      <div className="min-h-screen" style={{ backgroundColor: '#0B0F19' }}>
+        <div className="p-6 space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="h-8 w-40 rounded" style={{ backgroundColor: '#1f2937' }} />
+              <div className="h-4 w-60 rounded mt-2" style={{ backgroundColor: '#1f2937' }} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-32 rounded-xl animate-pulse" style={{ backgroundColor: '#111827' }} />
+            ))}
+          </div>
         </div>
-        <div className="rounded-xl border border-border bg-card h-48 animate-pulse" />
       </div>
     );
   }
 
+  const profitIsPositive = profitData.profitRate >= 0;
+  const grossProfit = profitData.grossProfit;
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">成本核算</h1>
-          <p className="text-sm text-muted-foreground mt-1">六大成本项、收入计算、KPI扣减与利润率分析</p>
+    <div className="min-h-screen p-4 md:p-8 space-y-6" style={{ backgroundColor: '#0B0F19', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }}>
+      {/* ===== 1. 顶部筛选栏 ===== */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-xl font-bold" style={{ color: '#E5E7EB' }}>成本核算</h1>
+            <p className="text-xs mt-1" style={{ color: '#9CA3AF' }}>六大成本项、收入计算、KPI 扣减与利润率分析</p>
+          </div>
+          {/* 权限标签 */}
+          <span
+            className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-2xl"
+            style={{ backgroundColor: 'rgba(16,185,129,0.15)', color: '#10B981' }}
+          >
+            🛡 完整数据视图
+          </span>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-sm text-zinc-400">日期范围</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* 日期范围 */}
+          <span className="text-sm" style={{ color: '#9CA3AF' }}>
+            {formatDisplayDate(startDate)} ~ {formatDisplayDate(endDate)}
+          </span>
           <input
             type="date"
             value={startDate}
-            onChange={e => setStartDate(e.target.value)}
-            className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
+            onChange={(e) => setStartDate(e.target.value)}
+            className="bg-transparent border rounded-lg px-3 py-1.5 text-sm focus:outline-none"
+            style={{ borderColor: '#374151', color: '#E5E7EB' }}
           />
-          <span className="text-zinc-500">~</span>
+          <span style={{ color: '#4B5563' }}>~</span>
           <input
             type="date"
             value={endDate}
-            onChange={e => setEndDate(e.target.value)}
-            className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
+            onChange={(e) => setEndDate(e.target.value)}
+            className="bg-transparent border rounded-lg px-3 py-1.5 text-sm focus:outline-none"
+            style={{ borderColor: '#374151', color: '#E5E7EB' }}
           />
+          {/* 快捷按钮 */}
           <button
             onClick={() => {
               setStartDate(getDaysAgo(6));
               setEndDate(getToday());
             }}
-            className="px-3 py-2 text-xs rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition"
-          >近7天</button>
+            className="px-3 py-1.5 text-xs rounded-lg border transition"
+            style={{ borderColor: '#374151', color: '#9CA3AF' }}
+          >
+            近7天
+          </button>
           <button
             onClick={() => {
-              const d = new Date();
-              const m = d.getMonth();
-              const y = d.getFullYear();
-              setStartDate(`${y}-${String(m + 1).padStart(2, '0')}-01`);
-              setEndDate(getToday());
+              const range = getMonthRange(safeMonth);
+              setStartDate(range.start);
+              setEndDate(range.end);
             }}
-            className="px-3 py-2 text-xs rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition"
-          >本月</button>
+            className="px-3 py-1.5 text-xs rounded-lg border transition"
+            style={{ borderColor: '#374151', color: '#9CA3AF' }}
+          >
+            本月
+          </button>
+          {/* 刷新 */}
           <button
             onClick={() => {
               if (selectedMonth) {
@@ -342,434 +516,659 @@ export default function CostPagePM() {
                 loadData();
               }
             }}
-            className="px-4 py-2 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition font-medium"
-          >刷新</button>
+            className="p-2 rounded-lg border transition hover:opacity-80"
+            style={{ borderColor: brandColor, color: brandColor }}
+            title="刷新数据"
+          >
+            <RefreshCw className={cn("w-4 h-4", feishuLoading && "animate-spin")} />
+          </button>
+          {/* 品牌切换 */}
+          <div className="flex items-center gap-1 ml-2">
+            {[
+              { id: 'all', name: '全部', color: '#4158D0' },
+              ...BRANDS.map((b) => ({
+                id: b.id,
+                name: b.name,
+                color: BRAND_COLORS[b.id] || '#4158D0',
+              })),
+            ].map((b) => (
+              <button
+                key={b.id}
+                onClick={() => setActiveBrand(b.id)}
+                className="px-3 py-1.5 text-xs rounded-lg border transition-all"
+                style={
+                  activeBrand === b.id
+                    ? { backgroundColor: b.color + '20', color: b.color, borderColor: b.color + '40' }
+                    : { borderColor: '#374151', color: '#9CA3AF' }
+                }
+              >
+                {b.name}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Brand tabs */}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => setActiveBrand('all')}
-          className={cn(
-            'rounded-md px-3 py-1.5 text-xs transition-colors',
-            activeBrand === 'all' ? 'font-medium' : 'text-muted-foreground hover:text-foreground'
-          )}
-          style={
-            activeBrand === 'all'
-              ? { backgroundColor: '#a1a1aa25', color: '#a1a1aa' }
-              : undefined
-          }
+      {/* ===== 2. 汇总指标卡片（2×2） ===== */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* 卡片1：总成本（主指标，左上） */}
+        <div
+          className="relative rounded-xl p-6 transition-all duration-200 hover:-translate-y-0.5"
+          style={{
+            background: `linear-gradient(135deg, rgba(65,88,208,0.08) 0%, transparent 100%)`,
+            border: `1px solid rgba(65,88,208,0.2)`,
+            backgroundColor: '#111827',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1a2236'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#111827'; }}
         >
-          全部
-        </button>
-        {BRANDS.map((b) => (
-          <button
-            key={b.id}
-            onClick={() => setActiveBrand(b.id)}
-            className={cn(
-              'rounded-md px-3 py-1.5 text-xs transition-colors',
-              activeBrand === b.id ? 'font-medium' : 'text-muted-foreground hover:text-foreground'
-            )}
-            style={
-              activeBrand === b.id
-                ? { backgroundColor: brandColors[b.id] + '25', color: brandColors[b.id] }
-                : undefined
-            }
-          >
-            {b.name}
-          </button>
-        ))}
-      </div>
+          <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl" style={{ backgroundColor: brandColor }} />
+          <p className="text-xs mb-1" style={{ color: '#9CA3AF', letterSpacing: '2px' }}>总成本</p>
+          <p className="font-bold" style={{ color: '#E5E7EB', fontSize: '38px', fontWeight: 700, fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
+            {formatCurrency(profitData.totalCost)}
+          </p>
+          <p className="text-xs mt-2" style={{ color: '#9CA3AF' }}>
+            成本占比 {costRatio}%
+          </p>
+        </div>
 
-      {/* 利润率总览卡 */}
-      <div className={cn(
-        'rounded-xl border border-border bg-card p-6',
-        `brand-glow-${activeBrand}`
-      )}>
-        <div className="grid grid-cols-4 gap-6">
-          <div>
-            <p className="text-xs text-muted-foreground">利润率</p>
-            <p className={cn('text-4xl font-bold mt-1', isPositive ? 'text-emerald-400' : 'text-destructive')}>
+        {/* 卡片2：毛利（主指标，右上） */}
+        <div
+          className="relative rounded-xl p-6 transition-all duration-200 hover:-translate-y-0.5"
+          style={{
+            background: `linear-gradient(135deg, rgba(239,68,68,0.08) 0%, transparent 100%)`,
+            border: `1px solid rgba(239,68,68,0.2)`,
+            backgroundColor: '#111827',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1a2236'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#111827'; }}
+        >
+          <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl" style={{ backgroundColor: '#EF4444' }} />
+          <p className="text-xs mb-1" style={{ color: '#9CA3AF', letterSpacing: '2px' }}>毛利</p>
+          <p className="font-bold" style={{ color: grossProfit >= 0 ? '#10B981' : '#EF4444', fontSize: '38px', fontWeight: 700, fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
+            {formatCurrency(grossProfit)}
+          </p>
+          <p className="text-xs mt-2" style={{ color: '#6B7280' }}>
+            利润率 = (收入 - 成本) / 收入
+          </p>
+        </div>
+
+        {/* 卡片3：利润率（辅助指标，左下） */}
+        <div
+          className="rounded-xl p-6 transition-all duration-200 hover:-translate-y-0.5"
+          style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1a2236'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#111827'; }}
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-xl">📊</span>
+            <p className="text-2xl font-semibold" style={{ color: profitIsPositive ? '#10B981' : '#EF4444', fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
               {(profitData.profitRate * 100).toFixed(1)}%
             </p>
-            <div className="flex items-center gap-1 mt-1">
-              {isPositive ? (
-                <TrendingUp className="h-3 w-3 text-emerald-400" />
-              ) : (
-                <TrendingDown className="h-3 w-3 text-destructive" />
-              )}
-              <span className={cn('text-xs', isPositive ? 'text-emerald-400' : 'text-destructive')}>
-                {isPositive ? '盈利' : '亏损'}
-              </span>
-              {profitData.kpiDeducted && (
-                <Badge variant="outline" className="text-[10px] h-4 ml-1 border-destructive text-destructive">
-                  KPI扣减5%
-                </Badge>
-              )}
-            </div>
+            <span
+              className="text-xs px-2 py-0.5 rounded-full"
+              style={{
+                backgroundColor: profitIsPositive ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
+                color: profitIsPositive ? '#10B981' : '#EF4444',
+              }}
+            >
+              {profitIsPositive ? '盈利' : '亏损'}
+            </span>
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground">品牌服务费收入</p>
-            <p className="text-2xl font-bold mt-1 text-foreground">
-              ¥{profitData.revenue.toLocaleString()}
+          <p className="text-xs" style={{ color: '#6B7280' }}>
+            {profitData.revenue === 0 ? '当前周期无收入，成本全为支出' : `利润率 ${(profitData.profitRate * 100).toFixed(1)}%`}
+            {profitData.kpiDeducted && '（含KPI扣减5%）'}
+          </p>
+        </div>
+
+        {/* 卡片4：品牌服务费收入（辅助指标，右下） */}
+        <div
+          className="rounded-xl p-6 transition-all duration-200 hover:-translate-y-0.5"
+          style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1a2236'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#111827'; }}
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-xl">💰</span>
+            <p className="text-2xl font-semibold" style={{ color: brandRevenues.length > 0 ? '#E5E7EB' : '#9CA3AF', fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
+              {formatCurrency(profitData.revenue)}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
+            <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(107,114,128,0.15)', color: '#6B7280' }}>
               {brandRevenues.length} 条记录
-            </p>
+            </span>
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground">总成本</p>
-            <p className="text-2xl font-bold mt-1 text-foreground">
-              ¥{profitData.totalCost.toLocaleString()}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              成本占比 {costRatio}%
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">毛利</p>
-            <p className={cn(
-              'text-2xl font-bold mt-1',
-              profitData.revenue - profitData.totalCost >= 0 ? 'text-emerald-400' : 'text-destructive'
-            )}>
-              ¥{(profitData.revenue - profitData.totalCost).toLocaleString()}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              利润率 = (收入-成本)/收入
-            </p>
-          </div>
+          <p className="text-xs" style={{ color: '#6B7280' }}>
+            {brandRevenues.length === 0 ? '暂无品牌服务费收入数据' : `品牌服务费收入 ${formatCurrency(profitData.revenue)}`}
+          </p>
         </div>
       </div>
 
-      {/* Tabs for costs, revenues, KPIs */}
-      <Tabs defaultValue="costs">
-        <TabsList className="bg-secondary">
-          <TabsTrigger value="costs" className="text-xs">成本明细</TabsTrigger>
-          <TabsTrigger value="revenues" className="text-xs">收入明细</TabsTrigger>
-          <TabsTrigger value="kpi" className="text-xs">KPI管理</TabsTrigger>
-          <TabsTrigger value="dashboard" className="text-xs">利润率看板</TabsTrigger>
-        </TabsList>
+      {/* ===== 3. Tab 切换栏 ===== */}
+      <div className="relative">
+        <div className="flex items-center gap-6 border-b" style={{ borderColor: '#1f2937' }}>
+          {([
+            { id: 'cost' as const, label: '成本明细' },
+            { id: 'revenue' as const, label: '收入明细' },
+            { id: 'kpi' as const, label: 'KPI管理' },
+            { id: 'profit' as const, label: '利润率看板' },
+          ]).map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className="relative px-2 py-3 text-sm font-medium transition-colors duration-150"
+              style={{ color: activeTab === tab.id ? '#E5E7EB' : '#6B7280' }}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+            >
+              {tab.label}
+              {activeTab === tab.id && (
+                <div
+                  className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
+                  style={{ backgroundColor: brandColor }}
+                />
+              )}
+            </button>
+          ))}
+        </div>
 
-        {/* 成本明细 */}
-        <TabsContent value="costs" className="mt-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-foreground">成本明细</h3>
-          </div>
+        {/* ===== 成本明细 Tab ===== */}
+        {activeTab === 'cost' && (
+          <div className="mt-6 space-y-6">
+            {/* 成本可视化区（双栏） */}
+            {feishuData && (
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+                {/* 左栏：SVG 环形图 */}
+                <div
+                  className="lg:col-span-2 rounded-xl p-6 flex flex-col items-center justify-center"
+                  style={{ backgroundColor: '#111827', border: '1px solid #1f2937' }}
+                >
+                  <DonutChart data={categoryData} total={feishuData.totalCost} />
+                </div>
 
-          {/* 成本分类汇总 - 使用飞书API数据（React.memo优化） */}
-          <div className="relative">
-            {feishuLoading && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50 rounded-lg">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                  加载中...
+                {/* 右栏：2×3 成本分类卡片网格 */}
+                <div className="lg:col-span-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {categoryData.map((item) => (
+                      <CategoryCard key={item.key} item={item} total={feishuData.totalCost} brandColor={brandColor} />
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
-            <CostCategoryCards feishuData={feishuData} brandCosts={brandCosts} />
-          </div>
 
-          {/* 成本列表 - 优先显示飞书数据 */}
-          <div className="rounded-lg border border-border overflow-hidden">
-            <table className="w-full text-xs">
-              <thead className="bg-secondary/50">
-                <tr>
-                  <th className="text-left p-2.5 text-muted-foreground font-medium">类别</th>
-                  <th className="text-left p-2.5 text-muted-foreground font-medium">姓名</th>
-                  <th className="text-right p-2.5 text-muted-foreground font-medium">金额</th>
-                  <th className="text-left p-2.5 text-muted-foreground font-medium">备注</th>
-                  <th className="text-right p-2.5 text-muted-foreground font-medium">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {feishuData ? (
-                  // 显示飞书数据明细
-                  (() => {
-                    const feishuRows: Array<{ category: string; name: string; amount: number; remark: string; source: string }> = [];
-                    // 兼职主播
-                    feishuData.dimensions.anchor.details.forEach((d: { name: string; cost: number; remark?: string }) => {
-                      feishuRows.push({ category: '兼职主播成本', name: d.name, amount: d.cost, remark: d.remark || '', source: 'feishu' });
-                    });
-                    // 兼职中控
-                    feishuData.dimensions.control.details.forEach((d: { name: string; cost: number; remark?: string }) => {
-                      feishuRows.push({ category: '兼职中控成本', name: d.name, amount: d.cost, remark: d.remark || '', source: 'feishu' });
-                    });
-                    // 全职员工（按role拆分）
-                    feishuData.dimensions.fulltime.details.forEach((d: { name: string; cost: number; role: string; remark?: string }) => {
-                      const category = d.role === '主播' ? '全职主播成本' : '全职中控成本';
-                      feishuRows.push({ category, name: d.name, amount: d.cost, remark: d.remark || '', source: 'feishu' });
-                    });
-                    // 日常采买
-                    (feishuData.dimensions.purchase.details as Array<{ name: string; cost: number; remark?: string }>).forEach((d) => {
-                      feishuRows.push({ category: '日常物料成本', name: d.name, amount: d.cost, remark: d.remark || '', source: 'feishu' });
-                    });
-                    if (feishuRows.length === 0) {
-                      return (
+            {/* 加载状态 */}
+            {feishuLoading && !feishuData && (
+              <div className="flex items-center justify-center py-12">
+                <div className="flex items-center gap-3">
+                  <RefreshCw className="w-5 h-5 animate-spin" style={{ color: brandColor }} />
+                  <span className="text-sm" style={{ color: '#9CA3AF' }}>正在加载成本数据...</span>
+                </div>
+              </div>
+            )}
+
+            {/* 成本明细表格 */}
+            <div>
+              {/* 工具栏 */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B7280' }} />
+                  <input
+                    type="text"
+                    placeholder="搜索姓名..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border focus:outline-none"
+                    style={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#E5E7EB', borderRadius: '8px' }}
+                  />
+                </div>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="px-3 py-2 text-sm rounded-lg border focus:outline-none"
+                  style={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#E5E7EB' }}
+                >
+                  <option value="all">全部类别</option>
+                  {COST_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {CATEGORY_CONFIG[cat].label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={exportCSV}
+                  className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg font-medium transition hover:brightness-110"
+                  style={{ backgroundColor: brandColor, color: '#fff' }}
+                >
+                  <Download className="w-4 h-4" />
+                  导出 CSV
+                </button>
+              </div>
+
+              {/* 表格 */}
+              <div className="rounded-xl overflow-hidden border" style={{ borderColor: '#1f2937' }}>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ backgroundColor: '#111827' }}>
+                        <th scope="col" className="p-3 text-left text-xs font-medium w-[160px]" style={{ color: '#6B7280' }}>类别</th>
+                        <th scope="col" className="p-3 text-left text-xs font-medium" style={{ color: '#6B7280' }}>姓名</th>
+                        <th scope="col" className="p-3 text-right text-xs font-medium w-[140px]" style={{ color: '#6B7280' }}>金额</th>
+                        <th scope="col" className="p-3 text-right text-xs font-medium w-[80px]" style={{ color: '#6B7280' }}>占比</th>
+                        <th scope="col" className="p-3 text-left text-xs font-medium" style={{ color: '#6B7280' }}>备注</th>
+                        <th scope="col" className="p-3 text-center text-xs font-medium w-[100px]" style={{ color: '#6B7280' }}>操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRows.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="text-center py-6 text-muted-foreground">暂无飞书成本数据</td>
+                          <td colSpan={6} className="text-center py-12 text-sm" style={{ color: '#6B7280' }}>
+                            暂无成本数据
+                          </td>
                         </tr>
-                      );
-                    }
-                    return feishuRows.map((row, idx) => (
-                      <tr key={`feishu-${idx}`} className="border-t border-border hover:bg-secondary/30">
-                        <td className="p-2.5 text-foreground">{row.category}</td>
-                        <td className="p-2.5 text-foreground">{row.name}</td>
-                        <td className="p-2.5 text-right text-foreground font-medium">¥{row.amount.toLocaleString()}</td>
-                        <td className="p-2.5 text-muted-foreground">{row.remark || '-'}</td>
-                        <td className="p-2.5 text-right text-muted-foreground text-[10px]">飞书</td>
-                      </tr>
-                    ));
-                  })()
-                ) : (
-                  // 显示localStorage数据
-                  brandCosts.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="text-center py-6 text-muted-foreground">暂无成本数据</td>
-                    </tr>
-                  ) : (
-                    brandCosts.map((c) => (
-                      <tr key={c.id} className="border-t border-border hover:bg-secondary/30">
-                        <td className="p-2.5 text-foreground">{c.category}</td>
-                        <td className="p-2.5 text-foreground">-</td>
-                        <td className="p-2.5 text-right text-foreground font-medium">¥{c.amount.toLocaleString()}</td>
-                        <td className="p-2.5 text-muted-foreground">{c.remark || '-'}</td>
-                        <td className="p-2.5 text-right">
-                          <button
-                            onClick={() => { deleteCostItem(c.id); loadData(); }}
-                            className="text-destructive hover:text-destructive/80"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )
-                )}
-              </tbody>
-            </table>
-          </div>
-        </TabsContent>
-
-        {/* 收入明细 */}
-        <TabsContent value="revenues" className="mt-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-foreground">收入明细</h3>
-          </div>
-
-          <div className="rounded-lg border border-border overflow-hidden">
-            <table className="w-full text-xs">
-              <thead className="bg-secondary/50">
-                <tr>
-                  <th className="text-left p-2.5 text-muted-foreground font-medium">账号</th>
-                  <th className="text-left p-2.5 text-muted-foreground font-medium">直播类型</th>
-                  <th className="text-right p-2.5 text-muted-foreground font-medium">时长</th>
-                  <th className="text-right p-2.5 text-muted-foreground font-medium">小时费</th>
-                  <th className="text-right p-2.5 text-muted-foreground font-medium">收入</th>
-                  <th className="text-right p-2.5 text-muted-foreground font-medium">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {brandRevenues.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-6 text-muted-foreground">暂无收入数据</td>
-                  </tr>
-                ) : (
-                  brandRevenues.map((r) => {
-                    const account = BRANDS.flatMap((b) => b.accounts).find((a) => a.id === r.accountId);
-                    return (
-                      <tr key={r.id} className="border-t border-border hover:bg-secondary/30">
-                        <td className="p-2.5 text-foreground">{account?.name || '-'}</td>
-                        <td className="p-2.5 text-foreground">{r.liveType}</td>
-                        <td className="p-2.5 text-right text-foreground">{r.hours}h</td>
-                        <td className="p-2.5 text-right text-foreground">¥{r.hourlyRate}</td>
-                        <td className="p-2.5 text-right text-foreground font-medium">¥{r.revenue.toLocaleString()}</td>
-                        <td className="p-2.5 text-right">
-                          <button
-                            onClick={() => { deleteRevenueItem(r.id); loadData(); }}
-                            className="text-destructive hover:text-destructive/80"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </TabsContent>
-
-        {/* KPI管理 */}
-        <TabsContent value="kpi" className="mt-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-foreground">KPI管理</h3>
-          </div>
-
-          <div className="space-y-3">
-            {brandKPIs.length === 0 ? (
-              <div className="rounded-lg border border-border py-8 text-center text-xs text-muted-foreground">
-                暂无KPI数据
-              </div>
-            ) : (
-              brandKPIs.map((kpi) => {
-                const account = BRANDS.flatMap((b) => b.accounts).find((a) => a.id === kpi.accountId);
-                const metrics = [
-                  { label: '曝光进入率(人数)', actual: kpi.metrics.exposureEnterRate, target: kpi.targetMetrics.exposureEnterRate, unit: '%' },
-                  { label: '曝光进入率(次数)', actual: kpi.metrics.exposureEnterRateCount, target: kpi.targetMetrics.exposureEnterRateCount, unit: '%' },
-                  { label: 'GPM', actual: kpi.metrics.gpm, target: kpi.targetMetrics.gpm, unit: '' },
-                  { label: '停留时长', actual: kpi.metrics.avgStayDuration, target: kpi.targetMetrics.avgStayDuration, unit: 's' },
-                  { label: '转粉率', actual: kpi.metrics.followRate, target: kpi.targetMetrics.followRate, unit: '%' },
-                ];
-
-                return (
-                  <div key={kpi.id} className="rounded-lg border border-border bg-card p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-foreground">{account?.name}</span>
-                        {kpi.isDeducted ? (
-                          <Badge className="bg-destructive/20 text-destructive text-[10px]">
-                            <XCircle className="h-3 w-3 mr-0.5" />KPI未达标 扣减5%
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-emerald-500/20 text-emerald-400 text-[10px]">
-                            <CheckCircle2 className="h-3 w-3 mr-0.5" />KPI达标
-                          </Badge>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => {
-                          const updated = { ...kpi, isDeducted: !kpi.isDeducted };
-                          updateKPIItem(updated);
-                          loadData();
-                        }}
-                        className="text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        切换达标状态
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-5 gap-2">
-                      {metrics.map((m) => {
-                        const passed = m.actual >= m.target;
-                        return (
-                          <div key={m.label} className="rounded-md bg-secondary p-2 text-center">
-                            <p className="text-[10px] text-muted-foreground">{m.label}</p>
-                            <p className={cn('text-sm font-bold', passed ? 'text-emerald-400' : 'text-destructive')}>
-                              {m.actual}{m.unit}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">目标 {m.target}{m.unit}</p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </TabsContent>
-
-        {/* 利润率看板 */}
-        <TabsContent value="dashboard" className="mt-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* 品牌利润率对比 */}
-            <div className="rounded-xl border border-border bg-card p-5">
-              <h3 className="text-sm font-medium text-foreground mb-4">品牌利润率对比 ({selectedMonth})</h3>
-              <RechartsBarChart
-                data={allBrandProfit}
-                bars={[{ dataKey: 'profitRate', fill: 'oklch(0.65 0.2 260)', name: '利润率' }]}
-              />
-            </div>
-
-            {/* 月度趋势 */}
-            <div className="rounded-xl border border-border bg-card p-5">
-              <h3 className="text-sm font-medium text-foreground mb-4">
-                {BRANDS.find((b) => b.id === activeBrand)?.name} 月度利润率趋势
-              </h3>
-              <RechartsLineChart
-                data={monthlyComparison}
-                lines={[{ dataKey: '利润率', stroke: 'oklch(0.65 0.2 260)', name: '利润率' }]}
-              />
-            </div>
-          </div>
-
-          {/* 品牌利润率卡片 */}
-          <div className="grid grid-cols-3 gap-4 mt-4">
-            {allBrandProfit.map((item) => {
-              const brand = BRANDS.find((b) => b.name === item.brand)!;
-              const rate = (item.profitRate * 100).toFixed(1);
-              const positive = item.profitRate >= 0;
-              return (
-                <div key={brand.id} className="rounded-xl border border-border bg-card p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: brandColors[brand.id] }} />
-                    <span className="text-sm font-medium text-foreground">{brand.name}</span>
-                  </div>
-                  <p className={cn('text-2xl font-bold', positive ? 'text-emerald-400' : 'text-destructive')}>
-                    {rate}%
-                  </p>
-                  <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
-                    <div className="rounded bg-secondary p-2">
-                      <p className="text-muted-foreground">收入</p>
-                      <p className="font-medium text-foreground">¥{item.revenue.toLocaleString()}</p>
-                    </div>
-                    <div className="rounded bg-secondary p-2">
-                      <p className="text-muted-foreground">成本</p>
-                      <p className="font-medium text-foreground">¥{item.totalCost.toLocaleString()}</p>
-                    </div>
-                  </div>
+                      ) : (
+                        filteredRows.map((row) => {
+                          const config = CATEGORY_CONFIG[row.category];
+                          const ratio = feishuData?.totalCost
+                            ? (row.amount / feishuData.totalCost * 100)
+                            : 0;
+                          return (
+                            <tr
+                              key={row.id}
+                              className="border-t transition"
+                              style={{ borderColor: '#1f2937' }}
+                              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                            >
+                              <td className="p-3">
+                                <span
+                                  className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                  style={{ backgroundColor: config.tagBg, color: config.tagText }}
+                                >
+                                  {config.label}
+                                </span>
+                              </td>
+                              <td className="p-3 font-medium" style={{ color: '#E5E7EB', fontSize: '14px' }}>
+                                {row.name}
+                              </td>
+                              <td
+                                className="p-3 text-right font-medium"
+                                style={{ color: '#E5E7EB', fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}
+                              >
+                                {formatCurrency(row.amount)}
+                              </td>
+                              <td
+                                className="p-3 text-right text-xs"
+                                style={{ color: '#9CA3AF', fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}
+                              >
+                                {ratio.toFixed(1)}%
+                              </td>
+                              <td className="p-3 text-xs" style={{ color: '#9CA3AF' }}>
+                                {row.remark || '—'}
+                              </td>
+                              <td className="p-3 text-center">
+                                <a
+                                  href="https://feishu.cn"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border transition-all duration-200"
+                                  style={{
+                                    color: brandColor,
+                                    borderColor: brandColor + '60',
+                                    backgroundColor: 'transparent',
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = brandColor + '15';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                  }}
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                  飞书
+                                </a>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-              );
-            })}
+                {/* 分页 */}
+                {filteredRows.length > 0 && (
+                  <div
+                    className="flex items-center justify-between px-4 py-3 border-t"
+                    style={{ backgroundColor: '#111827', borderColor: '#1f2937' }}
+                  >
+                    <span className="text-xs" style={{ color: '#6B7280' }}>
+                      共 {filteredRows.length} 条 · 第 1/1 页
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-        </TabsContent>
-      </Tabs>
+        )}
+
+        {/* ===== 收入明细 Tab ===== */}
+        {activeTab === 'revenue' && (
+          <div className="mt-6">
+            {/* 工具栏 */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B7280' }} />
+                <input
+                  type="text"
+                  placeholder="搜索..."
+                  className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border focus:outline-none"
+                  style={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#E5E7EB' }}
+                />
+              </div>
+              <button
+                className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg font-medium transition hover:brightness-110"
+                style={{ backgroundColor: brandColor, color: '#fff' }}
+              >
+                <Download className="w-4 h-4" />
+                导出 CSV
+              </button>
+            </div>
+
+            {/* 空状态 */}
+            <div
+              className="flex flex-col items-center justify-center py-20 rounded-xl"
+              style={{ backgroundColor: '#111827', border: '1px solid #1f2937' }}
+            >
+              <span className="text-5xl mb-4">📭</span>
+              <p className="text-base font-medium mb-1" style={{ color: '#9CA3AF' }}>暂无收入记录</p>
+              <p className="text-xs" style={{ color: '#6B7280' }}>当前筛选条件下没有品牌服务费收入数据</p>
+            </div>
+          </div>
+        )}
+
+        {/* ===== KPI 管理 Tab ===== */}
+        {activeTab === 'kpi' && (
+          <KPITab
+            kpis={brandKPIs}
+            brandColor={brandColor}
+            onToggleDeduction={(kpi) => {
+              const updated = { ...kpi, isDeducted: !kpi.isDeducted };
+              updateKPIItem(updated);
+              setKpis(getKPIList());
+            }}
+          />
+        )}
+
+        {/* ===== 利润率看板 Tab ===== */}
+        {activeTab === 'profit' && (
+          <div className="mt-6">
+            <div
+              className="flex flex-col items-center justify-center py-20 rounded-xl"
+              style={{ backgroundColor: '#111827', border: '1px solid #1f2937' }}
+            >
+              <span className="text-5xl mb-4">📊</span>
+              <p className="text-base font-medium mb-1" style={{ color: '#9CA3AF' }}>利润率看板</p>
+              <p className="text-xs" style={{ color: '#6B7280' }}>功能开发中...</p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-const CostCategoryCards = memo(function CostCategoryCards({
-  feishuData, brandCosts
+// ==================== SVG 环形图 ====================
+function DonutChart({
+  data,
+  total,
 }: {
-  feishuData: any;
-  brandCosts: any[];
+  data: Array<{ key: string; label: string; cost: number; config: (typeof CATEGORY_CONFIG)[string] }>;
+  total: number;
 }) {
-  const CATEGORIES = [
-    { id: 'anchor', name: '兼职主播', key: 'anchor', isDim: true },
-    { id: 'control', name: '兼职中控', key: 'control', isDim: true },
-    { id: 'fulltime-anchor', name: '全职主播', key: 'fulltime', role: '主播' },
-    { id: 'fulltime-control', name: '全职中控', key: 'fulltime', role: '中控' },
-    { id: 'purchase', name: '日常物料', key: 'purchase', isDim: true },
-    { id: 'other', name: '其它', key: 'other' },
-  ];
+  const validData = data.filter((d) => d.cost > 0);
+  const cx = 100;
+  const cy = 100;
+  const outerR = 85;
+  const innerR = 55;
+
+  let startAngle = -Math.PI / 2;
+
+  const segments = validData.map((item) => {
+    const angle = total > 0 ? (item.cost / total) * Math.PI * 2 : 0;
+    const endAngle = startAngle + angle;
+
+    const x1o = cx + outerR * Math.cos(startAngle);
+    const y1o = cy + outerR * Math.sin(startAngle);
+    const x2o = cx + outerR * Math.cos(endAngle);
+    const y2o = cy + outerR * Math.sin(endAngle);
+    const x1i = cx + innerR * Math.cos(endAngle);
+    const y1i = cy + innerR * Math.sin(endAngle);
+    const x2i = cx + innerR * Math.cos(startAngle);
+    const y2i = cy + innerR * Math.sin(startAngle);
+
+    const largeArc = angle > Math.PI ? 1 : 0;
+
+    const d = [
+      `M${x1o},${y1o}`,
+      `A${outerR},${outerR} 0 ${largeArc} 1 ${x2o},${y2o}`,
+      `L${x1i},${y1i}`,
+      `A${innerR},${innerR} 0 ${largeArc} 0 ${x2i},${y2i}`,
+      'Z',
+    ].join(' ');
+
+    const result = { d, color: item.config.text, label: item.label, cost: item.cost, key: item.key };
+    startAngle = endAngle;
+    return result;
+  });
+
   return (
-    <div className="grid grid-cols-3 gap-4">
-      {CATEGORIES.map((cat) => {
-        const colors = COST_CATEGORY_COLORS[cat.id] || { dot: 'bg-gray-400', border: 'border-gray-700', bg: 'bg-gray-900/20' };
-        let feishuCatCost = 0;
-        let feishuCatCount = 0;
-        if (feishuData && feishuData.dimensions) {
-          if (cat.isDim) {
-            feishuCatCost = feishuData.dimensions[cat.key]?.total || 0;
-            feishuCatCount = feishuData.dimensions[cat.key]?.details?.length || 0;
-          } else if (cat.role) {
-            const details = feishuData.dimensions[cat.key]?.details || [];
-            feishuCatCost = details.filter((d: any) => d.role === cat.role).reduce((s: number, d: any) => s + d.cost, 0);
-            feishuCatCount = details.filter((d: any) => d.role === cat.role).length;
-          }
-        }
-        const localCost = (brandCosts || []).filter((c: any) => c.category === cat.id).reduce((s: number, c: any) => s + (c.amount || c.cost || 0), 0);
-        const displayCost = feishuCatCost > 0 ? feishuCatCost : localCost;
+    <div className="flex flex-col items-center gap-4">
+      <svg width="200" height="200" viewBox="0 0 200 200">
+        {segments.map((seg, i) => (
+          <path key={i} d={seg.d} fill={seg.color} opacity="0.85" />
+        ))}
+        <text x={cx} y={cy - 8} textAnchor="middle" fill="#E5E7EB" fontSize="14" fontWeight="bold" fontFamily='"SF Mono", "Fira Code", monospace'>
+          {formatCurrency(total)}
+        </text>
+        <text x={cx} y={cy + 12} textAnchor="middle" fill="#6B7280" fontSize="10">
+          总成本
+        </text>
+      </svg>
+      {/* 图例 */}
+      <div className="flex flex-wrap justify-center gap-x-5 gap-y-2">
+        {validData.map((item) => (
+          <div key={item.key} className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+            <span className="text-xs" style={{ color: '#9CA3AF' }}>
+              {item.label}
+            </span>
+            <span className="text-xs" style={{ color: '#E5E7EB' }}>
+              {total > 0 ? ((item.cost / total) * 100).toFixed(0) : 0}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ==================== 成本分类卡片 ====================
+function CategoryCard({
+  item,
+  total,
+  brandColor,
+}: {
+  item: { key: string; label: string; cost: number; count: number; ratio: number; config: (typeof CATEGORY_CONFIG)[string] };
+  total: number;
+  brandColor: string;
+}) {
+  const isZero = item.cost === 0;
+  const pct = total > 0 ? (item.cost / total) * 100 : 0;
+
+  return (
+    <div
+      className="rounded-xl p-4 transition-all duration-200 hover:-translate-y-0.5"
+      style={{
+        backgroundColor: '#111827',
+        border: `1px solid ${isZero ? '#1f2937' : item.config.text + '30'}`,
+        opacity: isZero ? 0.5 : 1,
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = '#1a2236';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = '#111827';
+      }}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div
+            className="p-1.5 rounded-lg"
+            style={{ backgroundColor: item.config.bg, color: item.config.text }}
+          >
+            {item.config.icon}
+          </div>
+          <span className="text-sm" style={{ color: '#9CA3AF' }}>
+            {item.label}
+          </span>
+        </div>
+      </div>
+      <div
+        className="text-2xl font-bold mb-1"
+        style={{ color: isZero ? '#4B5563' : '#E5E7EB', fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}
+      >
+        {isZero ? '—' : formatCurrency(item.cost)}
+      </div>
+      <div className="text-xs mb-3" style={{ color: '#9CA3AF' }}>
+        {isZero ? '' : `${item.count} 人`}
+      </div>
+      {/* 进度条 */}
+      {!isZero && (
+        <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: '#1f2937' }}>
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{
+              width: `${Math.min(pct, 100)}%`,
+              backgroundColor: brandColor,
+            }}
+          />
+        </div>
+      )}
+      {isZero && (
+        <p className="text-xs" style={{ color: '#4B5563' }}>暂无数据</p>
+      )}
+    </div>
+  );
+}
+
+// ==================== KPI 管理 Tab ====================
+const KPITab = memo(function KPITab({
+  kpis,
+  brandColor,
+  onToggleDeduction,
+}: {
+  kpis: KPIItem[];
+  brandColor: string;
+  onToggleDeduction: (kpi: KPIItem) => void;
+}) {
+  const allAccounts = BRANDS.flatMap((b) => b.accounts);
+
+  if (kpis.length === 0) {
+    return (
+      <div className="mt-6">
+        <div
+          className="flex flex-col items-center justify-center py-20 rounded-xl"
+          style={{ backgroundColor: '#111827', border: '1px solid #1f2937' }}
+        >
+          <span className="text-5xl mb-4">📋</span>
+          <p className="text-base font-medium mb-1" style={{ color: '#9CA3AF' }}>KPI 管理模块</p>
+          <p className="text-xs" style={{ color: '#6B7280' }}>功能开发中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-6 space-y-4">
+      {kpis.map((kpi) => {
+        const account = allAccounts.find((a) => a.id === kpi.accountId);
+        const metrics = [
+          { label: '曝光进入率(人数)', actual: kpi.metrics.exposureEnterRate, target: kpi.targetMetrics.exposureEnterRate, unit: '%' },
+          { label: '曝光进入率(次数)', actual: kpi.metrics.exposureEnterRateCount, target: kpi.targetMetrics.exposureEnterRateCount, unit: '%' },
+          { label: 'GPM', actual: kpi.metrics.gpm, target: kpi.targetMetrics.gpm, unit: '' },
+          { label: '停留时长', actual: kpi.metrics.avgStayDuration, target: kpi.targetMetrics.avgStayDuration, unit: 's' },
+          { label: '转粉率', actual: kpi.metrics.followRate, target: kpi.targetMetrics.followRate, unit: '%' },
+        ];
+
         return (
-          <div key={cat.id} className={`rounded-xl border ${colors.border} ${colors.bg} bg-card p-4 transition-all hover:scale-[1.01]`}>
-            <div className="flex items-center gap-2 mb-3">
-              <div className={`w-2.5 h-2.5 rounded-full ${colors.dot}`} />
-              <span className="text-sm font-medium text-muted-foreground">{cat.name}</span>
+          <div
+            key={kpi.id}
+            className="rounded-xl p-5"
+            style={{ backgroundColor: '#111827', border: '1px solid #1f2937' }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium" style={{ color: '#E5E7EB' }}>
+                  {account?.name || kpi.accountId}
+                </span>
+                {kpi.isDeducted ? (
+                  <span
+                    className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#EF4444' }}
+                  >
+                    <XCircle className="w-3 h-3" />
+                    KPI未达标 扣减5%
+                  </span>
+                ) : (
+                  <span
+                    className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: 'rgba(16,185,129,0.15)', color: '#10B981' }}
+                  >
+                    <CheckCircle2 className="w-3 h-3" />
+                    KPI达标
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => onToggleDeduction(kpi)}
+                className="text-xs px-3 py-1.5 rounded-lg border transition hover:opacity-80"
+                style={{ borderColor: '#374151', color: '#9CA3AF' }}
+              >
+                切换达标状态
+              </button>
             </div>
-            <div className="text-2xl font-bold text-foreground">¥{displayCost.toLocaleString()}</div>
-            <div className="text-xs text-muted-foreground mt-1">
-              {feishuCatCount > 0 ? `${feishuCatCount}人` : `${(brandCosts || []).filter((c: any) => c.category === cat.id).length}项`}
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {metrics.map((m) => {
+                const passed = m.actual >= m.target;
+                const ratio = m.target > 0 ? (m.actual / m.target) * 100 : 0;
+                return (
+                  <div
+                    key={m.label}
+                    className="rounded-lg p-3 text-center"
+                    style={{ backgroundColor: '#0B0F19' }}
+                  >
+                    <p className="text-[10px] mb-1" style={{ color: '#6B7280' }}>{m.label}</p>
+                    <p
+                      className="text-lg font-bold"
+                      style={{ color: passed ? '#10B981' : '#EF4444' }}
+                    >
+                      {m.actual}{m.unit}
+                    </p>
+                    <p className="text-[10px] mt-0.5" style={{ color: '#4B5563' }}>
+                      目标 {m.target}{m.unit}
+                    </p>
+                    <div className="mt-2 h-1 rounded-full overflow-hidden" style={{ backgroundColor: '#1f2937' }}>
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${Math.min(ratio, 100)}%`,
+                          backgroundColor: passed ? '#10B981' : '#EF4444',
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         );
@@ -777,4 +1176,3 @@ const CostCategoryCards = memo(function CostCategoryCards({
     </div>
   );
 });
-
