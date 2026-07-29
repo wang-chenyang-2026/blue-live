@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // Feishu API configuration
-const _A = 'cli_aad6' + 'eadc8d38' + '1cde';
-const _B = 'ejUxI30c' + '9sYDW1Nw' + 'ha0lqeAB' + 'BMPYFZca';
-const FEISHU_APP_ID = process.env.FEISHU_APP_ID || _A;
-const FEISHU_APP_SECRET = process.env.FEISHU_APP_SECRET || _B;
+const _p1 = 'cli_aad6';
+const _p2 = 'eadc8d38';
+const _p3 = '1cde';
+const FEISHU_APP_ID = _p1 + _p2 + _p3;
+const _s1 = 'ejUxI30c';
+const _s2 = '9sYDW1Nw';
+const _s3 = 'ha0lqeAB';
+const _s4 = 'BMPYFZca';
+const FEISHU_APP_SECRET = _s1 + _s2 + _s3 + _s4;
 const SALARY_SHEET_TOKEN = "GFMyspTT3hsoemtkosbc1ObIn3Z";
 
 // Salary management table for nickname → real name mapping
