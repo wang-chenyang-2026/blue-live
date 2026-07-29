@@ -125,6 +125,10 @@ async function getSheetValues(
 
 /* ========== Data Helpers ========== */
 function excelSerialToDate(serial: number | string): string {
+  // If it's already a formatted date string (contains 月 and 日), return as-is
+  if (typeof serial === 'string' && serial.includes('月') && serial.includes('日')) {
+    return serial.trim();
+  }
   const num = typeof serial === 'string' ? parseFloat(serial) : serial;
   if (isNaN(num)) return String(serial);
   const date = new Date((num - 25569) * 86400 * 1000);
@@ -134,6 +138,10 @@ function excelSerialToDate(serial: number | string): string {
 }
 
 function excelSerialToISO(serial: number | string): string {
+  // If it's already a formatted date string, try to extract year from context or return empty
+  if (typeof serial === 'string' && serial.includes('月') && serial.includes('日')) {
+    return serial.trim(); // Return formatted string as-is for rawDate too
+  }
   const num = typeof serial === 'string' ? parseFloat(serial) : serial;
   if (isNaN(num)) return '';
   const date = new Date((num - 25569) * 86400 * 1000);
