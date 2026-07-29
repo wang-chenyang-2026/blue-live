@@ -84,13 +84,36 @@ const CONTROL_TABLE_CONFIGS: Record<string, typeof BRAND_CONFIGS[string]> = {
   },
 };
 
-const EARLY_MORNING_SLOTS = ['2-3点', '3-4点', '4-5点', '5-6点', '6-7点', '7-8点'];
-const TIME_SLOTS = [
-  '0-1点', '1-2点', '2-3点', '3-4点', '4-5点', '5-6点',
-  '6-7点', '7-8点', '8-9点', '9-10点', '10-11点', '11-12点',
-  '12-13点', '13-14点', '14-15点', '15-16点', '16-17点', '17-18点',
-  '18-19点', '19-20点', '20-21点', '21-22点', '22-23点', '23-24点',
-];
+// 时间段名称标准化：统一不同表格中的写法
+function normalizeTimeSlot(slot: string): string {
+  const s = slot.trim();
+  // 处理各种不规范写法
+  if (s === '24-1点' || s === '00-01点' || s === '0-1点') return '0-1点';
+  if (s === '01-02点' || s === '1-2点') return '1-2点';
+  if (s === '02-03点' || s === '2-3点') return '2-3点';
+  if (s === '03-04点' || s === '3-4点') return '3-4点';
+  if (s === '04-05点' || s === '4-5点') return '4-5点';
+  if (s === '05-06点' || s === '5-6点') return '5-6点';
+  if (s === '06-07点' || s === '6-7点') return '6-7点';
+  if (s === '07-08点' || s === '7-8点') return '7-8点';
+  if (s === '08-09点' || s === '8-9点') return '8-9点';
+  if (s === '09-10点' || s === '9-10点') return '9-10点';
+  if (s === '10-11点') return '10-11点';
+  if (s === '11-12点') return '11-12点';
+  if (s === '12-13点') return '12-13点';
+  if (s === '13-14点') return '13-14点';
+  if (s === '14-15点') return '14-15点';
+  if (s === '15-16点') return '15-16点';
+  if (s === '16-17点') return '16-17点';
+  if (s === '17-18点') return '17-18点';
+  if (s === '18-19点') return '18-19点';
+  if (s === '19-20点') return '19-20点';
+  if (s === '20-21点') return '20-21点';
+  if (s === '21-22点') return '21-22点';
+  if (s === '22-23点') return '22-23点';
+  if (s === '23-24点') return '23-24点';
+  return s;
+}
 
 // 获取飞书 tenant_access_token
 async function getFeishuToken(): Promise<string> {
@@ -163,7 +186,7 @@ function parsePerson(cellValue: string | null): { entries: Array<{ name: string;
   return { entries: [{ name: content, hours }], isDual: false };
 }
 
-// 读取飞书sheet一列数据
+// 读取飞书sheet一列数据（同时返回时间段标签）
 async function readColumn(
   token: string,
   spreadsheetToken: string,
@@ -171,7 +194,7 @@ async function readColumn(
   colIndex: number,
   startRow: number,
   endRow: number
-): Promise<string[]> {
+): Promise<Array<{ timeSlot: string; value: string }>> {
   const colName = colToLetter(colIndex);
   const range = `${colName}${startRow}:${colName}${endRow}`;
   const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${sheetId}!${range}`;
@@ -179,30 +202,43 @@ async function readColumn(
   const json = await res.json();
   if (json.code !== 0 || !json.data?.valueRange?.values) return [];
   const values: string[][] = json.data.valueRange.values;
-  return values.map(r => (r && r[0] ? String(r[0]) : ''));
+
+  // 同时读取 B 列获取时间段标签
+  const bColName = 'B';
+  const bRange = `${bColName}${startRow}:${bColName}${endRow}`;
+  const bUrl = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${sheetId}!${bRange}`;
+  const bRes = await fetch(bUrl, { headers: { Authorization: `Bearer ${token}` } });
+  const bJson = await bRes.json();
+  const bValues: string[][] = bJson.data?.valueRange?.values || [];
+
+  return values.map((r, idx) => ({
+    timeSlot: bValues[idx] && bValues[idx][0] ? String(bValues[idx][0]) : '',
+    value: r && r[0] ? String(r[0]) : '',
+  }));
 }
 
 // 处理单个账号一天的数据
-function processAccountDay(cellValues: string[]): {
+function processAccountDay(cellValues: Array<{ timeSlot: string; value: string }>): {
   personSummary: { name: string; timeSlots: string[]; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number }[];
   stats: { personCount: number; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number };
 } {
   const personMap: Record<string, { name: string; timeSlots: string[]; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number }> = {};
+  const EARLY_MORNING_SLOTS = ['2-3点', '3-4点', '4-5点', '5-6点', '6-7点', '7-8点'];
 
-  cellValues.forEach((cell, idx) => {
-    const timeSlot = TIME_SLOTS[idx];
-    if (!timeSlot) return;
-    const personInfo = parsePerson(cell);
+  cellValues.forEach(({ timeSlot, value }) => {
+    if (!timeSlot || !timeSlot.trim()) return;
+    const normalizedSlot = normalizeTimeSlot(timeSlot);
+    const personInfo = parsePerson(value);
     if (!personInfo) return;
 
     const { entries, isDual } = personInfo;
-    const isEarlyMorning = EARLY_MORNING_SLOTS.includes(timeSlot);
+    const isEarlyMorning = EARLY_MORNING_SLOTS.includes(normalizedSlot);
 
     entries.forEach(({ name, hours }) => {
       if (!personMap[name]) {
         personMap[name] = { name, timeSlots: [], totalHours: 0, earlyMorningHours: 0, dualBroadcastHours: 0 };
       }
-      personMap[name].timeSlots.push(timeSlot);
+      personMap[name].timeSlots.push(normalizedSlot);
       personMap[name].totalHours += hours;
       if (isEarlyMorning) {
         personMap[name].earlyMorningHours += hours;
