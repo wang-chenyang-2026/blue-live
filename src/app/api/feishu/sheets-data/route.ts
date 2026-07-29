@@ -187,7 +187,12 @@ function parseDailyData(raw: string[][], columnOffset: number = 0): Array<{
     if (!row || row.length < minRowLength) continue;
 
     const dateSerial = row[1];
+    // Skip rows with no date data (empty rows at end of sheet)
+    if (!dateSerial || dateSerial === '' || dateSerial === null) continue;
+
     const accountName = row[2] || '';
+    // Skip rows with no account name
+    if (!accountName || accountName.trim() === '') continue;
     // Column D (idx 3) is a SUM formula string, read actual values from E(4)/F(5)/G(6)
     const duration = (parseFloat(row[4]) || 0) + (parseFloat(row[5]) || 0) + (parseFloat(row[6]) || 0);
     const gmv = parseFloat(row[4 + columnOffset]) || 0;
