@@ -33,7 +33,7 @@ interface BrandSheetConfig {
 const BRAND_SHEET_MAP: Record<string, BrandSheetConfig> = {
   vivo: {
     dailySheets: [
-      { spreadsheetToken: VIVO_TOKEN, sheetId: '0a2100', range: 'A1:J200' },
+      { spreadsheetToken: VIVO_TOKEN, sheetId: '0a2100', range: 'A1:J500' },
     ],
     kpiSheets: [
       { spreadsheetToken: VIVO_TOKEN, sheetId: '204xjT', range: 'A1:H6', dailyRange: 'H1:AL6', label: 'vivo（大号）KPI' },
