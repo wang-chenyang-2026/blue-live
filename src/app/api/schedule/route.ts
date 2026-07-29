@@ -401,4 +401,4 @@ export async function GET(request: NextRequest) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
-}
+}// Deploy trigger Wed Jul 29 12:24:46 CST 2026
