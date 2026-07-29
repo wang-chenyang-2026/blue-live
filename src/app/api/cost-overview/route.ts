@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Feishu API configuration
-const FEISHU_APP_ID = process.env.FEISHU_APP_ID || 'cli_aad6eadc8d381cde';
-const FEISHU_APP_SECRET = process.env.FEISHU_APP_SECRET || 'ejUxI30c9sYDW1NWha0lqeABBMPYFZca';
+// Feishu API configuration - MUST come from environment variables
+const FEISHU_APP_ID = process.env.FEISHU_APP_ID!;
+const FEISHU_APP_SECRET = process.env.FEISHU_APP_SECRET!;
 const SALARY_SHEET_TOKEN = "GFMyspTT3hsoemtkosbc1ObIn3Z";
 
 // Salary management table for nickname → real name mapping
@@ -64,13 +64,21 @@ async function buildFulltimeConfig(feishuToken: string): Promise<Record<string, 
   
   try {
     const values = await readSheet(feishuToken, NICKNAME_SHEET_TOKEN, `${NICKNAME_SHEETS.fullTime}!A1:D100`);
+    console.log(`[buildFulltimeConfig] Read ${values.length} rows from salary sheet`);
     for (let i = 1; i < values.length; i++) {
-      const rawProject = String(values[i][0] || "").trim();
-      const name = String(values[i][1] || "").trim();
-      const role = String(values[i][2] || "").trim();
-      const base = Number(values[i][3]) || 0;
+      const row = values[i];
+      if (!row || row.length < 4) continue;
+      const rawProject = String(row[0] || "").trim();
+      const name = String(row[1] || "").trim();
+      const role = String(row[2] || "").trim();
+      const base = Number(row[3]);
       
-      if (!name || !rawProject || !role || !base) continue;
+      console.log(`[buildFulltimeConfig] Row ${i}: name="${name}", project="${rawProject}", role="${role}", base=${base}`);
+      
+      if (!name || !rawProject || !role || isNaN(base) || base <= 0) {
+        console.log(`[buildFulltimeConfig] Skipping row ${i}: invalid data`);
+        continue;
+      }
       
       // Normalize brand name from sheet to match SCHEDULE_CONFIG keys
       let brand = rawProject;
@@ -84,11 +92,14 @@ async function buildFulltimeConfig(feishuToken: string): Promise<Record<string, 
         subsidy: 500, // 固定补贴，所有全职岗位统一 500
         role,
       };
+      console.log(`[buildFulltimeConfig] Added: ${name} → brand=${brand}, base=${base}, role="${role}"`);
     }
+    console.log(`[buildFulltimeConfig] Total ${Object.keys(config).length} employees loaded`);
   } catch (e) {
     console.error("Failed to build fulltime config:", e);
   }
   
+  console.log(`[buildFulltimeConfig] Final config keys: ${Object.keys(config).join(", ")}`);
   return config;
 }
 
