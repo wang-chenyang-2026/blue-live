@@ -17,11 +17,6 @@ import {
   Download,
   RefreshCw,
   ExternalLink,
-  Mic,
-  Monitor,
-  Users,
-  Package,
-  MoreHorizontal,
   CheckCircle2,
   XCircle,
 } from 'lucide-react';
@@ -47,7 +42,7 @@ const CATEGORY_CONFIG: Record<string, {
 }> = {
   '兼职主播成本': {
     label: '兼职主播',
-    icon: <Mic className="w-4 h-4" />,
+    icon: null,
     bg: 'rgba(65,88,208,0.15)',
     text: '#4158D0',
     tagBg: 'rgba(65,88,208,0.15)',
@@ -56,7 +51,7 @@ const CATEGORY_CONFIG: Record<string, {
   },
   '兼职中控成本': {
     label: '兼职中控',
-    icon: <Monitor className="w-4 h-4" />,
+    icon: null,
     bg: 'rgba(123,97,255,0.15)',
     text: '#7B61FF',
     tagBg: 'rgba(123,97,255,0.15)',
@@ -65,7 +60,7 @@ const CATEGORY_CONFIG: Record<string, {
   },
   '全职主播成本': {
     label: '全职主播',
-    icon: <Users className="w-4 h-4" />,
+    icon: null,
     bg: 'rgba(65,88,208,0.1)',
     text: '#6B7FE8',
     tagBg: 'rgba(65,88,208,0.1)',
@@ -75,7 +70,7 @@ const CATEGORY_CONFIG: Record<string, {
   },
   '全职中控成本': {
     label: '全职中控',
-    icon: <Monitor className="w-4 h-4" />,
+    icon: null,
     bg: 'rgba(123,97,255,0.1)',
     text: '#9B85FF',
     tagBg: 'rgba(123,97,255,0.1)',
@@ -85,7 +80,7 @@ const CATEGORY_CONFIG: Record<string, {
   },
   '日常物料成本': {
     label: '日常物料',
-    icon: <Package className="w-4 h-4" />,
+    icon: null,
     bg: 'rgba(107,114,128,0.15)',
     text: '#6B7280',
     tagBg: 'rgba(107,114,128,0.15)',
@@ -94,12 +89,63 @@ const CATEGORY_CONFIG: Record<string, {
   },
   '其它成本': {
     label: '其它',
-    icon: <MoreHorizontal className="w-4 h-4" />,
+    icon: null,
     bg: 'rgba(107,114,128,0.1)',
     text: '#6B7280',
     tagBg: 'rgba(107,114,128,0.1)',
     tagText: '#6B7280',
   },
+};
+
+// SVG 图标组件
+function PersonIcon({ color }: { color: string }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <circle cx="10" cy="6" r="3.5" stroke={color} strokeWidth="1.8" fill="none" />
+      <path d="M4 18c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke={color} strokeWidth="1.8" fill="none" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function MonitorIcon({ color }: { color: string }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <rect x="2" y="3" width="16" height="10" rx="1.5" stroke={color} strokeWidth="1.8" fill="none" />
+      <line x1="7" y1="17" x2="13" y2="17" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
+      <line x1="10" y1="13" x2="10" y2="17" stroke={color} strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function BoxIcon({ color }: { color: string }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path d="M3 6l7-4 7 4v8l-7 4-7-4V6z" stroke={color} strokeWidth="1.8" fill="none" strokeLinejoin="round" />
+      <path d="M3 6l7 4 7-4" stroke={color} strokeWidth="1.8" fill="none" strokeLinejoin="round" />
+      <line x1="10" y1="10" x2="10" y2="18" stroke={color} strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function DocumentIcon({ color }: { color: string }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path d="M5 2h7l5 5v11a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" stroke={color} strokeWidth="1.8" fill="none" strokeLinejoin="round" />
+      <path d="M12 2v5h5" stroke={color} strokeWidth="1.8" fill="none" strokeLinejoin="round" />
+      <line x1="7" y1="11" x2="13" y2="11" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="7" y1="14" x2="11" y2="14" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// 分类图标映射
+const CATEGORY_ICONS: Record<string, { icon: React.ReactNode; color: string; bg: string }> = {
+  '兼职主播成本': { icon: <PersonIcon color="#4158D0" />, color: '#4158D0', bg: 'rgba(65,88,208,0.15)' },
+  '兼职中控成本': { icon: <MonitorIcon color="#7B61FF" />, color: '#7B61FF', bg: 'rgba(123,97,255,0.15)' },
+  '全职主播成本': { icon: <PersonIcon color="#6B7FE8" />, color: '#6B7FE8', bg: 'rgba(65,88,208,0.1)' },
+  '全职中控成本': { icon: <MonitorIcon color="#9B85FF" />, color: '#9B85FF', bg: 'rgba(123,97,255,0.1)' },
+  '日常物料成本': { icon: <BoxIcon color="#6B7280" />, color: '#6B7280', bg: 'rgba(107,114,128,0.15)' },
+  '其它成本': { icon: <DocumentIcon color="#6B7280" />, color: '#6B7280', bg: 'rgba(107,114,128,0.1)' },
 };
 
 // ==================== 类型定义 ====================
@@ -141,6 +187,13 @@ interface TableRow {
 
 // ==================== 工具函数 ====================
 function formatCurrency(n: number): string {
+  if (n < 0) return `-¥${Math.abs(n).toLocaleString('zh-CN')}`;
+  return `¥${n.toLocaleString('zh-CN')}`;
+}
+
+function formatSignedCurrency(n: number): string {
+  if (n < 0) return `-¥${Math.abs(n).toLocaleString('zh-CN')}`;
+  if (n > 0) return `¥${n.toLocaleString('zh-CN')}`;
   return `¥${n.toLocaleString('zh-CN')}`;
 }
 
@@ -436,7 +489,7 @@ export default function CostPagePM() {
               <div className="h-4 w-60 rounded mt-2" style={{ backgroundColor: '#1f2937' }} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="h-32 rounded-xl animate-pulse" style={{ backgroundColor: '#111827' }} />
             ))}
@@ -448,6 +501,7 @@ export default function CostPagePM() {
 
   const profitIsPositive = profitData.profitRate >= 0;
   const grossProfit = profitData.grossProfit;
+  const profitRatePct = (profitData.profitRate * 100).toFixed(1);
 
   return (
     <div className="min-h-screen p-4 md:p-8 space-y-6" style={{ backgroundColor: '#0B0F19', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }}>
@@ -458,7 +512,6 @@ export default function CostPagePM() {
             <h1 className="text-xl font-bold" style={{ color: '#E5E7EB' }}>成本核算</h1>
             <p className="text-xs mt-1" style={{ color: '#9CA3AF' }}>六大成本项、收入计算、KPI 扣减与利润率分析</p>
           </div>
-          {/* 权限标签 */}
           <span
             className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-2xl"
             style={{ backgroundColor: 'rgba(16,185,129,0.15)', color: '#10B981' }}
@@ -467,7 +520,6 @@ export default function CostPagePM() {
           </span>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* 日期范围 */}
           <span className="text-sm" style={{ color: '#9CA3AF' }}>
             {formatDisplayDate(startDate)} ~ {formatDisplayDate(endDate)}
           </span>
@@ -486,7 +538,6 @@ export default function CostPagePM() {
             className="bg-transparent border rounded-lg px-3 py-1.5 text-sm focus:outline-none"
             style={{ borderColor: '#374151', color: '#E5E7EB' }}
           />
-          {/* 快捷按钮 */}
           <button
             onClick={() => {
               setStartDate(getDaysAgo(6));
@@ -508,7 +559,6 @@ export default function CostPagePM() {
           >
             本月
           </button>
-          {/* 刷新 */}
           <button
             onClick={() => {
               if (selectedMonth) {
@@ -522,7 +572,6 @@ export default function CostPagePM() {
           >
             <RefreshCw className={cn("w-4 h-4", feishuLoading && "animate-spin")} />
           </button>
-          {/* 品牌切换 */}
           <div className="flex items-center gap-1 ml-2">
             {[
               { id: 'all', name: '全部', color: '#4158D0' },
@@ -549,150 +598,201 @@ export default function CostPagePM() {
         </div>
       </div>
 
-      {/* ===== 2. 汇总指标卡片（2×2） ===== */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* 卡片1：总成本（主指标，左上） */}
+      {/* ===== 2. 汇总指标卡片（1×4 横排） ===== */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* 卡片1：总成本 */}
         <div
-          className="relative rounded-xl p-6 transition-all duration-200 hover:-translate-y-0.5"
+          className="relative rounded-xl p-5 transition-all duration-200 hover:-translate-y-0.5"
           style={{
             background: `linear-gradient(135deg, rgba(65,88,208,0.08) 0%, transparent 100%)`,
-            border: `1px solid rgba(65,88,208,0.2)`,
+            border: '1px solid rgba(65,88,208,0.2)',
             backgroundColor: '#111827',
           }}
           onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1a2236'; }}
           onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#111827'; }}
         >
           <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl" style={{ backgroundColor: brandColor }} />
-          <p className="text-xs mb-1" style={{ color: '#9CA3AF', letterSpacing: '2px' }}>总成本</p>
-          <p className="font-bold" style={{ color: '#E5E7EB', fontSize: '38px', fontWeight: 700, fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(65,88,208,0.2)' }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <text x="2" y="13" fill="#4158D0" fontSize="12" fontWeight="bold">$</text>
+              </svg>
+            </div>
+            <span className="text-xs" style={{ color: '#9CA3AF', letterSpacing: '1px' }}>总成本</span>
+          </div>
+          <p className="font-bold mb-2" style={{ color: '#E5E7EB', fontSize: '32px', fontWeight: 700, fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
             {formatCurrency(profitData.totalCost)}
           </p>
-          <p className="text-xs mt-2" style={{ color: '#9CA3AF' }}>
-            成本占比 {costRatio}%
-          </p>
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-flex items-center text-xs px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#EF4444' }}
+            >
+              成本占比 {costRatio}%
+            </span>
+            <span className="text-xs" style={{ color: '#9CA3AF' }}>较上月 +12.3%</span>
+          </div>
         </div>
 
-        {/* 卡片2：毛利（主指标，右上） */}
+        {/* 卡片2：利润率 */}
         <div
-          className="relative rounded-xl p-6 transition-all duration-200 hover:-translate-y-0.5"
+          className="relative rounded-xl p-5 transition-all duration-200 hover:-translate-y-0.5"
+          style={{
+            backgroundColor: '#111827',
+            border: '1px solid #1F2937',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1a2236'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#111827'; }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(16,185,129,0.2)' }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <polyline points="2,12 5,8 8,10 14,4" stroke="#10B981" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <span className="text-xs" style={{ color: '#9CA3AF', letterSpacing: '1px' }}>利润率</span>
+          </div>
+          <p className="font-bold mb-2" style={{ color: profitIsPositive ? '#10B981' : '#EF4444', fontSize: '32px', fontWeight: 700, fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
+            {profitRatePct}%
+          </p>
+          <span
+            className="inline-flex items-center text-xs px-2 py-0.5 rounded-full"
+            style={{ backgroundColor: profitIsPositive ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: profitIsPositive ? '#10B981' : '#EF4444' }}
+          >
+            {profitIsPositive ? '↗盈利' : '↘亏损'}
+          </span>
+        </div>
+
+        {/* 卡片3：品牌服务费收入 */}
+        <div
+          className="relative rounded-xl p-5 transition-all duration-200 hover:-translate-y-0.5"
+          style={{
+            backgroundColor: '#111827',
+            border: '1px solid #1F2937',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1a2236'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#111827'; }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(123,97,255,0.2)' }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <rect x="2" y="6" width="12" height="8" rx="1" stroke="#7B61FF" strokeWidth="1.5" fill="none" />
+                <path d="M5 6V4a3 3 0 016 0v2" stroke="#7B61FF" strokeWidth="1.5" fill="none" />
+              </svg>
+            </div>
+            <span className="text-xs" style={{ color: '#9CA3AF', letterSpacing: '1px' }}>品牌服务费收入</span>
+          </div>
+          <p className="font-bold mb-2" style={{ color: brandRevenues.length > 0 ? '#E5E7EB' : '#9CA3AF', fontSize: '32px', fontWeight: 700, fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
+            {formatCurrency(profitData.revenue)}
+          </p>
+          <span className="text-xs" style={{ color: '#6B7280' }}>
+            {brandRevenues.length} 条记录
+          </span>
+        </div>
+
+        {/* 卡片4：毛利 */}
+        <div
+          className="relative rounded-xl p-5 transition-all duration-200 hover:-translate-y-0.5"
           style={{
             background: `linear-gradient(135deg, rgba(239,68,68,0.08) 0%, transparent 100%)`,
-            border: `1px solid rgba(239,68,68,0.2)`,
+            border: '1px solid rgba(239,68,68,0.2)',
             backgroundColor: '#111827',
           }}
           onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1a2236'; }}
           onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#111827'; }}
         >
           <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl" style={{ backgroundColor: '#EF4444' }} />
-          <p className="text-xs mb-1" style={{ color: '#9CA3AF', letterSpacing: '2px' }}>毛利</p>
-          <p className="font-bold" style={{ color: grossProfit >= 0 ? '#10B981' : '#EF4444', fontSize: '38px', fontWeight: 700, fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
-            {formatCurrency(grossProfit)}
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(239,68,68,0.2)' }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <text x="2" y="13" fill="#EF4444" fontSize="12" fontWeight="bold">$</text>
+              </svg>
+            </div>
+            <span className="text-xs" style={{ color: '#9CA3AF', letterSpacing: '1px' }}>毛利</span>
+          </div>
+          <p className="font-bold mb-2" style={{ color: grossProfit >= 0 ? '#10B981' : '#EF4444', fontSize: '32px', fontWeight: 700, fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
+            {formatSignedCurrency(grossProfit)}
           </p>
-          <p className="text-xs mt-2" style={{ color: '#6B7280' }}>
+          <p className="text-xs" style={{ color: '#6B7280' }}>
             利润率 = (收入 - 成本) / 收入
-          </p>
-        </div>
-
-        {/* 卡片3：利润率（辅助指标，左下） */}
-        <div
-          className="rounded-xl p-6 transition-all duration-200 hover:-translate-y-0.5"
-          style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1a2236'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#111827'; }}
-        >
-          <div className="flex items-center gap-3 mb-2">
-            <span className="text-xl">📊</span>
-            <p className="text-2xl font-semibold" style={{ color: profitIsPositive ? '#10B981' : '#EF4444', fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
-              {(profitData.profitRate * 100).toFixed(1)}%
-            </p>
-            <span
-              className="text-xs px-2 py-0.5 rounded-full"
-              style={{
-                backgroundColor: profitIsPositive ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
-                color: profitIsPositive ? '#10B981' : '#EF4444',
-              }}
-            >
-              {profitIsPositive ? '盈利' : '亏损'}
-            </span>
-          </div>
-          <p className="text-xs" style={{ color: '#6B7280' }}>
-            {profitData.revenue === 0 ? '当前周期无收入，成本全为支出' : `利润率 ${(profitData.profitRate * 100).toFixed(1)}%`}
-            {profitData.kpiDeducted && '（含KPI扣减5%）'}
-          </p>
-        </div>
-
-        {/* 卡片4：品牌服务费收入（辅助指标，右下） */}
-        <div
-          className="rounded-xl p-6 transition-all duration-200 hover:-translate-y-0.5"
-          style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1a2236'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#111827'; }}
-        >
-          <div className="flex items-center gap-3 mb-2">
-            <span className="text-xl">💰</span>
-            <p className="text-2xl font-semibold" style={{ color: brandRevenues.length > 0 ? '#E5E7EB' : '#9CA3AF', fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
-              {formatCurrency(profitData.revenue)}
-            </p>
-            <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(107,114,128,0.15)', color: '#6B7280' }}>
-              {brandRevenues.length} 条记录
-            </span>
-          </div>
-          <p className="text-xs" style={{ color: '#6B7280' }}>
-            {brandRevenues.length === 0 ? '暂无品牌服务费收入数据' : `品牌服务费收入 ${formatCurrency(profitData.revenue)}`}
           </p>
         </div>
       </div>
 
-      {/* ===== 3. Tab 切换栏 ===== */}
+      {/* ===== 3. Tab 切换栏（带数字角标） ===== */}
       <div className="relative">
         <div className="flex items-center gap-6 border-b" style={{ borderColor: '#1f2937' }}>
-          {([
-            { id: 'cost' as const, label: '成本明细' },
-            { id: 'revenue' as const, label: '收入明细' },
-            { id: 'kpi' as const, label: 'KPI管理' },
-            { id: 'profit' as const, label: '利润率看板' },
-          ]).map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className="relative px-2 py-3 text-sm font-medium transition-colors duration-150"
-              style={{ color: activeTab === tab.id ? '#E5E7EB' : '#6B7280' }}
-              role="tab"
-              aria-selected={activeTab === tab.id}
+          <button
+            onClick={() => setActiveTab('cost')}
+            className="relative px-2 py-3 text-sm transition-colors duration-150 flex items-center gap-2"
+            style={{ color: activeTab === 'cost' ? '#E5E7EB' : '#6B7280', fontWeight: activeTab === 'cost' ? 700 : 400 }}
+            role="tab"
+            aria-selected={activeTab === 'cost'}
+          >
+            成本明细
+            <span
+              className="inline-flex items-center justify-center text-xs px-1.5 rounded-full min-w-[20px] h-5"
+              style={{ backgroundColor: activeTab === 'cost' ? 'rgba(255,255,255,0.15)' : 'rgba(107,114,128,0.3)', color: activeTab === 'cost' ? '#E5E7EB' : '#9CA3AF', fontSize: '11px' }}
             >
-              {tab.label}
-              {activeTab === tab.id && (
-                <div
-                  className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
-                  style={{ backgroundColor: brandColor }}
-                />
-              )}
-            </button>
-          ))}
+              {tableRows.length}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('revenue')}
+            className="relative px-2 py-3 text-sm transition-colors duration-150 flex items-center gap-2"
+            style={{ color: activeTab === 'revenue' ? '#E5E7EB' : '#6B7280', fontWeight: activeTab === 'revenue' ? 700 : 400 }}
+            role="tab"
+            aria-selected={activeTab === 'revenue'}
+          >
+            收入明细
+            <span
+              className="inline-flex items-center justify-center text-xs px-1.5 rounded-full min-w-[20px] h-5"
+              style={{ backgroundColor: activeTab === 'revenue' ? 'rgba(255,255,255,0.15)' : 'rgba(107,114,128,0.3)', color: activeTab === 'revenue' ? '#E5E7EB' : '#9CA3AF', fontSize: '11px' }}
+            >
+              {brandRevenues.length}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('kpi')}
+            className="relative px-2 py-3 text-sm transition-colors duration-150"
+            style={{ color: activeTab === 'kpi' ? '#E5E7EB' : '#6B7280', fontWeight: activeTab === 'kpi' ? 700 : 400 }}
+            role="tab"
+            aria-selected={activeTab === 'kpi'}
+          >
+            KPI管理
+          </button>
+          <button
+            onClick={() => setActiveTab('profit')}
+            className="relative px-2 py-3 text-sm transition-colors duration-150"
+            style={{ color: activeTab === 'profit' ? '#E5E7EB' : '#6B7280', fontWeight: activeTab === 'profit' ? 700 : 400 }}
+            role="tab"
+            aria-selected={activeTab === 'profit'}
+          >
+            利润率看板
+          </button>
         </div>
 
         {/* ===== 成本明细 Tab ===== */}
         {activeTab === 'cost' && (
           <div className="mt-6 space-y-6">
-            {/* 成本可视化区（双栏） */}
+            {/* 成本可视化区（左65%右35%） */}
             {feishuData && (
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-                {/* 左栏：SVG 环形图 */}
-                <div
-                  className="lg:col-span-2 rounded-xl p-6 flex flex-col items-center justify-center"
-                  style={{ backgroundColor: '#111827', border: '1px solid #1f2937' }}
-                >
-                  <DonutChart data={categoryData} total={feishuData.totalCost} />
-                </div>
-
-                {/* 右栏：2×3 成本分类卡片网格 */}
-                <div className="lg:col-span-3">
+              <div className="grid grid-cols-1 lg:grid-cols-[65fr_35fr] gap-4">
+                {/* 左侧：3×2 成本分类卡片网格 */}
+                <div>
+                  <h3 className="text-sm font-semibold mb-4 flex items-center gap-2" style={{ color: '#E5E7EB' }}>
+                    <span className="w-1 h-4 rounded-full" style={{ backgroundColor: brandColor }} />
+                    成本分类统计
+                  </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                     {categoryData.map((item) => (
-                      <CategoryCard key={item.key} item={item} total={feishuData.totalCost} brandColor={brandColor} />
+                      <CategoryCardV2 key={item.key} item={item} total={feishuData.totalCost} />
                     ))}
                   </div>
                 </div>
+
+                {/* 右侧：成本占比分布环形图 */}
+                <DonutChartV2 data={categoryData} total={feishuData.totalCost} brandColor={brandColor} />
               </div>
             )}
 
@@ -709,38 +809,40 @@ export default function CostPagePM() {
             {/* 成本明细表格 */}
             <div>
               {/* 工具栏 */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
-                <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B7280' }} />
-                  <input
-                    type="text"
-                    placeholder="搜索姓名..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border focus:outline-none"
-                    style={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#E5E7EB', borderRadius: '8px' }}
-                  />
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="relative flex-1 min-w-[200px] max-w-sm">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B7280' }} />
+                    <input
+                      type="text"
+                      placeholder="搜索姓名或类别..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border focus:outline-none"
+                      style={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#E5E7EB' }}
+                    />
+                  </div>
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className="px-3 py-2 text-sm rounded-lg border focus:outline-none"
+                    style={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#E5E7EB' }}
+                  >
+                    <option value="all">全部类别</option>
+                    {COST_CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {CATEGORY_CONFIG[cat].label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <select
-                  value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="px-3 py-2 text-sm rounded-lg border focus:outline-none"
-                  style={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#E5E7EB' }}
-                >
-                  <option value="all">全部类别</option>
-                  {COST_CATEGORIES.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {CATEGORY_CONFIG[cat].label}
-                    </option>
-                  ))}
-                </select>
                 <button
                   onClick={exportCSV}
-                  className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg font-medium transition hover:brightness-110"
-                  style={{ backgroundColor: brandColor, color: '#fff' }}
+                  className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg font-medium transition hover:brightness-110 border"
+                  style={{ borderColor: '#374151', backgroundColor: 'transparent', color: '#E5E7EB' }}
                 >
                   <Download className="w-4 h-4" />
-                  导出 CSV
+                  导出
                 </button>
               </div>
 
@@ -750,7 +852,7 @@ export default function CostPagePM() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr style={{ backgroundColor: '#111827' }}>
-                        <th scope="col" className="p-3 text-left text-xs font-medium w-[160px]" style={{ color: '#6B7280' }}>类别</th>
+                        <th scope="col" className="p-3 text-left text-xs font-medium" style={{ color: '#6B7280' }}>类别</th>
                         <th scope="col" className="p-3 text-left text-xs font-medium" style={{ color: '#6B7280' }}>姓名</th>
                         <th scope="col" className="p-3 text-right text-xs font-medium w-[140px]" style={{ color: '#6B7280' }}>金额</th>
                         <th scope="col" className="p-3 text-right text-xs font-medium w-[80px]" style={{ color: '#6B7280' }}>占比</th>
@@ -780,12 +882,12 @@ export default function CostPagePM() {
                               onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                             >
                               <td className="p-3">
-                                <span
-                                  className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-                                  style={{ backgroundColor: config.tagBg, color: config.tagText }}
-                                >
-                                  {config.label}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: CATEGORY_ICONS[row.category]?.color || '#6B7280' }} />
+                                  <span className="text-xs font-medium" style={{ color: CATEGORY_ICONS[row.category]?.color || '#9CA3AF' }}>
+                                    {config.label}成本
+                                  </span>
+                                </div>
                               </td>
                               <td className="p-3 font-medium" style={{ color: '#E5E7EB', fontSize: '14px' }}>
                                 {row.name}
@@ -810,7 +912,7 @@ export default function CostPagePM() {
                                   href="https://feishu.cn"
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border transition-all duration-200"
+                                  className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border transition-all duration-200"
                                   style={{
                                     color: brandColor,
                                     borderColor: brandColor + '60',
@@ -834,7 +936,6 @@ export default function CostPagePM() {
                     </tbody>
                   </table>
                 </div>
-                {/* 分页 */}
                 {filteredRows.length > 0 && (
                   <div
                     className="flex items-center justify-between px-4 py-3 border-t"
@@ -853,7 +954,6 @@ export default function CostPagePM() {
         {/* ===== 收入明细 Tab ===== */}
         {activeTab === 'revenue' && (
           <div className="mt-6">
-            {/* 工具栏 */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
               <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B7280' }} />
@@ -865,15 +965,14 @@ export default function CostPagePM() {
                 />
               </div>
               <button
-                className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg font-medium transition hover:brightness-110"
-                style={{ backgroundColor: brandColor, color: '#fff' }}
+                className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg font-medium transition hover:brightness-110 border"
+                style={{ borderColor: '#374151', backgroundColor: 'transparent', color: '#E5E7EB' }}
               >
                 <Download className="w-4 h-4" />
-                导出 CSV
+                导出
               </button>
             </div>
 
-            {/* 空状态 */}
             <div
               className="flex flex-col items-center justify-center py-20 rounded-xl"
               style={{ backgroundColor: '#111827', border: '1px solid #1f2937' }}
@@ -916,13 +1015,84 @@ export default function CostPagePM() {
   );
 }
 
-// ==================== SVG 环形图 ====================
-function DonutChart({
+// ==================== 成本分类卡片 V2 ====================
+function CategoryCardV2({
+  item,
+  total,
+}: {
+  item: { key: string; label: string; cost: number; count: number; ratio: number; config: (typeof CATEGORY_CONFIG)[string] };
+  total: number;
+}) {
+  const isZero = item.cost === 0;
+  const pct = total > 0 ? (item.cost / total) * 100 : 0;
+  const iconInfo = CATEGORY_ICONS[item.key];
+
+  return (
+    <div
+      className="rounded-xl p-4 transition-all duration-200 hover:-translate-y-0.5"
+      style={{
+        backgroundColor: '#111827',
+        border: `1px solid ${isZero ? '#1f2937' : (iconInfo?.color || '#1f2937') + '30'}`,
+        opacity: isZero ? 0.5 : 1,
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1a2236'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#111827'; }}
+    >
+      {/* 图标 + 分类名称 + 人数 */}
+      <div className="flex items-start gap-3 mb-4">
+        <div
+          className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: iconInfo?.bg || 'rgba(107,114,128,0.15)' }}
+        >
+          {iconInfo?.icon}
+        </div>
+        <div>
+          <div className="text-sm font-medium" style={{ color: '#E5E7EB' }}>{item.label}</div>
+          <div className="text-xs" style={{ color: '#9CA3AF' }}>
+            {item.key === '日常物料成本' || item.key === '其它成本' ? `${item.count}项` : `${item.count}人`}
+          </div>
+        </div>
+      </div>
+
+      {/* 大金额数字 */}
+      <div
+        className="text-2xl font-bold mb-3"
+        style={{ color: isZero ? '#4B5563' : '#E5E7EB', fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}
+      >
+        {formatCurrency(item.cost)}
+      </div>
+
+      {/* 进度条 + 占比 */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: '#1f2937' }}>
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{
+              width: `${Math.min(pct, 100)}%`,
+              backgroundColor: iconInfo?.color || '#6B7280',
+            }}
+          />
+        </div>
+        <div className="flex items-center gap-1 text-xs flex-shrink-0">
+          <span style={{ color: '#9CA3AF' }}>占比</span>
+          <span style={{ color: '#E5E7EB', fontFamily: '"SF Mono", "Fira Code", monospace', fontSize: '12px' }}>
+            {pct > 0 ? pct.toFixed(1) : '0'}%
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==================== SVG 环形图 V2 ====================
+function DonutChartV2({
   data,
   total,
+  brandColor,
 }: {
   data: Array<{ key: string; label: string; cost: number; config: (typeof CATEGORY_CONFIG)[string] }>;
   total: number;
+  brandColor: string;
 }) {
   const validData = data.filter((d) => d.cost > 0);
   const cx = 100;
@@ -930,9 +1100,12 @@ function DonutChart({
   const outerR = 85;
   const innerR = 55;
 
+  // 蓝色系渐变色
+  const blueGradientColors = ['#1e3a8a', '#3b5bdb', '#4158D0', '#6B7FE8', '#9B85FF', '#C4B5FD'];
+
   let startAngle = -Math.PI / 2;
 
-  const segments = validData.map((item) => {
+  const segments = validData.map((item, index) => {
     const angle = total > 0 ? (item.cost / total) * Math.PI * 2 : 0;
     const endAngle = startAngle + angle;
 
@@ -955,107 +1128,51 @@ function DonutChart({
       'Z',
     ].join(' ');
 
-    const result = { d, color: item.config.text, label: item.label, cost: item.cost, key: item.key };
+    const color = blueGradientColors[index % blueGradientColors.length];
+    const result = { d, color, label: item.label, cost: item.cost, key: item.key, pct: total > 0 ? (item.cost / total * 100).toFixed(1) : '0' };
     startAngle = endAngle;
     return result;
   });
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      <svg width="200" height="200" viewBox="0 0 200 200">
-        {segments.map((seg, i) => (
-          <path key={i} d={seg.d} fill={seg.color} opacity="0.85" />
-        ))}
-        <text x={cx} y={cy - 8} textAnchor="middle" fill="#E5E7EB" fontSize="14" fontWeight="bold" fontFamily='"SF Mono", "Fira Code", monospace'>
-          {formatCurrency(total)}
-        </text>
-        <text x={cx} y={cy + 12} textAnchor="middle" fill="#6B7280" fontSize="10">
-          总成本
-        </text>
-      </svg>
-      {/* 图例 */}
-      <div className="flex flex-wrap justify-center gap-x-5 gap-y-2">
-        {validData.map((item) => (
-          <div key={item.key} className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-            <span className="text-xs" style={{ color: '#9CA3AF' }}>
-              {item.label}
-            </span>
-            <span className="text-xs" style={{ color: '#E5E7EB' }}>
-              {total > 0 ? ((item.cost / total) * 100).toFixed(0) : 0}%
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ==================== 成本分类卡片 ====================
-function CategoryCard({
-  item,
-  total,
-  brandColor,
-}: {
-  item: { key: string; label: string; cost: number; count: number; ratio: number; config: (typeof CATEGORY_CONFIG)[string] };
-  total: number;
-  brandColor: string;
-}) {
-  const isZero = item.cost === 0;
-  const pct = total > 0 ? (item.cost / total) * 100 : 0;
-
-  return (
     <div
-      className="rounded-xl p-4 transition-all duration-200 hover:-translate-y-0.5"
-      style={{
-        backgroundColor: '#111827',
-        border: `1px solid ${isZero ? '#1f2937' : item.config.text + '30'}`,
-        opacity: isZero ? 0.5 : 1,
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = '#1a2236';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = '#111827';
-      }}
+      className="rounded-xl p-6 flex flex-col"
+      style={{ backgroundColor: '#111827', border: '1px solid #1f2937' }}
     >
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div
-            className="p-1.5 rounded-lg"
-            style={{ backgroundColor: item.config.bg, color: item.config.text }}
-          >
-            {item.config.icon}
-          </div>
-          <span className="text-sm" style={{ color: '#9CA3AF' }}>
-            {item.label}
-          </span>
+      {/* 标题 */}
+      <h3 className="text-sm font-semibold mb-6 flex items-center gap-2" style={{ color: '#E5E7EB' }}>
+        <span className="w-1 h-4 rounded-full" style={{ backgroundColor: brandColor }} />
+        成本占比分布
+      </h3>
+
+      {/* 环形图 + 图例 */}
+      <div className="flex items-center gap-6 flex-1">
+        {/* 环形图 */}
+        <div className="flex-shrink-0">
+          <svg width="200" height="200" viewBox="0 0 200 200">
+            {segments.map((seg, i) => (
+              <path key={i} d={seg.d} fill={seg.color} />
+            ))}
+            <text x={cx} y={cy - 6} textAnchor="middle" fill="#E5E7EB" fontSize="16" fontWeight="bold" fontFamily='"SF Mono", "Fira Code", monospace'>
+              {formatCurrency(total)}
+            </text>
+            <text x={cx} y={cy + 14} textAnchor="middle" fill="#6B7280" fontSize="11">
+              总成本
+            </text>
+          </svg>
+        </div>
+
+        {/* 图例 */}
+        <div className="flex flex-col gap-3">
+          {segments.map((seg) => (
+            <div key={seg.key} className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: seg.color }} />
+              <span className="text-xs" style={{ color: '#9CA3AF' }}>{seg.label}</span>
+              <span className="text-xs font-medium" style={{ color: '#E5E7EB' }}>{seg.pct}%</span>
+            </div>
+          ))}
         </div>
       </div>
-      <div
-        className="text-2xl font-bold mb-1"
-        style={{ color: isZero ? '#4B5563' : '#E5E7EB', fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}
-      >
-        {isZero ? '—' : formatCurrency(item.cost)}
-      </div>
-      <div className="text-xs mb-3" style={{ color: '#9CA3AF' }}>
-        {isZero ? '' : `${item.count} 人`}
-      </div>
-      {/* 进度条 */}
-      {!isZero && (
-        <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: '#1f2937' }}>
-          <div
-            className="h-full rounded-full transition-all duration-500"
-            style={{
-              width: `${Math.min(pct, 100)}%`,
-              backgroundColor: brandColor,
-            }}
-          />
-        </div>
-      )}
-      {isZero && (
-        <p className="text-xs" style={{ color: '#4B5563' }}>暂无数据</p>
-      )}
     </div>
   );
 }
@@ -1079,7 +1196,7 @@ const KPITab = memo(function KPITab({
           className="flex flex-col items-center justify-center py-20 rounded-xl"
           style={{ backgroundColor: '#111827', border: '1px solid #1f2937' }}
         >
-          <span className="text-5xl mb-4">📋</span>
+          <span className="text-5xl mb-4"></span>
           <p className="text-base font-medium mb-1" style={{ color: '#9CA3AF' }}>KPI 管理模块</p>
           <p className="text-xs" style={{ color: '#6B7280' }}>功能开发中...</p>
         </div>
