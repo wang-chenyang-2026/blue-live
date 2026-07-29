@@ -138,9 +138,17 @@ function excelSerialToDate(serial: number | string): string {
 }
 
 function excelSerialToISO(serial: number | string): string {
-  // If it's already a formatted date string, try to extract year from context or return empty
+  // If it's a Chinese formatted date string (e.g. "7月29日"), convert to ISO
   if (typeof serial === 'string' && serial.includes('月') && serial.includes('日')) {
-    return serial.trim(); // Return formatted string as-is for rawDate too
+    const match = serial.match(/(\d{1,2})月(\d{1,2})日/);
+    if (match) {
+      const month = parseInt(match[1]);
+      const day = parseInt(match[2]);
+      // Assume current year for formatted dates
+      const year = new Date().getFullYear();
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+    return '';
   }
   const num = typeof serial === 'string' ? parseFloat(serial) : serial;
   if (isNaN(num)) return '';
