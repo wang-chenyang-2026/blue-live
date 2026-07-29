@@ -505,21 +505,26 @@ export default function CostPagePM() {
 
   return (
     <div className="min-h-screen p-4 md:p-8 space-y-6" style={{ backgroundColor: '#0B0F19', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }}>
-      {/* ===== 1. 顶部筛选栏 ===== */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div>
+      {/* ===== 1. 标题区 ===== */}
+      <div className="flex items-start gap-4">
+        <div>
+          <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold" style={{ color: '#E5E7EB' }}>成本核算</h1>
-            <p className="text-xs mt-1" style={{ color: '#9CA3AF' }}>六大成本项、收入计算、KPI 扣减与利润率分析</p>
+            <span
+              className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-2xl"
+              style={{ backgroundColor: 'rgba(16,185,129,0.15)', color: '#10B981' }}
+            >
+              🛡 完整数据视图
+            </span>
           </div>
-          <span
-            className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-2xl"
-            style={{ backgroundColor: 'rgba(16,185,129,0.15)', color: '#10B981' }}
-          >
-            🛡 完整数据视图
-          </span>
+          <p className="text-xs mt-1.5" style={{ color: '#9CA3AF' }}>六大成本项、收入计算、KPI 扣减与利润率分析</p>
         </div>
+      </div>
+
+      {/* ===== 2. 筛选栏 ===== */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm" style={{ color: '#9CA3AF' }}>日期范围</span>
           <span className="text-sm" style={{ color: '#9CA3AF' }}>
             {formatDisplayDate(startDate)} ~ {formatDisplayDate(endDate)}
           </span>
@@ -566,39 +571,39 @@ export default function CostPagePM() {
                 loadData();
               }
             }}
-            className="p-2 rounded-lg border transition hover:opacity-80"
-            style={{ borderColor: brandColor, color: brandColor }}
-            title="刷新数据"
+            className="px-4 py-1.5 text-xs rounded-lg transition hover:opacity-80 flex items-center gap-1"
+            style={{ backgroundColor: brandColor, color: '#fff' }}
           >
-            <RefreshCw className={cn("w-4 h-4", feishuLoading && "animate-spin")} />
+            <RefreshCw className={cn("w-3.5 h-3.5", feishuLoading && "animate-spin")} />
+            刷新
           </button>
-          <div className="flex items-center gap-1 ml-2">
-            {[
-              { id: 'all', name: '全部', color: '#4158D0' },
-              ...BRANDS.map((b) => ({
-                id: b.id,
-                name: b.name,
-                color: BRAND_COLORS[b.id] || '#4158D0',
-              })),
-            ].map((b) => (
-              <button
-                key={b.id}
-                onClick={() => setActiveBrand(b.id)}
-                className="px-3 py-1.5 text-xs rounded-lg border transition-all"
-                style={
-                  activeBrand === b.id
-                    ? { backgroundColor: b.color + '20', color: b.color, borderColor: b.color + '40' }
-                    : { borderColor: '#374151', color: '#9CA3AF' }
-                }
-              >
-                {b.name}
-              </button>
-            ))}
-          </div>
+        </div>
+        <div className="flex items-center gap-1">
+          {[
+            { id: 'all', name: '全部', color: '#4158D0' },
+            ...BRANDS.map((b) => ({
+              id: b.id,
+              name: b.name,
+              color: BRAND_COLORS[b.id] || '#4158D0',
+            })),
+          ].map((b) => (
+            <button
+              key={b.id}
+              onClick={() => setActiveBrand(b.id)}
+              className="px-4 py-1.5 text-xs rounded-lg transition-all"
+              style={
+                activeBrand === b.id
+                  ? { backgroundColor: b.color, color: '#fff' }
+                  : { backgroundColor: 'transparent', color: '#9CA3AF', border: '1px solid #374151' }
+              }
+            >
+              {b.name}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* ===== 2. 汇总指标卡片（1×4 横排） ===== */}
+      {/* ===== 3. 汇总指标卡片（1×4 横排） ===== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* 卡片1：总成本 */}
         <div
@@ -719,7 +724,7 @@ export default function CostPagePM() {
         </div>
       </div>
 
-      {/* ===== 3. Tab 切换栏（带数字角标） ===== */}
+      {/* ===== 4. Tab 切换栏（带数字角标） ===== */}
       <div className="relative">
         <div className="flex items-center gap-6 border-b" style={{ borderColor: '#1f2937' }}>
           <button
