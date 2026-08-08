@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// 飞书API配置
-const FEISHU_APP_ID = process.env.FEISHU_APP_ID || 'cli_aad6eadc8d381cde';
+// 飞书API配置（直接使用正确凭据，避免被Coze Code项目环境变量覆盖）
+const FEISHU_APP_ID = 'cli_aad6eadc8d381cde';
 
 // 多品牌排班表格配置（支持多月sheet自动匹配）
 const BRAND_CONFIGS: Record<string, {
@@ -22,6 +22,7 @@ const BRAND_CONFIGS: Record<string, {
       sheets: [
         { sheetId: '5690e8', baseDate: '2026-06-01' },  // 6月主播排班
         { sheetId: 'CWyBs5', baseDate: '2026-07-01' },  // 7月主播排班
+        { sheetId: 'CLahtk', baseDate: '2026-08-01' },  // 8月主播排班
       ],
     }],
   },
@@ -36,6 +37,7 @@ const BRAND_CONFIGS: Record<string, {
           { sheetId: '3efb46', baseDate: '2026-05-01' },  // 5月快手主播
           { sheetId: 'DR4r5x', baseDate: '2026-06-01' },  // 6月快手主播
           { sheetId: 'XmaSDl', baseDate: '2026-07-01' },  // 7月快手主播
+          { sheetId: 'jD0fRi', baseDate: '2026-08-01' },  // 8月快手主播
         ],
       },
       {
@@ -47,6 +49,7 @@ const BRAND_CONFIGS: Record<string, {
         sheets: [
           { sheetId: '7fa2c2', baseDate: '2026-06-01' },  // 6月抖音主播
           { sheetId: '19tDJP', baseDate: '2026-07-01' },  // 7月抖音主播
+          { sheetId: 'Fe0yr0', baseDate: '2026-08-01' },  // 8月抖音主播
         ],
       },
     ],
@@ -66,6 +69,7 @@ const CONTROL_TABLE_CONFIGS: Record<string, typeof BRAND_CONFIGS[string]> = {
       sheets: [
         { sheetId: '3xQ1Kq', baseDate: '2026-06-01' },  // 6月中控排班
         { sheetId: 'qKqNVP', baseDate: '2026-07-01' },  // 7月中控排班
+        { sheetId: 'xywCrp', baseDate: '2026-08-01' },  // 8月中控排班
       ],
     }],
   },
@@ -80,6 +84,7 @@ const CONTROL_TABLE_CONFIGS: Record<string, typeof BRAND_CONFIGS[string]> = {
           { sheetId: 'z2ln4e', baseDate: '2026-05-01' },  // 5月快手中控
           { sheetId: '2GiEeM', baseDate: '2026-06-01' },  // 6月快手中控
           { sheetId: 'vStsKE', baseDate: '2026-07-01' },  // 7月快手中控
+          { sheetId: '4nimSd', baseDate: '2026-08-01' },  // 8月快手中控
         ],
       },
       {
@@ -91,6 +96,7 @@ const CONTROL_TABLE_CONFIGS: Record<string, typeof BRAND_CONFIGS[string]> = {
         sheets: [
           { sheetId: 'UyzPvX', baseDate: '2026-06-01' },  // 6月抖音中控
           { sheetId: '5XHIti', baseDate: '2026-07-01' },  // 7月抖音中控
+          { sheetId: 'LwoXsl', baseDate: '2026-08-01' },  // 8月抖音中控
         ],
       },
     ],
@@ -130,7 +136,7 @@ function normalizeTimeSlot(slot: string): string {
 
 // 获取飞书 tenant_access_token
 async function getFeishuToken(): Promise<string> {
-  const appSecret = process.env.FEISHU_APP_SECRET || 'ejUxI30c9sYDW1NWha0lqeABBMPYFZca';
+  const appSecret = 'ejUxI30c9sYDW1NWha0lqeABBMPYFZca';
   const response = await fetch('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
