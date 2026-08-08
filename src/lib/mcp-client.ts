@@ -65,10 +65,27 @@ async function mcpRequest(
   }
 
   const text = await res.text();
-  // The response might be NDJSON or SSE. Try to parse as JSON first.
+
+  // Handle SSE (Server-Sent Events) format from Streamable HTTP
+  // SSE messages look like: "data: {json}\n\ndata: {json}\n\n"
+  if (text.includes('data:')) {
+    const dataLines = text.split('\n').filter((l) => l.startsWith('data:'));
+    // Use the last data line (usually contains the final response)
+    for (let i = dataLines.length - 1; i >= 0; i--) {
+      const jsonStr = dataLines[i].replace(/^data:\s*/, '').trim();
+      if (jsonStr && jsonStr.startsWith('{')) {
+        try {
+          return JSON.parse(jsonStr);
+        } catch {
+          continue;
+        }
+      }
+    }
+  }
+
+  // Try direct JSON parse
   try {
     const lines = text.trim().split('\n');
-    // Find the last non-empty line that's valid JSON
     for (let i = lines.length - 1; i >= 0; i--) {
       const line = lines[i].trim();
       if (line && line.startsWith('{')) {
