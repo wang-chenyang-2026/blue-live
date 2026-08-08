@@ -68,6 +68,7 @@ export type ModuleKey =
   | 'dashboard'
   | 'schedule'
   | 'data-overview'
+  | 'market-monitor'
   | 'cost'
   | 'visual'
   | 'sop'

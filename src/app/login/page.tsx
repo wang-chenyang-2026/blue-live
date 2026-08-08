@@ -15,6 +15,7 @@ const MODULE_PATHS: Record<ModuleKey, string> = {
   dashboard: '/',
   schedule: '/schedule',
   'data-overview': '/data-overview',
+  'market-monitor': '/market-monitor',
   cost: '/cost',
   visual: '/visual',
   sop: '/sop',

@@ -84,6 +84,7 @@ const MODULE_LABELS: Record<ModuleKey, string> = {
   dashboard: '首页概览',
   schedule: '排班管理',
   'data-overview': '数据概览',
+  'market-monitor': '市场监测',
   cost: '成本核算',
   visual: '视觉统计',
   sop: 'SOP管理',
@@ -104,6 +105,7 @@ export const ROLES: Role[] = [
       'dashboard',
       'schedule',
       'data-overview',
+      'market-monitor',
       'cost',
       'visual',
       'sop',
@@ -117,7 +119,7 @@ export const ROLES: Role[] = [
   {
     key: '运营',
     label: '运营',
-    modules: ['dashboard', 'schedule', 'data-overview', 'cost', 'visual', 'sop', 'workstation', 'problem-feedback'],
+    modules: ['dashboard', 'schedule', 'data-overview', 'market-monitor', 'cost', 'visual', 'sop', 'workstation', 'problem-feedback'],
     brandScopedModules: ['dashboard', 'schedule', 'data-overview', 'cost', 'workstation'],
     // visual、sop、problem-feedback 可看全部品牌
   },

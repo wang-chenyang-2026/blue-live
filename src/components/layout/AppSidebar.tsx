@@ -18,6 +18,7 @@ import {
   UserCheck,
   UserCog,
   LogOut,
+  TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -27,6 +28,7 @@ const MODULE_ICONS: Record<ModuleKey, React.ReactNode> = {
   dashboard: <LayoutDashboard className="h-4 w-4" />,
   schedule: <CalendarDays className="h-4 w-4" />,
   'data-overview': <BarChart3 className="h-4 w-4" />,
+  'market-monitor': <TrendingUp className="h-4 w-4" />,
   cost: <DollarSign className="h-4 w-4" />,
   visual: <Palette className="h-4 w-4" />,
   sop: <BookOpen className="h-4 w-4" />,
@@ -40,6 +42,7 @@ const MODULE_PATHS: Record<ModuleKey, string> = {
   dashboard: '/',
   schedule: '/schedule',
   'data-overview': '/data-overview',
+  'market-monitor': '/market-monitor',
   cost: '/cost',
   visual: '/visual',
   sop: '/sop',
@@ -54,6 +57,7 @@ const SIDEBAR_ORDER: ModuleKey[] = [
   'schedule',
   'cost',
   'data-overview',
+  'market-monitor',
   'visual',
   'sop',
   'workstation',
