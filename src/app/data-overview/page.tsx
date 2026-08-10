@@ -377,18 +377,23 @@ export default function DataOverviewPage() {
     }
 
     // Sub-account KPI tabs (index 1+)
+    const subAccounts = currentBrandData.accounts?.slice(1) || [];
     for (let i = 1; i < currentBrandData.kpiTabs.length; i++) {
       const tab = currentBrandData.kpiTabs[i];
-      // Try to match tab label to account name
+      const tabRate = tab.overallRate !== null
+        ? tab.overallRate
+        : (tab.items.length > 0
+          ? tab.items.filter((k) => k.rawRate >= 1).length / tab.items.length
+          : 0);
+
+      // Try to match tab label to a specific account name
       const matchAccount = currentBrandData.accounts.find((a) => tab.label.includes(a));
-      if (matchAccount && tab.items.length > 0) {
-        // For sub-accounts, use overallRate if available, else calculate
-        if (tab.overallRate !== null) {
-          rates[matchAccount] = tab.overallRate;
-        } else {
-          const passed = tab.items.filter((k) => k.rawRate >= 1).length;
-          rates[matchAccount] = passed / tab.items.length;
-        }
+      if (matchAccount) {
+        rates[matchAccount] = tabRate;
+      } else if (tab.items.length > 0) {
+        // Tab doesn't match a specific account (e.g. "子账号KPI" aggregate tab)
+        // Apply its rate to all sub-accounts as shared KPI data
+        subAccounts.forEach((a) => { rates[a] = tabRate; });
       }
     }
 
