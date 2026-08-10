@@ -206,6 +206,7 @@ export default function DataOverviewPage() {
       // 自动检测实际数据日期范围，如果当前日期范围没有数据则自动调整
       const collectDates = (data: BrandData): string[] => {
         return (data.dailyData || [])
+          .filter(d => d.rawDuration > 0 || d.rawGmv > 0 || d.rawSalesAfter > 0) // exclude blank template rows
           .map(d => d.rawDate)
           .filter(d => d && !d.startsWith('1899'));
       };
