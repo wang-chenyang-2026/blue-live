@@ -1,0 +1,1443 @@
+{
+  "monthly_overview": [
+    {
+      "month": "2025-06",
+      "sales": 38536684046.0,
+      "volume": 9697177,
+      "yoy_sales": null,
+      "yoy_volume": null
+    },
+    {
+      "month": "2025-07",
+      "sales": 17259077299.0,
+      "volume": 6028668,
+      "yoy_sales": null,
+      "yoy_volume": null
+    },
+    {
+      "month": "2025-08",
+      "sales": 16408990078.0,
+      "volume": 6447440,
+      "yoy_sales": null,
+      "yoy_volume": null
+    },
+    {
+      "month": "2025-09",
+      "sales": 31100111325.0,
+      "volume": 7132992,
+      "yoy_sales": null,
+      "yoy_volume": null
+    },
+    {
+      "month": "2025-10",
+      "sales": 47459641377.0,
+      "volume": 11493445,
+      "yoy_sales": null,
+      "yoy_volume": null
+    },
+    {
+      "month": "2025-11",
+      "sales": 43064355370.0,
+      "volume": 10818804,
+      "yoy_sales": null,
+      "yoy_volume": null
+    },
+    {
+      "month": "2025-12",
+      "sales": 27432248708.0,
+      "volume": 7516100,
+      "yoy_sales": null,
+      "yoy_volume": null
+    },
+    {
+      "month": "2026-01",
+      "sales": 27276362652.0,
+      "volume": 7592513,
+      "yoy_sales": null,
+      "yoy_volume": null
+    },
+    {
+      "month": "2026-02",
+      "sales": 40351013523.0,
+      "volume": 10084403,
+      "yoy_sales": null,
+      "yoy_volume": null
+    },
+    {
+      "month": "2026-03",
+      "sales": 29713913470.0,
+      "volume": 8279483,
+      "yoy_sales": null,
+      "yoy_volume": null
+    },
+    {
+      "month": "2026-04",
+      "sales": 18334117929.0,
+      "volume": 5455811,
+      "yoy_sales": null,
+      "yoy_volume": null
+    },
+    {
+      "month": "2026-05",
+      "sales": 41633121609.0,
+      "volume": 9443923,
+      "yoy_sales": null,
+      "yoy_volume": null
+    },
+    {
+      "month": "2026-06",
+      "sales": 43597145698.0,
+      "volume": 10251827,
+      "yoy_sales": 13.1,
+      "yoy_volume": 5.7
+    }
+  ],
+  "platform_distribution": [
+    {
+      "platform": "jd",
+      "sales": 27681302885.0,
+      "sales_share": 63.5,
+      "volume": 6469992.0,
+      "volume_share": 63.1,
+      "yoy": 22.2,
+      "avg_price": 4278.0
+    },
+    {
+      "platform": "tmall",
+      "sales": 13448398061.0,
+      "sales_share": 30.8,
+      "volume": 2375235.0,
+      "volume_share": 23.2,
+      "yoy": 3.7,
+      "avg_price": 5662.0
+    },
+    {
+      "platform": "douyin",
+      "sales": 2467444752.0,
+      "sales_share": 5.7,
+      "volume": 1406600.0,
+      "volume_share": 13.7,
+      "yoy": -15.4,
+      "avg_price": 1754.0
+    }
+  ],
+  "brand_ranking": [
+    {
+      "name": "苹果",
+      "color": "#A2AAAD",
+      "sales": 23670181651.0,
+      "share": 54.3,
+      "yoy": 4.6,
+      "volume": 2885347.0,
+      "vol_share": 28.1,
+      "avg_price": 8204.0,
+      "rank": 1
+    },
+    {
+      "name": "华为",
+      "color": "#CF0A2C",
+      "sales": 5241784472.0,
+      "share": 12.0,
+      "yoy": 62.8,
+      "volume": 1394076.0,
+      "vol_share": 13.6,
+      "avg_price": 3760.0,
+      "rank": 2
+    },
+    {
+      "name": "小米",
+      "color": "#FF6700",
+      "sales": 4159255867.0,
+      "share": 9.5,
+      "yoy": 1.9,
+      "volume": 1775856.0,
+      "vol_share": 17.3,
+      "avg_price": 2342.0,
+      "rank": 3
+    },
+    {
+      "name": "vivo",
+      "color": "#0076FF",
+      "sales": 3377708791.0,
+      "share": 7.7,
+      "yoy": 54.1,
+      "volume": 1087778.0,
+      "vol_share": 10.6,
+      "avg_price": 3105.0,
+      "rank": 4
+    },
+    {
+      "name": "荣耀",
+      "color": "#0AB4E6",
+      "sales": 2374344545.0,
+      "share": 5.4,
+      "yoy": 65.4,
+      "volume": 967976.0,
+      "vol_share": 9.4,
+      "avg_price": 2453.0,
+      "rank": 5
+    },
+    {
+      "name": "OPPO",
+      "color": "#1BA71B",
+      "sales": 2215952284.0,
+      "share": 5.1,
+      "yoy": 44.5,
+      "volume": 763594.0,
+      "vol_share": 7.4,
+      "avg_price": 2902.0,
+      "rank": 6
+    },
+    {
+      "name": "一加",
+      "color": "#EB0028",
+      "sales": 1103081640.0,
+      "share": 2.5,
+      "yoy": -3.6,
+      "volume": 372448.0,
+      "vol_share": 3.6,
+      "avg_price": 2962.0,
+      "rank": 7
+    },
+    {
+      "name": "iQOO",
+      "color": "#FF6A00",
+      "sales": 407289155.0,
+      "share": 0.9,
+      "yoy": -51.2,
+      "volume": 151954.0,
+      "vol_share": 1.5,
+      "avg_price": 2680.0,
+      "rank": 8
+    },
+    {
+      "name": "红米",
+      "color": "#FF4F44",
+      "sales": 329230690.0,
+      "share": 0.8,
+      "yoy": 107.5,
+      "volume": 348719.0,
+      "vol_share": 3.4,
+      "avg_price": 944.0,
+      "rank": 9
+    },
+    {
+      "name": "真我",
+      "color": "#FFC800",
+      "sales": 284220123.0,
+      "share": 0.7,
+      "yoy": -20.0,
+      "volume": 92239.0,
+      "vol_share": 0.9,
+      "avg_price": 3081.0,
+      "rank": 10
+    }
+  ],
+  "brand_trend": {
+    "苹果": {
+      "color": "#A2AAAD",
+      "data": [
+        {
+          "month": "2025-06",
+          "sales": 22639373642.0,
+          "share": 58.7,
+          "volume": 3104890.0,
+          "avg_price": 7292.0
+        },
+        {
+          "month": "2025-07",
+          "sales": 6958938191.0,
+          "share": 40.3,
+          "volume": 1029610.0,
+          "avg_price": 6759.0
+        },
+        {
+          "month": "2025-08",
+          "sales": 5095664796.0,
+          "share": 31.1,
+          "volume": 708159.0,
+          "avg_price": 7196.0
+        },
+        {
+          "month": "2025-09",
+          "sales": 20695580657.0,
+          "share": 66.5,
+          "volume": 2367769.0,
+          "avg_price": 8741.0
+        },
+        {
+          "month": "2025-10",
+          "sales": 28048489896.0,
+          "share": 59.1,
+          "volume": 3289218.0,
+          "avg_price": 8527.0
+        },
+        {
+          "month": "2025-11",
+          "sales": 24051570878.0,
+          "share": 55.9,
+          "volume": 2841387.0,
+          "avg_price": 8465.0
+        },
+        {
+          "month": "2025-12",
+          "sales": 13254335744.0,
+          "share": 48.3,
+          "volume": 1615847.0,
+          "avg_price": 8203.0
+        },
+        {
+          "month": "2026-01",
+          "sales": 11518038259.0,
+          "share": 42.2,
+          "volume": 1481572.0,
+          "avg_price": 7774.0
+        },
+        {
+          "month": "2026-02",
+          "sales": 22692505425.0,
+          "share": 56.2,
+          "volume": 2846520.0,
+          "avg_price": 7972.0
+        },
+        {
+          "month": "2026-03",
+          "sales": 14519256706.0,
+          "share": 48.9,
+          "volume": 1795629.0,
+          "avg_price": 8086.0
+        },
+        {
+          "month": "2026-04",
+          "sales": 7499098629.0,
+          "share": 40.9,
+          "volume": 961660.0,
+          "avg_price": 7798.0
+        },
+        {
+          "month": "2026-05",
+          "sales": 22435856878.0,
+          "share": 53.9,
+          "volume": 2683765.0,
+          "avg_price": 8360.0
+        },
+        {
+          "month": "2026-06",
+          "sales": 23670181651.0,
+          "share": 54.3,
+          "volume": 2885347.0,
+          "avg_price": 8204.0
+        }
+      ]
+    },
+    "华为": {
+      "color": "#CF0A2C",
+      "data": [
+        {
+          "month": "2025-06",
+          "sales": 3219322839.0,
+          "share": 8.4,
+          "volume": 740978.0,
+          "avg_price": 4345.0
+        },
+        {
+          "month": "2025-07",
+          "sales": 2246110581.0,
+          "share": 13.0,
+          "volume": 578671.0,
+          "avg_price": 3881.0
+        },
+        {
+          "month": "2025-08",
+          "sales": 2486655453.0,
+          "share": 15.2,
+          "volume": 634195.0,
+          "avg_price": 3921.0
+        },
+        {
+          "month": "2025-09",
+          "sales": 2441801217.0,
+          "share": 7.9,
+          "volume": 656947.0,
+          "avg_price": 3717.0
+        },
+        {
+          "month": "2025-10",
+          "sales": 3258555126.0,
+          "share": 6.9,
+          "volume": 866379.0,
+          "avg_price": 3761.0
+        },
+        {
+          "month": "2025-11",
+          "sales": 4120325200.0,
+          "share": 9.6,
+          "volume": 1061391.0,
+          "avg_price": 3882.0
+        },
+        {
+          "month": "2025-12",
+          "sales": 3936322633.0,
+          "share": 14.3,
+          "volume": 1000253.0,
+          "avg_price": 3935.0
+        },
+        {
+          "month": "2026-01",
+          "sales": 4322404424.0,
+          "share": 15.8,
+          "volume": 1101432.0,
+          "avg_price": 3924.0
+        },
+        {
+          "month": "2026-02",
+          "sales": 4531576503.0,
+          "share": 11.2,
+          "volume": 1328951.0,
+          "avg_price": 3410.0
+        },
+        {
+          "month": "2026-03",
+          "sales": 3627820699.0,
+          "share": 12.2,
+          "volume": 1116243.0,
+          "avg_price": 3250.0
+        },
+        {
+          "month": "2026-04",
+          "sales": 3045305750.0,
+          "share": 16.6,
+          "volume": 1021077.0,
+          "avg_price": 2982.0
+        },
+        {
+          "month": "2026-05",
+          "sales": 6192069226.0,
+          "share": 14.9,
+          "volume": 1636240.0,
+          "avg_price": 3784.0
+        },
+        {
+          "month": "2026-06",
+          "sales": 5241784472.0,
+          "share": 12.0,
+          "volume": 1394076.0,
+          "avg_price": 3760.0
+        }
+      ]
+    },
+    "小米": {
+      "color": "#FF6700",
+      "data": [
+        {
+          "month": "2025-06",
+          "sales": 4083285659.0,
+          "share": 10.6,
+          "volume": 1592029.0,
+          "avg_price": 2565.0
+        },
+        {
+          "month": "2025-07",
+          "sales": 2116933124.0,
+          "share": 12.3,
+          "volume": 944665.0,
+          "avg_price": 2241.0
+        },
+        {
+          "month": "2025-08",
+          "sales": 2230797439.0,
+          "share": 13.6,
+          "volume": 1065863.0,
+          "avg_price": 2093.0
+        },
+        {
+          "month": "2025-09",
+          "sales": 2659291224.0,
+          "share": 8.6,
+          "volume": 1114923.0,
+          "avg_price": 2385.0
+        },
+        {
+          "month": "2025-10",
+          "sales": 5344226551.0,
+          "share": 11.3,
+          "volume": 2091889.0,
+          "avg_price": 2555.0
+        },
+        {
+          "month": "2025-11",
+          "sales": 5831661717.0,
+          "share": 13.5,
+          "volume": 2432234.0,
+          "avg_price": 2398.0
+        },
+        {
+          "month": "2025-12",
+          "sales": 3605255960.0,
+          "share": 13.1,
+          "volume": 1453195.0,
+          "avg_price": 2481.0
+        },
+        {
+          "month": "2026-01",
+          "sales": 3945995677.0,
+          "share": 14.5,
+          "volume": 1572827.0,
+          "avg_price": 2509.0
+        },
+        {
+          "month": "2026-02",
+          "sales": 3801415941.0,
+          "share": 9.4,
+          "volume": 1574546.0,
+          "avg_price": 2414.0
+        },
+        {
+          "month": "2026-03",
+          "sales": 3718103088.0,
+          "share": 12.5,
+          "volume": 1689945.0,
+          "avg_price": 2200.0
+        },
+        {
+          "month": "2026-04",
+          "sales": 2651328657.0,
+          "share": 14.5,
+          "volume": 1161628.0,
+          "avg_price": 2282.0
+        },
+        {
+          "month": "2026-05",
+          "sales": 3993718806.0,
+          "share": 9.6,
+          "volume": 1713115.0,
+          "avg_price": 2331.0
+        },
+        {
+          "month": "2026-06",
+          "sales": 4159255867.0,
+          "share": 9.5,
+          "volume": 1775856.0,
+          "avg_price": 2342.0
+        }
+      ]
+    },
+    "vivo": {
+      "color": "#0076FF",
+      "data": [
+        {
+          "month": "2025-06",
+          "sales": 2191429263.0,
+          "share": 5.7,
+          "volume": 828124.0,
+          "avg_price": 2646.0
+        },
+        {
+          "month": "2025-07",
+          "sales": 1400073772.0,
+          "share": 8.1,
+          "volume": 505576.0,
+          "avg_price": 2769.0
+        },
+        {
+          "month": "2025-08",
+          "sales": 1748170390.0,
+          "share": 10.7,
+          "volume": 665152.0,
+          "avg_price": 2628.0
+        },
+        {
+          "month": "2025-09",
+          "sales": 1422626343.0,
+          "share": 4.6,
+          "volume": 580380.0,
+          "avg_price": 2451.0
+        },
+        {
+          "month": "2025-10",
+          "sales": 3334323405.0,
+          "share": 7.0,
+          "volume": 1158425.0,
+          "avg_price": 2878.0
+        },
+        {
+          "month": "2025-11",
+          "sales": 2316957475.0,
+          "share": 5.4,
+          "volume": 878820.0,
+          "avg_price": 2636.0
+        },
+        {
+          "month": "2025-12",
+          "sales": 1810977673.0,
+          "share": 6.6,
+          "volume": 749377.0,
+          "avg_price": 2417.0
+        },
+        {
+          "month": "2026-01",
+          "sales": 2053633881.0,
+          "share": 7.5,
+          "volume": 748575.0,
+          "avg_price": 2743.0
+        },
+        {
+          "month": "2026-02",
+          "sales": 2876033977.0,
+          "share": 7.1,
+          "volume": 1006696.0,
+          "avg_price": 2857.0
+        },
+        {
+          "month": "2026-03",
+          "sales": 2279929982.0,
+          "share": 7.7,
+          "volume": 854081.0,
+          "avg_price": 2669.0
+        },
+        {
+          "month": "2026-04",
+          "sales": 1552027053.0,
+          "share": 8.5,
+          "volume": 493396.0,
+          "avg_price": 3146.0
+        },
+        {
+          "month": "2026-05",
+          "sales": 2880480135.0,
+          "share": 6.9,
+          "volume": 907115.0,
+          "avg_price": 3175.0
+        },
+        {
+          "month": "2026-06",
+          "sales": 3377708791.0,
+          "share": 7.7,
+          "volume": 1087778.0,
+          "avg_price": 3105.0
+        }
+      ]
+    },
+    "荣耀": {
+      "color": "#0AB4E6",
+      "data": [
+        {
+          "month": "2025-06",
+          "sales": 1435452884.0,
+          "share": 3.7,
+          "volume": 647023.0,
+          "avg_price": 2219.0
+        },
+        {
+          "month": "2025-07",
+          "sales": 1300894353.0,
+          "share": 7.5,
+          "volume": 664614.0,
+          "avg_price": 1957.0
+        },
+        {
+          "month": "2025-08",
+          "sales": 1268480029.0,
+          "share": 7.7,
+          "volume": 597823.0,
+          "avg_price": 2122.0
+        },
+        {
+          "month": "2025-09",
+          "sales": 1183263316.0,
+          "share": 3.8,
+          "volume": 606146.0,
+          "avg_price": 1952.0
+        },
+        {
+          "month": "2025-10",
+          "sales": 2081653985.0,
+          "share": 4.4,
+          "volume": 935196.0,
+          "avg_price": 2226.0
+        },
+        {
+          "month": "2025-11",
+          "sales": 1605257723.0,
+          "share": 3.7,
+          "volume": 767062.0,
+          "avg_price": 2093.0
+        },
+        {
+          "month": "2025-12",
+          "sales": 1264199681.0,
+          "share": 4.6,
+          "volume": 667071.0,
+          "avg_price": 1895.0
+        },
+        {
+          "month": "2026-01",
+          "sales": 1816290201.0,
+          "share": 6.7,
+          "volume": 753259.0,
+          "avg_price": 2411.0
+        },
+        {
+          "month": "2026-02",
+          "sales": 2258023925.0,
+          "share": 5.6,
+          "volume": 1057048.0,
+          "avg_price": 2136.0
+        },
+        {
+          "month": "2026-03",
+          "sales": 1969911138.0,
+          "share": 6.6,
+          "volume": 820205.0,
+          "avg_price": 2402.0
+        },
+        {
+          "month": "2026-04",
+          "sales": 1044681360.0,
+          "share": 5.7,
+          "volume": 417355.0,
+          "avg_price": 2503.0
+        },
+        {
+          "month": "2026-05",
+          "sales": 1942171532.0,
+          "share": 4.7,
+          "volume": 757260.0,
+          "avg_price": 2565.0
+        },
+        {
+          "month": "2026-06",
+          "sales": 2374344545.0,
+          "share": 5.4,
+          "volume": 967976.0,
+          "avg_price": 2453.0
+        }
+      ]
+    },
+    "OPPO": {
+      "color": "#1BA71B",
+      "data": [
+        {
+          "month": "2025-06",
+          "sales": 1533625949.0,
+          "share": 4.0,
+          "volume": 589221.0,
+          "avg_price": 2603.0
+        },
+        {
+          "month": "2025-07",
+          "sales": 1010086166.0,
+          "share": 5.9,
+          "volume": 442805.0,
+          "avg_price": 2281.0
+        },
+        {
+          "month": "2025-08",
+          "sales": 1098477990.0,
+          "share": 6.7,
+          "volume": 473142.0,
+          "avg_price": 2322.0
+        },
+        {
+          "month": "2025-09",
+          "sales": 943305505.0,
+          "share": 3.0,
+          "volume": 413813.0,
+          "avg_price": 2280.0
+        },
+        {
+          "month": "2025-10",
+          "sales": 1692922235.0,
+          "share": 3.6,
+          "volume": 810410.0,
+          "avg_price": 2089.0
+        },
+        {
+          "month": "2025-11",
+          "sales": 1661834732.0,
+          "share": 3.9,
+          "volume": 690764.0,
+          "avg_price": 2406.0
+        },
+        {
+          "month": "2025-12",
+          "sales": 1158918397.0,
+          "share": 4.2,
+          "volume": 482082.0,
+          "avg_price": 2404.0
+        },
+        {
+          "month": "2026-01",
+          "sales": 1550199295.0,
+          "share": 5.7,
+          "volume": 530282.0,
+          "avg_price": 2923.0
+        },
+        {
+          "month": "2026-02",
+          "sales": 1697639842.0,
+          "share": 4.2,
+          "volume": 693364.0,
+          "avg_price": 2448.0
+        },
+        {
+          "month": "2026-03",
+          "sales": 1537931306.0,
+          "share": 5.2,
+          "volume": 645720.0,
+          "avg_price": 2382.0
+        },
+        {
+          "month": "2026-04",
+          "sales": 1190794074.0,
+          "share": 6.5,
+          "volume": 364105.0,
+          "avg_price": 3270.0
+        },
+        {
+          "month": "2026-05",
+          "sales": 1751326430.0,
+          "share": 4.2,
+          "volume": 578175.0,
+          "avg_price": 3029.0
+        },
+        {
+          "month": "2026-06",
+          "sales": 2215952284.0,
+          "share": 5.1,
+          "volume": 763594.0,
+          "avg_price": 2902.0
+        }
+      ]
+    },
+    "一加": {
+      "color": "#EB0028",
+      "data": [
+        {
+          "month": "2025-06",
+          "sales": 1144622337.0,
+          "share": 3.0,
+          "volume": 372782.0,
+          "avg_price": 3070.0
+        },
+        {
+          "month": "2025-07",
+          "sales": 503308508.0,
+          "share": 2.9,
+          "volume": 175346.0,
+          "avg_price": 2870.0
+        },
+        {
+          "month": "2025-08",
+          "sales": 584562392.0,
+          "share": 3.6,
+          "volume": 195795.0,
+          "avg_price": 2986.0
+        },
+        {
+          "month": "2025-09",
+          "sales": 440689538.0,
+          "share": 1.4,
+          "volume": 156519.0,
+          "avg_price": 2816.0
+        },
+        {
+          "month": "2025-10",
+          "sales": 1201003240.0,
+          "share": 2.5,
+          "volume": 516912.0,
+          "avg_price": 2323.0
+        },
+        {
+          "month": "2025-11",
+          "sales": 1233877019.0,
+          "share": 2.9,
+          "volume": 423630.0,
+          "avg_price": 2913.0
+        },
+        {
+          "month": "2025-12",
+          "sales": 1008907990.0,
+          "share": 3.7,
+          "volume": 360243.0,
+          "avg_price": 2801.0
+        },
+        {
+          "month": "2026-01",
+          "sales": 741742248.0,
+          "share": 2.7,
+          "volume": 258726.0,
+          "avg_price": 2867.0
+        },
+        {
+          "month": "2026-02",
+          "sales": 965083732.0,
+          "share": 2.4,
+          "volume": 354600.0,
+          "avg_price": 2722.0
+        },
+        {
+          "month": "2026-03",
+          "sales": 839734647.0,
+          "share": 2.8,
+          "volume": 307705.0,
+          "avg_price": 2729.0
+        },
+        {
+          "month": "2026-04",
+          "sales": 395632427.0,
+          "share": 2.2,
+          "volume": 161380.0,
+          "avg_price": 2452.0
+        },
+        {
+          "month": "2026-05",
+          "sales": 932339463.0,
+          "share": 2.2,
+          "volume": 301761.0,
+          "avg_price": 3090.0
+        },
+        {
+          "month": "2026-06",
+          "sales": 1103081640.0,
+          "share": 2.5,
+          "volume": 372448.0,
+          "avg_price": 2962.0
+        }
+      ]
+    },
+    "iQOO": {
+      "color": "#FF6A00",
+      "data": [
+        {
+          "month": "2025-06",
+          "sales": 834491402.0,
+          "share": 2.2,
+          "volume": 321284.0,
+          "avg_price": 2597.0
+        },
+        {
+          "month": "2025-07",
+          "sales": 412464233.0,
+          "share": 2.4,
+          "volume": 188238.0,
+          "avg_price": 2191.0
+        },
+        {
+          "month": "2025-08",
+          "sales": 409644880.0,
+          "share": 2.5,
+          "volume": 195296.0,
+          "avg_price": 2098.0
+        },
+        {
+          "month": "2025-09",
+          "sales": 302270851.0,
+          "share": 1.0,
+          "volume": 157516.0,
+          "avg_price": 1919.0
+        },
+        {
+          "month": "2025-10",
+          "sales": 539755620.0,
+          "share": 1.1,
+          "volume": 244905.0,
+          "avg_price": 2204.0
+        },
+        {
+          "month": "2025-11",
+          "sales": 744549501.0,
+          "share": 1.7,
+          "volume": 301644.0,
+          "avg_price": 2468.0
+        },
+        {
+          "month": "2025-12",
+          "sales": 305095897.0,
+          "share": 1.1,
+          "volume": 150046.0,
+          "avg_price": 2033.0
+        },
+        {
+          "month": "2026-01",
+          "sales": 268004797.0,
+          "share": 1.0,
+          "volume": 162300.0,
+          "avg_price": 1651.0
+        },
+        {
+          "month": "2026-02",
+          "sales": 282472516.0,
+          "share": 0.7,
+          "volume": 105564.0,
+          "avg_price": 2676.0
+        },
+        {
+          "month": "2026-03",
+          "sales": 215782127.0,
+          "share": 0.7,
+          "volume": 91825.0,
+          "avg_price": 2350.0
+        },
+        {
+          "month": "2026-04",
+          "sales": 167061284.0,
+          "share": 0.9,
+          "volume": 74044.0,
+          "avg_price": 2256.0
+        },
+        {
+          "month": "2026-05",
+          "sales": 250196391.0,
+          "share": 0.6,
+          "volume": 92704.0,
+          "avg_price": 2699.0
+        },
+        {
+          "month": "2026-06",
+          "sales": 407289155.0,
+          "share": 0.9,
+          "volume": 151954.0,
+          "avg_price": 2680.0
+        }
+      ]
+    },
+    "红米": {
+      "color": "#FF4F44",
+      "data": [
+        {
+          "month": "2025-06",
+          "sales": 158658617.0,
+          "share": 0.4,
+          "volume": 103402.0,
+          "avg_price": 1534.0
+        },
+        {
+          "month": "2025-07",
+          "sales": 135951565.0,
+          "share": 0.8,
+          "volume": 71809.0,
+          "avg_price": 1893.0
+        },
+        {
+          "month": "2025-08",
+          "sales": 232928411.0,
+          "share": 1.4,
+          "volume": 150868.0,
+          "avg_price": 1544.0
+        },
+        {
+          "month": "2025-09",
+          "sales": 181435864.0,
+          "share": 0.6,
+          "volume": 140073.0,
+          "avg_price": 1295.0
+        },
+        {
+          "month": "2025-10",
+          "sales": 382938983.0,
+          "share": 0.8,
+          "volume": 266313.0,
+          "avg_price": 1438.0
+        },
+        {
+          "month": "2025-11",
+          "sales": 436639183.0,
+          "share": 1.0,
+          "volume": 278380.0,
+          "avg_price": 1569.0
+        },
+        {
+          "month": "2025-12",
+          "sales": 326088654.0,
+          "share": 1.2,
+          "volume": 242723.0,
+          "avg_price": 1343.0
+        },
+        {
+          "month": "2026-01",
+          "sales": 292448718.0,
+          "share": 1.1,
+          "volume": 174032.0,
+          "avg_price": 1680.0
+        },
+        {
+          "month": "2026-02",
+          "sales": 247307801.0,
+          "share": 0.6,
+          "volume": 138887.0,
+          "avg_price": 1781.0
+        },
+        {
+          "month": "2026-03",
+          "sales": 198929713.0,
+          "share": 0.7,
+          "volume": 123704.0,
+          "avg_price": 1608.0
+        },
+        {
+          "month": "2026-04",
+          "sales": 224373042.0,
+          "share": 1.2,
+          "volume": 153457.0,
+          "avg_price": 1462.0
+        },
+        {
+          "month": "2026-05",
+          "sales": 457476852.0,
+          "share": 1.1,
+          "volume": 239720.0,
+          "avg_price": 1908.0
+        },
+        {
+          "month": "2026-06",
+          "sales": 329230690.0,
+          "share": 0.8,
+          "volume": 348719.0,
+          "avg_price": 944.0
+        }
+      ]
+    },
+    "真我": {
+      "color": "#FFC800",
+      "data": [
+        {
+          "month": "2025-06",
+          "sales": 355259702.0,
+          "share": 0.9,
+          "volume": 147963.0,
+          "avg_price": 2401.0
+        },
+        {
+          "month": "2025-07",
+          "sales": 132488574.0,
+          "share": 0.8,
+          "volume": 53188.0,
+          "avg_price": 2491.0
+        },
+        {
+          "month": "2025-08",
+          "sales": 199634992.0,
+          "share": 1.2,
+          "volume": 83658.0,
+          "avg_price": 2386.0
+        },
+        {
+          "month": "2025-09",
+          "sales": 180888312.0,
+          "share": 0.6,
+          "volume": 78265.0,
+          "avg_price": 2311.0
+        },
+        {
+          "month": "2025-10",
+          "sales": 385255525.0,
+          "share": 0.8,
+          "volume": 130377.0,
+          "avg_price": 2955.0
+        },
+        {
+          "month": "2025-11",
+          "sales": 263456320.0,
+          "share": 0.6,
+          "volume": 98910.0,
+          "avg_price": 2664.0
+        },
+        {
+          "month": "2025-12",
+          "sales": 189256917.0,
+          "share": 0.7,
+          "volume": 74981.0,
+          "avg_price": 2524.0
+        },
+        {
+          "month": "2026-01",
+          "sales": 187692733.0,
+          "share": 0.7,
+          "volume": 72416.0,
+          "avg_price": 2592.0
+        },
+        {
+          "month": "2026-02",
+          "sales": 323974579.0,
+          "share": 0.8,
+          "volume": 118533.0,
+          "avg_price": 2733.0
+        },
+        {
+          "month": "2026-03",
+          "sales": 201193860.0,
+          "share": 0.7,
+          "volume": 70151.0,
+          "avg_price": 2868.0
+        },
+        {
+          "month": "2026-04",
+          "sales": 135761914.0,
+          "share": 0.7,
+          "volume": 46534.0,
+          "avg_price": 2917.0
+        },
+        {
+          "month": "2026-05",
+          "sales": 281267773.0,
+          "share": 0.7,
+          "volume": 95172.0,
+          "avg_price": 2955.0
+        },
+        {
+          "month": "2026-06",
+          "sales": 284220123.0,
+          "share": 0.7,
+          "volume": 92239.0,
+          "avg_price": 3081.0
+        }
+      ]
+    }
+  },
+  "platform_trend": {
+    "jd": [
+      {
+        "month": "2025-06",
+        "sales": 22652946178.0,
+        "volume": 5373420.0,
+        "avg_price": 4216.0
+      },
+      {
+        "month": "2025-07",
+        "sales": 12584744961.0,
+        "volume": 3721943.0,
+        "avg_price": 3381.0
+      },
+      {
+        "month": "2025-08",
+        "sales": 9978420829.0,
+        "volume": 3266587.0,
+        "avg_price": 3055.0
+      },
+      {
+        "month": "2025-09",
+        "sales": 11350032316.0,
+        "volume": 2908821.0,
+        "avg_price": 3902.0
+      },
+      {
+        "month": "2025-10",
+        "sales": 27956239544.0,
+        "volume": 6324584.0,
+        "avg_price": 4420.0
+      },
+      {
+        "month": "2025-11",
+        "sales": 26067903678.0,
+        "volume": 5860390.0,
+        "avg_price": 4448.0
+      },
+      {
+        "month": "2025-12",
+        "sales": 17788756017.0,
+        "volume": 4266806.0,
+        "avg_price": 4169.0
+      },
+      {
+        "month": "2026-01",
+        "sales": 16972183588.0,
+        "volume": 4464812.0,
+        "avg_price": 3801.0
+      },
+      {
+        "month": "2026-02",
+        "sales": 31634625327.0,
+        "volume": 7237192.0,
+        "avg_price": 4371.0
+      },
+      {
+        "month": "2026-03",
+        "sales": 22492164439.0,
+        "volume": 5777152.0,
+        "avg_price": 3893.0
+      },
+      {
+        "month": "2026-04",
+        "sales": 12977509347.0,
+        "volume": 3287285.0,
+        "avg_price": 3948.0
+      },
+      {
+        "month": "2026-05",
+        "sales": 27383020690.0,
+        "volume": 6215954.0,
+        "avg_price": 4405.0
+      },
+      {
+        "month": "2026-06",
+        "sales": 27681302885.0,
+        "volume": 6469992.0,
+        "avg_price": 4278.0
+      }
+    ],
+    "tmall": [
+      {
+        "month": "2025-06",
+        "sales": 12968546800.0,
+        "volume": 2697510.0,
+        "avg_price": 4808.0
+      },
+      {
+        "month": "2025-07",
+        "sales": 2862864830.0,
+        "volume": 1133094.0,
+        "avg_price": 2527.0
+      },
+      {
+        "month": "2025-08",
+        "sales": 4017928396.0,
+        "volume": 1428780.0,
+        "avg_price": 2812.0
+      },
+      {
+        "month": "2025-09",
+        "sales": 16050554783.0,
+        "volume": 2606443.0,
+        "avg_price": 6158.0
+      },
+      {
+        "month": "2025-10",
+        "sales": 15159057545.0,
+        "volume": 2943293.0,
+        "avg_price": 5150.0
+      },
+      {
+        "month": "2025-11",
+        "sales": 12578276803.0,
+        "volume": 3081519.0,
+        "avg_price": 4082.0
+      },
+      {
+        "month": "2025-12",
+        "sales": 6632978170.0,
+        "volume": 1704814.0,
+        "avg_price": 3891.0
+      },
+      {
+        "month": "2026-01",
+        "sales": 7489984448.0,
+        "volume": 1803015.0,
+        "avg_price": 4154.0
+      },
+      {
+        "month": "2026-02",
+        "sales": 6830578546.0,
+        "volume": 1798811.0,
+        "avg_price": 3797.0
+      },
+      {
+        "month": "2026-03",
+        "sales": 5321796567.0,
+        "volume": 1327829.0,
+        "avg_price": 4008.0
+      },
+      {
+        "month": "2026-04",
+        "sales": 3455450293.0,
+        "volume": 967557.0,
+        "avg_price": 3571.0
+      },
+      {
+        "month": "2026-05",
+        "sales": 11948540180.0,
+        "volume": 2135036.0,
+        "avg_price": 5596.0
+      },
+      {
+        "month": "2026-06",
+        "sales": 13448398061.0,
+        "volume": 2375235.0,
+        "avg_price": 5662.0
+      }
+    ],
+    "douyin": [
+      {
+        "month": "2025-06",
+        "sales": 2915191068.0,
+        "volume": 1626247.0,
+        "avg_price": 1793.0
+      },
+      {
+        "month": "2025-07",
+        "sales": 1811467508.0,
+        "volume": 1173631.0,
+        "avg_price": 1543.0
+      },
+      {
+        "month": "2025-08",
+        "sales": 2412640853.0,
+        "volume": 1752073.0,
+        "avg_price": 1377.0
+      },
+      {
+        "month": "2025-09",
+        "sales": 3699524226.0,
+        "volume": 1617728.0,
+        "avg_price": 2287.0
+      },
+      {
+        "month": "2025-10",
+        "sales": 4344344288.0,
+        "volume": 2225568.0,
+        "avg_price": 1952.0
+      },
+      {
+        "month": "2025-11",
+        "sales": 4418174889.0,
+        "volume": 1876895.0,
+        "avg_price": 2354.0
+      },
+      {
+        "month": "2025-12",
+        "sales": 3010514521.0,
+        "volume": 1544480.0,
+        "avg_price": 1949.0
+      },
+      {
+        "month": "2026-01",
+        "sales": 2814194616.0,
+        "volume": 1324686.0,
+        "avg_price": 2124.0
+      },
+      {
+        "month": "2026-02",
+        "sales": 1885809650.0,
+        "volume": 1048400.0,
+        "avg_price": 1799.0
+      },
+      {
+        "month": "2026-03",
+        "sales": 1899952464.0,
+        "volume": 1174502.0,
+        "avg_price": 1618.0
+      },
+      {
+        "month": "2026-04",
+        "sales": 1901158289.0,
+        "volume": 1200969.0,
+        "avg_price": 1583.0
+      },
+      {
+        "month": "2026-05",
+        "sales": 2301560739.0,
+        "volume": 1092933.0,
+        "avg_price": 2106.0
+      },
+      {
+        "month": "2026-06",
+        "sales": 2467444752.0,
+        "volume": 1406600.0,
+        "avg_price": 1754.0
+      }
+    ]
+  },
+  "latest_month": "2026-06",
+  "total_latest_sales": 43597145698.0,
+  "total_latest_volume": 10251827.0
+}
