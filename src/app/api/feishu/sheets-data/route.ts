@@ -163,7 +163,7 @@ function formatNumber(num: number | string): string {
 }
 
 /* ========== Parse Daily Data from Raw Sheet ========== */
-function parseDailyData(raw: string[][], columnOffset: number = 0): Array<{
+function parseDailyData(raw: string[][]): Array<{
   date: string;
   rawDate: string;
   accountName: string;
@@ -188,7 +188,7 @@ function parseDailyData(raw: string[][], columnOffset: number = 0): Array<{
     rawDuration: number;
   }> = [];
 
-  const minRowLength = 7 + columnOffset; // 7 for old structure, 10 for IOT new structure
+  const minRowLength = 10; // Need columns A-J (indices 0-9)
 
   for (let i = 1; i < raw.length; i++) {
     const row = raw[i];
@@ -201,11 +201,15 @@ function parseDailyData(raw: string[][], columnOffset: number = 0): Array<{
     const accountName = row[2] || '';
     // Skip rows with no account name
     if (!accountName || accountName.trim() === '') continue;
-    // Column D (idx 3) is a SUM formula string, read actual values from E(4)/F(5)/G(6)
-    const duration = (parseFloat(row[4]) || 0) + (parseFloat(row[5]) || 0) + (parseFloat(row[6]) || 0);
-    const gmv = parseFloat(row[4 + columnOffset]) || 0;
-    const salesBefore = parseFloat(row[5 + columnOffset]) || 0;
-    const salesAfter = parseFloat(row[6 + columnOffset]) || 0;
+
+    // Column mapping (confirmed against actual Feishu sheet structure):
+    //   D(3) = 直播时长汇总, E(4) = 常规时长, F(5) = 双播时长, G(6) = 法定节假日时长
+    //   H(7) = GMV(W), I(8) = 销售台数(退前), J(9) = 实销台数(退后)
+    // Always read D for total duration, H/I/J for GMV/sales — no columnOffset.
+    const duration = parseFloat(row[3]) || 0;
+    const gmv = parseFloat(row[7]) || 0;
+    const salesBefore = parseFloat(row[8]) || 0;
+    const salesAfter = parseFloat(row[9]) || 0;
 
     result.push({
       date: excelSerialToDate(dateSerial),
@@ -390,7 +394,7 @@ async function fetchBrandData(accessToken: string, brandKey: string) {
       getSheetValues(accessToken, src.spreadsheetToken, src.sheetId, src.range)
     )
   );
-  const dailyData = dailyRawResults.flatMap((raw) => parseDailyData(raw, 3));
+  const dailyData = dailyRawResults.flatMap((raw) => parseDailyData(raw));
 
   // 2. Fetch all KPI sheets in parallel, each becomes a Tab
   // Each sheet needs both main data (A:H) and daily data (H:AL)
