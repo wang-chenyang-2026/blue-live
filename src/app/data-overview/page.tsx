@@ -195,6 +195,9 @@ export default function DataOverviewPage() {
   }, []);
 
   // Fetch data for a specific brand or all brands
+  // Track whether user has manually selected a date range (quick option or custom)
+  const [userSelectedRange, setUserSelectedRange] = useState(false);
+
   const fetchData = useCallback(async (brand: string = 'all') => {
     setLoading(true);
     setError(null);
@@ -203,52 +206,45 @@ export default function DataOverviewPage() {
       const json: ApiResponse = await res.json();
       if (!json.success) throw new Error(json.error || '获取数据失败');
 
-      // 自动检测实际数据日期范围，如果当前日期范围没有数据则自动调整
+      // 自动检测实际数据日期范围（仅在用户未手动选择时生效）
       const collectDates = (data: BrandData): string[] => {
         return (data.dailyData || [])
-          .filter(d => d.rawDuration > 0 || d.rawGmv > 0 || d.rawSalesAfter > 0) // exclude blank template rows
+          .filter(d => d.rawDuration > 0 || d.rawGmv > 0 || d.rawSalesAfter > 0)
           .map(d => d.rawDate)
           .filter(d => d && !d.startsWith('1899'));
       };
 
+      const applyAutoDetectedRange = (dates: string[]) => {
+        if (dates.length === 0) return;
+        const maxDate = dates.reduce((a, b) => a > b ? a : b);
+        const maxDataDate = new Date(maxDate);
+        const adjustedEnd = toDateStr(maxDataDate);
+        // 起始日期强制为当月1号，防止上月末尾数据混入本月统计
+        const adjustedStart = toDateStr(new Date(maxDataDate.getFullYear(), maxDataDate.getMonth(), 1));
+        setDateRange({ start: adjustedStart, end: adjustedEnd });
+        setCustomStart(adjustedStart);
+        setCustomEnd(adjustedEnd);
+        setCompareMonth(`${maxDataDate.getFullYear()}-${String(maxDataDate.getMonth() + 1).padStart(2, '0')}`);
+        const now = new Date();
+        if (maxDataDate.getFullYear() === now.getFullYear() && maxDataDate.getMonth() === now.getMonth()) {
+          setQuickLabel('本月');
+        } else {
+          setQuickLabel('上月');
+        }
+      };
+
       if (json.mode === 'all') {
         setBrandDataMap((prev) => ({ ...prev, ...json.data }));
-        // 从所有品牌数据中收集可用日期
         const allDates = Object.values(json.data).flatMap(collectDates);
-        if (allDates.length > 0) {
-          const maxDate = allDates.reduce((a, b) => a > b ? a : b);
-          const maxDataDate = new Date(maxDate);
-          const adjustedEnd = toDateStr(maxDataDate);
-          const adjustedStart = toDateStr(new Date(maxDataDate.getFullYear(), maxDataDate.getMonth(), 1));
-          setDateRange({ start: adjustedStart, end: adjustedEnd });
-          setCustomStart(adjustedStart);
-          setCustomEnd(adjustedEnd);
-          setCompareMonth(`${maxDataDate.getFullYear()}-${String(maxDataDate.getMonth() + 1).padStart(2, '0')}`);
-          const now = new Date();
-          if (maxDataDate.getFullYear() === now.getFullYear() && maxDataDate.getMonth() === now.getMonth()) {
-            setQuickLabel('本月');
-          } else {
-            setQuickLabel('上月');
-          }
+        // 首次加载时自动检测，用户已选择则不覆盖
+        if (!userSelectedRange) {
+          applyAutoDetectedRange(allDates);
         }
       } else {
         setBrandDataMap((prev) => ({ ...prev, [json.brand]: json.data }));
         const dates = collectDates(json.data);
-        if (dates.length > 0) {
-          const maxDate = dates.reduce((a, b) => a > b ? a : b);
-          const maxDataDate = new Date(maxDate);
-          const adjustedEnd = toDateStr(maxDataDate);
-          const adjustedStart = toDateStr(new Date(maxDataDate.getFullYear(), maxDataDate.getMonth(), 1));
-          setDateRange({ start: adjustedStart, end: adjustedEnd });
-          setCustomStart(adjustedStart);
-          setCustomEnd(adjustedEnd);
-          setCompareMonth(`${maxDataDate.getFullYear()}-${String(maxDataDate.getMonth() + 1).padStart(2, '0')}`);
-          const now = new Date();
-          if (maxDataDate.getFullYear() === now.getFullYear() && maxDataDate.getMonth() === now.getMonth()) {
-            setQuickLabel('本月');
-          } else {
-            setQuickLabel('上月');
-          }
+        if (!userSelectedRange) {
+          applyAutoDetectedRange(dates);
         }
       }
     } catch (e: unknown) {
@@ -256,7 +252,7 @@ export default function DataOverviewPage() {
     } finally {
       setLoading(false);
     }
-  }, [dateRange.start, dateRange.end]);
+  }, [dateRange.start, dateRange.end, userSelectedRange]);
 
   // Fetch all brands data on mount
   useEffect(() => {
@@ -602,6 +598,7 @@ export default function DataOverviewPage() {
     if (s > e) [s, e] = [e, s];
     setDateRange({ start: toDateStr(s), end: toDateStr(e) });
     setQuickLabel('自定义');
+    setUserSelectedRange(true);
     setShowDatePicker(false);
   };
 
@@ -611,6 +608,7 @@ export default function DataOverviewPage() {
     setCustomStart(range.start);
     setCustomEnd(range.end);
     setQuickLabel(opt.label);
+    setUserSelectedRange(true);
     setShowDatePicker(false);
   };
 
