@@ -92,8 +92,23 @@ const VIEWS: EcommerceView[] = [
 ];
 
 const INDUSTRIES = ['数码电子', '家用电器', '美妆个护', '食品饮料', '服装鞋帽'];
-const CATEGORIES = ['手机', '电脑', '平板', '智能手表', '耳机'];
-const BRANDS = ['全部品牌', 'vivo', 'iQOO', '华为', '小米', 'OPPO', '荣耀', '苹果'];
+
+const INDUSTRY_CATEGORIES: Record<string, string[]> = {
+  '数码电子': ['手机', '电脑', '平板', '智能手表', '耳机'],
+  '家用电器': ['电视', '冰箱', '洗衣机', '空调', '厨房电器'],
+  '美妆个护': ['护肤', '彩妆', '个护清洁', '香水', '美容仪器'],
+  '食品饮料': ['乳品', '饮料', '零食', '茶叶', '酒水'],
+  '服装鞋帽': ['男装', '女装', '鞋靴', '箱包', '内衣'],
+};
+
+const INDUSTRY_BRANDS: Record<string, string[]> = {
+  '数码电子': ['全部品牌', 'vivo', 'iQOO', '华为', '小米', 'OPPO', '荣耀', '苹果'],
+  '家用电器': ['全部品牌', '海尔', '美的', '格力', '海信', 'TCL', '松下'],
+  '美妆个护': ['全部品牌', '雅诗兰黛', '兰蔻', '欧莱雅', '珀莱雅', '薇诺娜', '花西子'],
+  '食品饮料': ['全部品牌', '蒙牛', '伊利', '农夫山泉', '可口可乐', '三只松鼠', '元气森林'],
+  '服装鞋帽': ['全部品牌', '耐克', '阿迪达斯', '安踏', '李宁', '优衣库', 'ZARA'],
+};
+
 const TIME_RANGES = ['近30天', '近90天', '近半年', '近一年', '本年度'];
 
 /* ========== Mock Data Generators ========== */
@@ -732,6 +747,17 @@ export default function EcommercePage() {
     fetchViewData(activeView);
   }, [activeView, fetchViewData]);
 
+  // Industry change: reset category & brand to match new industry
+  useEffect(() => {
+    const cats = INDUSTRY_CATEGORIES[filters.industry] || [];
+    const brands = INDUSTRY_BRANDS[filters.industry] || [];
+    setFilters((f) => ({
+      ...f,
+      category: cats.includes(f.category) ? f.category : (cats[0] ?? ''),
+      brand: brands.includes(f.brand) ? f.brand : (brands[0] ?? ''),
+    }));
+  }, [filters.industry]);
+
   const handleViewChange = (key: string) => {
     setActiveView(key);
   };
@@ -842,7 +868,7 @@ export default function EcommercePage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {CATEGORIES.map((cat) => (
+                  {(INDUSTRY_CATEGORIES[filters.industry] || []).map((cat) => (
                     <SelectItem key={cat} value={cat}>
                       {cat}
                     </SelectItem>
@@ -862,7 +888,7 @@ export default function EcommercePage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {BRANDS.map((b) => (
+                  {(INDUSTRY_BRANDS[filters.industry] || []).map((b) => (
                     <SelectItem key={b} value={b}>
                       {b}
                     </SelectItem>
