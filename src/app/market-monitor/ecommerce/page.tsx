@@ -112,6 +112,97 @@ const INDUSTRY_BRANDS: Record<string, string[]> = {
 const TIME_RANGES = ['近30天', '近90天', '近半年', '近一年', '本年度'];
 
 /* ========== Mock Data Generators ========== */
+const INDUSTRY_BRAND_COLORS: Record<string, { name: string; color: string }[]> = {
+  '数码电子': [
+    { name: 'vivo', color: '#4158D0' }, { name: 'iQOO', color: '#FF6B35' },
+    { name: '华为', color: '#FF4D4F' }, { name: '小米', color: '#FAAD14' },
+    { name: 'OPPO', color: '#52C41A' }, { name: '荣耀', color: '#1890FF' },
+    { name: '苹果', color: '#722ED1' }, { name: '真我', color: '#13C2C2' },
+  ],
+  '家用电器': [
+    { name: '海尔', color: '#4158D0' }, { name: '美的', color: '#FF6B35' },
+    { name: '格力', color: '#FF4D4F' }, { name: '海信', color: '#FAAD14' },
+    { name: 'TCL', color: '#52C41A' }, { name: '松下', color: '#1890FF' },
+    { name: '奥克斯', color: '#722ED1' }, { name: '志高', color: '#13C2C2' },
+  ],
+  '美妆个护': [
+    { name: '雅诗兰黛', color: '#4158D0' }, { name: '兰蔻', color: '#FF6B35' },
+    { name: '欧莱雅', color: '#FF4D4F' }, { name: '珀莱雅', color: '#FAAD14' },
+    { name: '薇诺娜', color: '#52C41A' }, { name: '花西子', color: '#1890FF' },
+    { name: 'SK-II', color: '#722ED1' }, { name: '资生堂', color: '#13C2C2' },
+  ],
+  '食品饮料': [
+    { name: '蒙牛', color: '#4158D0' }, { name: '伊利', color: '#FF6B35' },
+    { name: '农夫山泉', color: '#FF4D4F' }, { name: '可口可乐', color: '#FAAD14' },
+    { name: '三只松鼠', color: '#52C41A' }, { name: '元气森林', color: '#1890FF' },
+    { name: '统一', color: '#722ED1' }, { name: '康师傅', color: '#13C2C2' },
+  ],
+  '服装鞋帽': [
+    { name: '耐克', color: '#4158D0' }, { name: '阿迪达斯', color: '#FF6B35' },
+    { name: '安踏', color: '#FF4D4F' }, { name: '李宁', color: '#FAAD14' },
+    { name: '优衣库', color: '#52C41A' }, { name: 'ZARA', color: '#1890FF' },
+    { name: 'H&M', color: '#722ED1' }, { name: 'GAP', color: '#13C2C2' },
+  ],
+};
+
+const INDUSTRY_SHOP_NAMES: Record<string, string[]> = {
+  '数码电子': ['vivo官方旗舰店', 'iQOO官方旗舰店', '华为官方旗舰店', '小米官方旗舰店', 'OPPO官方旗舰店', '荣耀官方旗舰店', 'Apple产品京东自营', 'realme真我官方旗舰店'],
+  '家用电器': ['海尔官方旗舰店', '美的官方旗舰店', '格力官方旗舰店', '海信官方旗舰店', 'TCL官方旗舰店', '松下官方旗舰店', '奥克斯旗舰店', '志高旗舰店'],
+  '美妆个护': ['雅诗兰黛官方旗舰店', '兰蔻官方旗舰店', '欧莱雅官方旗舰店', '珀莱雅官方旗舰店', '薇诺娜官方旗舰店', '花西子官方旗舰店', 'SK-II官方旗舰店', '资生堂官方旗舰店'],
+  '食品饮料': ['蒙牛官方旗舰店', '伊利官方旗舰店', '农夫山泉旗舰店', '可口可乐旗舰店', '三只松鼠旗舰店', '元气森林旗舰店', '统一旗舰店', '康师傅旗舰店'],
+  '服装鞋帽': ['耐克官方旗舰店', '阿迪达斯官方旗舰店', '安踏官方旗舰店', '李宁官方旗舰店', '优衣库官方旗舰店', 'ZARA官方旗舰店', 'H&M旗舰店', 'GAP旗舰店'],
+};
+
+const INDUSTRY_PRODUCT_NAMES: Record<string, { name: string; brand: string }[]> = {
+  '数码电子': [
+    { name: 'vivo X200 Pro', brand: 'vivo' }, { name: 'iQOO 13 Pro', brand: 'iQOO' },
+    { name: '华为Mate 70 Pro', brand: '华为' }, { name: '小米15 Ultra', brand: '小米' },
+    { name: 'OPPO Find X8', brand: 'OPPO' }, { name: '荣耀Magic7', brand: '荣耀' },
+    { name: 'iPhone 16 Pro', brand: '苹果' }, { name: 'realme GT7 Pro', brand: '真我' },
+    { name: 'vivo S20', brand: 'vivo' }, { name: 'iQOO Neo10', brand: 'iQOO' },
+  ],
+  '家用电器': [
+    { name: '海尔卡萨帝冰箱', brand: '海尔' }, { name: '美的空调柜机', brand: '美的' },
+    { name: '格力云锦空调', brand: '格力' }, { name: '海信ULED电视', brand: '海信' },
+    { name: 'TCL 98寸巨幕', brand: 'TCL' }, { name: '松下洗烘一体', brand: '松下' },
+    { name: '奥克斯变频空调', brand: '奥克斯' }, { name: '志高智能冰箱', brand: '志高' },
+  ],
+  '美妆个护': [
+    { name: '雅诗兰黛小棕瓶', brand: '雅诗兰黛' }, { name: '兰蔻小黑瓶', brand: '兰蔻' },
+    { name: '欧莱雅紫斗', brand: '欧莱雅' }, { name: '珀莱雅红宝石', brand: '珀莱雅' },
+    { name: '薇诺娜特护霜', brand: '薇诺娜' }, { name: '花西子雕花口红', brand: '花西子' },
+    { name: 'SK-II神仙水', brand: 'SK-II' }, { name: '资生堂红腰子', brand: '资生堂' },
+  ],
+  '食品饮料': [
+    { name: '蒙牛特仑苏', brand: '蒙牛' }, { name: '伊利金典', brand: '伊利' },
+    { name: '农夫山泉NFC', brand: '农夫山泉' }, { name: '可口可乐零度', brand: '可口可乐' },
+    { name: '三只松鼠坚果', brand: '三只松鼠' }, { name: '元气森林气泡水', brand: '元气森林' },
+    { name: '统一冰红茶', brand: '统一' }, { name: '康师傅红烧牛肉面', brand: '康师傅' },
+  ],
+  '服装鞋帽': [
+    { name: '耐克Air Max', brand: '耐克' }, { name: '阿迪达斯UltraBoost', brand: '阿迪达斯' },
+    { name: '安踏KT9', brand: '安踏' }, { name: '李宁韦德之道', brand: '李宁' },
+    { name: '优衣库HEATTECH', brand: '优衣库' }, { name: 'ZARA基础款衬衫', brand: 'ZARA' },
+    { name: 'H&M连衣裙', brand: 'H&M' }, { name: 'GAP卫衣', brand: 'GAP' },
+  ],
+};
+
+const INDUSTRY_HOTWORDS: Record<string, { word: string }[]> = {
+  '数码电子': [{ word: '5G手机' }, { word: '拍照手机' }, { word: '游戏手机' }, { word: '折叠屏' }, { word: '长续航' }, { word: '快充' }, { word: '旗舰芯片' }, { word: '曲面屏' }, { word: '轻薄机身' }, { word: '大内存' }, { word: '高刷屏幕' }, { word: 'AI手机' }],
+  '家用电器': [{ word: '智能电视' }, { word: '变频空调' }, { word: '大容量冰箱' }, { word: '洗烘一体' }, { word: '一级能效' }, { word: '静音运行' }, { word: '嵌入式' }, { word: '除菌功能' }, { word: '大屏显示' }, { word: '节能省电' }, { word: '智能互联' }, { word: '自清洁' }],
+  '美妆个护': [{ word: '抗老精华' }, { word: '美白面霜' }, { word: '敏感肌' }, { word: '防晒隔离' }, { word: '保湿补水' }, { word: '淡纹眼霜' }, { word: '修护面膜' }, { word: '哑光唇釉' }, { word: '控油洁面' }, { word: '素颜霜' }, { word: '安瓶精华' }, { word: '早C晚A' }],
+  '食品饮料': [{ word: '低糖饮料' }, { word: '无添加' }, { word: '高蛋白' }, { word: '益生菌' }, { word: '常温保存' }, { word: '进口零食' }, { word: '有机茶' }, { word: '气泡水' }, { word: '代餐奶昔' }, { word: '冻干咖啡' }, { word: '零卡糖' }, { word: '粗粮谷物' }],
+  '服装鞋帽': [{ word: '运动休闲' }, { word: '透气跑步鞋' }, { word: '修身西装' }, { word: '宽松卫衣' }, { word: '速干面料' }, { word: '老爹鞋' }, { word: '工装裤' }, { word: '连帽衫' }, { word: '马丁靴' }, { word: '棒球服' }, { word: '瑜伽裤' }, { word: '冲锋衣' }],
+};
+
+const INDUSTRY_PRICE_RANGES: Record<string, string[]> = {
+  '数码电子': ['0-999', '1000-1999', '2000-2999', '3000-3999', '4000-5999', '6000-7999', '8000+'],
+  '家用电器': ['0-499', '500-999', '1000-2999', '3000-4999', '5000-7999', '8000-14999', '15000+'],
+  '美妆个护': ['0-49', '50-99', '100-199', '200-399', '400-699', '700-1499', '1500+'],
+  '食品饮料': ['0-19', '20-39', '40-69', '70-99', '100-199', '200-499', '500+'],
+  '服装鞋帽': ['0-99', '100-199', '200-399', '400-699', '700-1199', '1200-2999', '3000+'],
+};
+
 function generateTrendData() {
   const months = [];
   const now = new Date();
@@ -130,19 +221,11 @@ function generateTrendData() {
   return months;
 }
 
-function generateBrandRanking() {
-  const brands = [
-    { name: 'vivo', color: '#4158D0' },
-    { name: 'iQOO', color: '#FF6B35' },
-    { name: '华为', color: '#FF4D4F' },
-    { name: '小米', color: '#FAAD14' },
-    { name: 'OPPO', color: '#52C41A' },
-    { name: '荣耀', color: '#1890FF' },
-    { name: '苹果', color: '#722ED1' },
-    { name: '真我', color: '#13C2C2' },
-  ];
+function generateBrandRanking(category: string) {
+  const industry = Object.keys(INDUSTRY_CATEGORIES).find(k => INDUSTRY_CATEGORIES[k].includes(category)) || '数码电子';
+  const brandList = INDUSTRY_BRAND_COLORS[industry] || INDUSTRY_BRAND_COLORS['数码电子'];
   let total = 0;
-  const data = brands.map((b, i) => {
+  const data = brandList.map((b, i) => {
     const sales = Math.floor(50000 - i * 4500 + Math.random() * 3000);
     const avgPrice = Math.floor(2000 + Math.random() * 3000);
     total += sales;
@@ -151,35 +234,20 @@ function generateBrandRanking() {
   return data.map((d) => ({ ...d, share: ((d.sales / total) * 100).toFixed(1) }));
 }
 
-function generatePriceVolumeData() {
-  const priceRanges = [
-    '0-999',
-    '1000-1999',
-    '2000-2999',
-    '3000-3999',
-    '4000-5999',
-    '6000-7999',
-    '8000+',
-  ];
-  return priceRanges.map((range) => ({
+function generatePriceVolumeData(category: string) {
+  const industry = Object.keys(INDUSTRY_CATEGORIES).find(k => INDUSTRY_CATEGORIES[k].includes(category)) || '数码电子';
+  const ranges = INDUSTRY_PRICE_RANGES[industry] || INDUSTRY_PRICE_RANGES['数码电子'];
+  return ranges.map((range) => ({
     range,
     sales: Math.floor(5000 + Math.random() * 25000),
     volume: Math.floor(1000 + Math.random() * 5000),
   }));
 }
 
-function generateShopList() {
-  const shops = [
-    'vivo官方旗舰店',
-    'iQOO官方旗舰店',
-    '华为官方旗舰店',
-    '小米官方旗舰店',
-    'OPPO官方旗舰店',
-    '荣耀官方旗舰店',
-    'Apple产品京东自营',
-    'realme真我官方旗舰店',
-  ];
-  return shops.map((name, i) => ({
+function generateShopList(category: string) {
+  const industry = Object.keys(INDUSTRY_CATEGORIES).find(k => INDUSTRY_CATEGORIES[k].includes(category)) || '数码电子';
+  const names = INDUSTRY_SHOP_NAMES[industry] || INDUSTRY_SHOP_NAMES['数码电子'];
+  return names.map((name, i) => ({
     id: i + 1,
     name,
     platform: ['京东', '天猫', '抖音'][i % 3],
@@ -190,55 +258,34 @@ function generateShopList() {
   }));
 }
 
-function generateProductList() {
-  const products = [
-    'vivo X200 Pro',
-    'iQOO 13 Pro',
-    '华为Mate 70 Pro',
-    '小米15 Ultra',
-    'OPPO Find X8',
-    '荣耀Magic7',
-    'iPhone 16 Pro',
-    'realme GT7 Pro',
-    'vivo S20',
-    'iQOO Neo10',
-  ];
-  return products.map((name, i) => ({
+function generateProductList(category: string) {
+  const industry = Object.keys(INDUSTRY_CATEGORIES).find(k => INDUSTRY_CATEGORIES[k].includes(category)) || '数码电子';
+  const products = INDUSTRY_PRODUCT_NAMES[industry] || INDUSTRY_PRODUCT_NAMES['数码电子'];
+  return products.map((p, i) => ({
     id: i + 1,
-    name,
+    name: p.name,
     price: Math.floor(1999 + Math.random() * 6000),
     sales: Math.floor(5000 - i * 300 + Math.random() * 1000),
     volume: Math.floor(200 - i * 15 + Math.random() * 50),
-    brand: products[i].split(' ')[0],
+    brand: p.brand,
   }));
 }
 
-function generateHotwords() {
-  const words = [
-    '5G手机',
-    '拍照手机',
-    '游戏手机',
-    '折叠屏',
-    '长续航',
-    '快充',
-    '旗舰芯片',
-    '曲面屏',
-    '轻薄机身',
-    '大内存',
-    '高刷屏幕',
-    'AI手机',
-  ];
+function generateHotwords(category: string) {
+  const industry = Object.keys(INDUSTRY_CATEGORIES).find(k => INDUSTRY_CATEGORIES[k].includes(category)) || '数码电子';
+  const words = INDUSTRY_HOTWORDS[industry] || INDUSTRY_HOTWORDS['数码电子'];
   return words
-    .map((word, i) => ({
-      word,
+    .map((item, i) => ({
+      word: item.word,
       count: Math.floor(5000 - i * 300 + Math.random() * 500),
       trend: (Math.random() - 0.4) * 100,
     }))
     .sort((a, b) => b.count - a.count);
 }
 
-function generatePriceCrossData() {
-  const ranges = ['1000以下', '1000-2000', '2000-3000', '3000-4000', '4000-6000', '6000以上'];
+function generatePriceCrossData(category: string) {
+  const industry = Object.keys(INDUSTRY_CATEGORIES).find(k => INDUSTRY_CATEGORIES[k].includes(category)) || '数码电子';
+  const ranges = INDUSTRY_PRICE_RANGES[industry] || INDUSTRY_PRICE_RANGES['数码电子'];
   return ranges.map((range, i) => ({
     range,
     online: Math.floor(3000 + i * 2000 + Math.random() * 1500),
@@ -617,37 +664,23 @@ export default function EcommercePage() {
     timeRange: '近90天',
   });
 
-  // KPI Data
-  const kpiCards: KpiCard[] = [
-    {
-      label: '总销售额',
-      value: '¥286.5万',
-      change: 12.8,
-      icon: <DollarSign className="h-5 w-5" />,
-      color: '#4158D0',
-    },
-    {
-      label: '总销量',
-      value: '8.6万件',
-      change: 8.3,
-      icon: <Package className="h-5 w-5" />,
-      color: '#C850C0',
-    },
-    {
-      label: '平均价格',
-      value: '¥3,331',
-      change: -2.1,
-      icon: <Tag className="h-5 w-5" />,
-      color: '#10B981',
-    },
-    {
-      label: '品牌数',
-      value: '128个',
-      change: 5.6,
-      icon: <Building2 className="h-5 w-5" />,
-      color: '#F59E0B',
-    },
-  ];
+  // KPI Data — dynamic based on industry
+  const kpiCards: KpiCard[] = useMemo(() => {
+    const multipliers: Record<string, number> = {
+      '数码电子': 1.0, '家用电器': 1.5, '美妆个护': 0.8, '食品饮料': 0.6, '服装鞋帽': 0.9,
+    };
+    const m = multipliers[filters.industry] || 1;
+    const totalSales = (286.5 * m).toFixed(1);
+    const totalVolume = (8.6 * m).toFixed(1);
+    const avgPrice = Math.floor(3331 * m);
+    const brandCount = Math.floor(128 * m);
+    return [
+      { label: '总销售额', value: `¥${totalSales}万`, change: 12.8, icon: <DollarSign className="h-5 w-5" />, color: '#4158D0' },
+      { label: '总销量', value: `${totalVolume}万件`, change: 8.3, icon: <Package className="h-5 w-5" />, color: '#C850C0' },
+      { label: '平均价格', value: `¥${avgPrice.toLocaleString()}`, change: -2.1, icon: <Tag className="h-5 w-5" />, color: '#10B981' },
+      { label: '品牌数', value: `${brandCount}个`, change: 5.6, icon: <Building2 className="h-5 w-5" />, color: '#F59E0B' },
+    ];
+  }, [filters.industry]);
 
   const fetchViewData = useCallback(
     async (viewKey: string) => {
@@ -678,25 +711,25 @@ export default function EcommercePage() {
                 setViewData(generateTrendData());
                 break;
               case '品牌排行':
-                setViewData(generateBrandRanking());
+                setViewData(generateBrandRanking(filters.category));
                 break;
               case '销售价量':
-                setViewData(generatePriceVolumeData());
+                setViewData(generatePriceVolumeData(filters.category));
                 break;
               case '店铺列表':
-                setViewData(generateShopList());
+                setViewData(generateShopList(filters.category));
                 break;
               case '商品列表':
-                setViewData(generateProductList());
+                setViewData(generateProductList(filters.category));
                 break;
               case '价格区间':
-                setViewData(generatePriceVolumeData());
+                setViewData(generatePriceVolumeData(filters.category));
                 break;
               case '价格交叉':
-                setViewData(generatePriceCrossData());
+                setViewData(generatePriceCrossData(filters.category));
                 break;
               case '热词频次':
-                setViewData(generateHotwords());
+                setViewData(generateHotwords(filters.category));
                 break;
               default:
                 setViewData([]);
@@ -711,25 +744,25 @@ export default function EcommercePage() {
               setViewData(generateTrendData());
               break;
             case '品牌排行':
-              setViewData(generateBrandRanking());
+              setViewData(generateBrandRanking(filters.category));
               break;
             case '销售价量':
-              setViewData(generatePriceVolumeData());
+              setViewData(generatePriceVolumeData(filters.category));
               break;
             case '店铺列表':
-              setViewData(generateShopList());
+              setViewData(generateShopList(filters.category));
               break;
             case '商品列表':
-              setViewData(generateProductList());
+              setViewData(generateProductList(filters.category));
               break;
             case '价格区间':
-              setViewData(generatePriceVolumeData());
+              setViewData(generatePriceVolumeData(filters.category));
               break;
             case '价格交叉':
-              setViewData(generatePriceCrossData());
+              setViewData(generatePriceCrossData(filters.category));
               break;
             case '热词频次':
-              setViewData(generateHotwords());
+              setViewData(generateHotwords(filters.category));
               break;
             default:
               setViewData([]);
@@ -747,16 +780,12 @@ export default function EcommercePage() {
     fetchViewData(activeView);
   }, [activeView, fetchViewData]);
 
-  // Industry change: reset category & brand to match new industry
+  // Re-fetch when filters change (industry/category/brand)
   useEffect(() => {
-    const cats = INDUSTRY_CATEGORIES[filters.industry] || [];
-    const brands = INDUSTRY_BRANDS[filters.industry] || [];
-    setFilters((f) => ({
-      ...f,
-      category: cats.includes(f.category) ? f.category : (cats[0] ?? ''),
-      brand: brands.includes(f.brand) ? f.brand : (brands[0] ?? ''),
-    }));
-  }, [filters.industry]);
+    fetchViewData(activeView);
+  }, [filters.industry, filters.category, filters.brand, activeView]);
+
+  // Industry change: reset category & brand immediately in handler (below)
 
   const handleViewChange = (key: string) => {
     setActiveView(key);
@@ -842,7 +871,16 @@ export default function EcommercePage() {
               <span className="text-xs text-muted-foreground">行业</span>
               <Select
                 value={filters.industry}
-                onValueChange={(v) => setFilters((f) => ({ ...f, industry: v }))}
+                onValueChange={(v) => {
+                  const cats = INDUSTRY_CATEGORIES[v] || [];
+                  const brands = INDUSTRY_BRANDS[v] || [];
+                  setFilters({
+                    ...filters,
+                    industry: v,
+                    category: cats[0] || '',
+                    brand: brands[0] || '',
+                  });
+                }}
               >
                 <SelectTrigger size="sm" className="w-28">
                   <SelectValue />
