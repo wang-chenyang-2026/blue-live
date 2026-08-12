@@ -1,26 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { kolCreateProjectByKeywords } from '@/lib/kol-mcp';
-import {
-  createKolTask,
-  ensureKolTasksTable,
-  resolveUserId,
-  updateKolTask,
-} from '@/lib/kol-tasks-db';
+import { createTask, resolveUserId } from '@/lib/kol-task-store';
 
-/**
- * POST /api/market-monitor/kol/create-task
- *
- * 请求体：
- * {
- *   task_name, product_name, brand, brief_summary,
- *   keyword_groups: [{content, query, pass_word[]}],
- *   metrics: { kolFansRangeLower, kolFansRangeUpper, kolNumLower, price... etc },
- *   user_metrics?, contword?, entity_report?
- * }
- */
 export async function POST(req: NextRequest) {
   try {
-    const tableOk = await ensureKolTasksTable();
     const body = await req.json().catch(() => ({}));
     const {
       task_name,
@@ -45,16 +28,10 @@ export async function POST(req: NextRequest) {
     };
 
     if (!product_name?.trim()) {
-      return NextResponse.json(
-        { success: false, error: '产品名称必填' },
-        { status: 400 },
-      );
+      return NextResponse.json({ success: false, error: '产品名称必填' }, { status: 400 });
     }
     if (!Array.isArray(keyword_groups) || keyword_groups.length === 0) {
-      return NextResponse.json(
-        { success: false, error: '至少选择一组关键词' },
-        { status: 400 },
-      );
+      return NextResponse.json({ success: false, error: '至少选择一组关键词' }, { status: 400 });
     }
     const fansLower = Number((metrics as Record<string, unknown> | undefined)?.kolFansRangeLower);
     if (!Number.isFinite(fansLower) || fansLower <= 0) {
@@ -64,7 +41,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 确保 metrics 里有刊例价兜底
     const safeMetrics: Record<string, unknown> = {
       kolNumLower: 50,
       ...(metrics || {}),
@@ -75,7 +51,6 @@ export async function POST(req: NextRequest) {
       anyFieldNull: true,
     };
 
-    // 规范化数字
     for (const [k, v] of Object.entries(safeMetrics)) {
       if (typeof v === 'string' && v.trim() !== '' && !Number.isNaN(Number(v))) {
         safeMetrics[k] = Number(v);
@@ -104,8 +79,6 @@ export async function POST(req: NextRequest) {
       throw new Error('MCP 未返回有效的 projectId');
     }
 
-    // 映射 MCP status -> 我们的状态
-    // status: 0=执行中 1=? 2=完成 3=异常 (按需求：2=完成)
     const mcpStatus = Number(mcpResult.status ?? 0);
     let localStatus: 'pending' | 'running' | 'completed' | 'failed' = 'running';
     if (mcpStatus === 2) localStatus = 'completed';
@@ -113,18 +86,7 @@ export async function POST(req: NextRequest) {
 
     const userId = resolveUserId(req);
 
-    if (!tableOk) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            '任务表 kol_selection_tasks 尚未创建，请联系管理员在 Supabase 中执行 src/lib/kol-tasks.schema.sql',
-        },
-        { status: 503 },
-      );
-    }
-
-    const row = await createKolTask({
+    const row = await createTask({
       project_id: projectId,
       task_name: taskName,
       product_name,
@@ -140,16 +102,6 @@ export async function POST(req: NextRequest) {
       created_by: userId,
     });
 
-    // 如果 MCP 已立刻返回完成（极少数情况），拉一次结果
-    if (localStatus === 'completed') {
-      // fire and forget
-      void updateKolTask(projectId, {
-        status: 'completed',
-        mcp_status: mcpStatus,
-        mcp_status_desc: mcpResult.statusDesc || '已完成',
-      }).catch(() => undefined);
-    }
-
     return NextResponse.json({
       success: true,
       data: {
@@ -162,9 +114,6 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[create-task] failed:', message);
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 },
-    );
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

@@ -1,26 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  ensureKolTasksTable,
-  listKolTasks,
-  resolveUserId,
-} from '@/lib/kol-tasks-db';
+import { listTasks, resolveUserId } from '@/lib/kol-task-store';
 
-/**
- * GET /api/market-monitor/kol/tasks
- * 返回当前用户的选号任务列表
- */
 export async function GET(req: NextRequest) {
   try {
-    const tableOk = await ensureKolTasksTable();
-    if (!tableOk) {
-      return NextResponse.json({
-        success: true,
-        data: [],
-        warning: '任务表尚未创建，请联系管理员初始化 kol_selection_tasks 表',
-      });
-    }
     const userId = resolveUserId(req);
-    const rows = await listKolTasks(userId);
+    const rows = await listTasks(userId);
 
     const tasks = rows.map((r) => {
       const groups = Array.isArray(r.keyword_groups)
@@ -49,9 +33,6 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[tasks GET] failed:', message);
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 },
-    );
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

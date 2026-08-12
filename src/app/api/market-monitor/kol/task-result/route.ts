@@ -1,19 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { kolGetRouteTaskResult } from '@/lib/kol-mcp';
-import {
-  ensureKolTasksTable,
-  getKolTaskByProjectId,
-  updateKolTask,
-} from '@/lib/kol-tasks-db';
+import { getTaskByProjectId, updateTask } from '@/lib/kol-task-store';
 
-/**
- * GET /api/market-monitor/kol/task-result?projectId=xxx
- *
- * 查询 MCP 任务结果，并将最新状态/文件URL回写到 Supabase。
- */
 export async function GET(req: NextRequest) {
   try {
-    await ensureKolTasksTable();
     const { searchParams } = new URL(req.url);
     const projectIdStr = searchParams.get('projectId');
     const projectId = Number(projectIdStr);
@@ -26,27 +16,24 @@ export async function GET(req: NextRequest) {
 
     const result = await kolGetRouteTaskResult(projectId);
 
-    // MCP status: 0/1 执行中, 2 完成, 其它异常
     const mcpStatus = Number(result.status ?? 0);
     let localStatus: 'pending' | 'running' | 'completed' | 'failed' = 'running';
     if (mcpStatus === 2) localStatus = 'completed';
     else if (mcpStatus === 3 || mcpStatus < 0) localStatus = 'failed';
 
     const fileUrl = (result.fileUrl as string | undefined) || '';
-    const patch: Parameters<typeof updateKolTask>[1] = {
+    const patch: Parameters<typeof updateTask>[1] = {
       status: localStatus,
       mcp_status: mcpStatus,
       mcp_status_desc: result.statusDesc || null,
     };
     if (fileUrl) patch.file_url = fileUrl;
 
-    // 把达人列表等结构化数据落到 result_data（如果存在）
     const resultData: Record<string, unknown> = {};
     if (fileUrl) resultData.fileUrl = fileUrl;
     if (result.fileName) resultData.fileName = result.fileName;
     if (Array.isArray(result.kolList)) resultData.kolList = result.kolList;
     if (typeof result.total === 'number') resultData.total = result.total;
-    // 兜底：把 data 层所有除已知字段外的字段都存下来
     for (const [k, v] of Object.entries(result)) {
       if (k in resultData) continue;
       if (['projectId', 'status', 'statusDesc', 'fileUrl', 'fileName'].includes(k)) continue;
@@ -56,11 +43,9 @@ export async function GET(req: NextRequest) {
       patch.result_data = resultData;
     }
 
-    let dbRow = await updateKolTask(projectId, patch);
-
-    // 如果数据库里还没有这条记录（极端兜底），读一下
+    let dbRow = await updateTask(projectId, patch);
     if (!dbRow) {
-      dbRow = await getKolTaskByProjectId(projectId);
+      dbRow = await getTaskByProjectId(projectId);
     }
 
     return NextResponse.json({
@@ -91,9 +76,6 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[task-result] failed:', message);
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 },
-    );
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

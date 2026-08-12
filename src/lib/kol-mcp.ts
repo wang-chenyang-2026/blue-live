@@ -202,7 +202,7 @@ async function initKolSession(): Promise<string> {
     cache: 'no-store' as RequestCache,
   }).catch(() => undefined);
 
-  return sid;
+  return sessionId;
 }
 
 interface KolEnvelope<T> {
@@ -214,7 +214,8 @@ interface KolEnvelope<T> {
 function unwrap<T>(payload: unknown): T {
   const env = payload as KolEnvelope<T>;
   if (env && typeof env === 'object' && 'code' in env) {
-    if (env.code !== 0 && env.code !== undefined) {
+    // 有些接口成功时不返回 code，失败时返回非 0 code
+    if (env.code !== undefined && env.code !== 0) {
       throw new Error(`KOL API code=${env.code}: ${env.msg || 'unknown'}`);
     }
     return (env.data ?? ({} as T)) as T;
