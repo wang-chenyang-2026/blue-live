@@ -39,8 +39,7 @@ async function mcpPost<T = unknown>(
     method: 'POST',
     headers,
     body: JSON.stringify(body),
-    // @ts-expect-error Node 18+ / Next edge runtime supports
-    cache: 'no-store',
+    cache: 'no-store' as RequestCache,
   });
 
   const nextSession =
@@ -338,4 +337,121 @@ export async function ctsGetMediaTaskResult(bizNo: string): Promise<MediaTaskRes
     sid,
   );
   return unwrap<MediaTaskResult>(data);
+}
+
+/* ============ 服务三：全网声量 common-tools-server (voice 系列) ============
+ * 与 media 系列流程完全一致，但渠道更广（10个：新闻/论坛/小红书/抖音/公众号/视频号/快手/B站/知乎/微博）。
+ *   1. submit_voice_brief(brief)
+ *   2. get_voice_brief_result(sessionId)
+ *   3. submit_voice_task({ sessionId, briefKeyword, briefPassword?, startTime, endTime, sourceCodes, contentModes })
+ *   4. get_voice_task_result(bizNo)
+ */
+
+export interface SubmitVoiceBriefResult {
+  sessionId?: number;
+  status?: string;
+  [key: string]: unknown;
+}
+
+export interface VoiceBriefResult {
+  status: string; // RUNNING / COMPLETED / FAILED / ABORTED
+  briefKeyword?: string;
+  briefPassword?: string;
+  [key: string]: unknown;
+}
+
+export interface SubmitVoiceTaskArgs {
+  sessionId?: number;
+  briefKeyword: string;
+  briefPassword?: string;
+  startTime: string; // 毫秒时间戳字符串
+  endTime: string;   // 毫秒时间戳字符串
+  sourceCodes: string; // 逗号分隔，例如 "1,2,3,4,5,6,7,8,9,10"
+  contentModes: string; // PGC / UGC / ALL
+}
+
+export interface SubmitVoiceTaskResult {
+  bizNo?: string;
+  [key: string]: unknown;
+}
+
+export interface VoiceTaskResult {
+  status: number; // 0采集中 1分析中 2完成 3失败 4异常
+  zipUrl?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+}
+
+export async function ctsSubmitVoiceBrief(
+  brief: string,
+): Promise<SubmitVoiceBriefResult> {
+  const sid = await initSession(CTS_SERVER);
+  const { data } = await mcpPost<unknown>(
+    CTS_SERVER,
+    {
+      jsonrpc: '2.0',
+      id: 6,
+      method: 'tools/call',
+      params: { name: 'submit_voice_brief', arguments: { brief } },
+    },
+    sid,
+  );
+  return unwrap<SubmitVoiceBriefResult>(data);
+}
+
+export async function ctsGetVoiceBriefResult(
+  sessionId: number,
+): Promise<VoiceBriefResult> {
+  const sid = await initSession(CTS_SERVER);
+  const { data } = await mcpPost<unknown>(
+    CTS_SERVER,
+    {
+      jsonrpc: '2.0',
+      id: 7,
+      method: 'tools/call',
+      params: {
+        name: 'get_voice_brief_result',
+        arguments: { sessionId: Number(sessionId) },
+      },
+    },
+    sid,
+  );
+  return unwrap<VoiceBriefResult>(data);
+}
+
+export async function ctsSubmitVoiceTask(
+  args: SubmitVoiceTaskArgs,
+): Promise<SubmitVoiceTaskResult> {
+  const sid = await initSession(CTS_SERVER);
+  const { data } = await mcpPost<unknown>(
+    CTS_SERVER,
+    {
+      jsonrpc: '2.0',
+      id: 8,
+      method: 'tools/call',
+      params: { name: 'submit_voice_task', arguments: args },
+    },
+    sid,
+  );
+  return unwrap<SubmitVoiceTaskResult>(data);
+}
+
+export async function ctsGetVoiceTaskResult(
+  bizNo: string,
+): Promise<VoiceTaskResult> {
+  const sid = await initSession(CTS_SERVER);
+  const { data } = await mcpPost<unknown>(
+    CTS_SERVER,
+    {
+      jsonrpc: '2.0',
+      id: 9,
+      method: 'tools/call',
+      params: {
+        name: 'get_voice_task_result',
+        arguments: { bizNo },
+      },
+    },
+    sid,
+  );
+  return unwrap<VoiceTaskResult>(data);
 }
