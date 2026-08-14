@@ -24,17 +24,30 @@ function cacheKey(parts: [string, string, string], view: string): string {
   return `${parts[0]}|${parts[1]}|${parts[2] || '__ALL__'}|${view}`;
 }
 
-function isValidView(v: string | null): v is CategoryView {
-  return (
-    v === '品类视角-大盘趋势' ||
-    v === '品类视角-销售价量' ||
-    v === '品牌列表' ||
-    v === '店铺列表' ||
-    v === '商品列表' ||
-    v === '价格区间' ||
-    v === '价格交叉' ||
-    v === '热词频次'
-  );
+/** 短名称 → API 完整名称映射 */
+const VIEW_FULL_NAMES: Record<string, CategoryView> = {
+  '品类视角-大盘趋势': '品类视角-大盘趋势',
+  '品类视角-销售价量': '品类视角-销售价量',
+  '品类视角-品牌列表': '品类视角-品牌列表',
+  '品类视角-店铺列表': '品类视角-店铺列表',
+  '品类视角-商品列表': '品类视角-商品列表',
+  '品类视角-价格区间': '品类视角-价格区间',
+  '品类视角-价格交叉': '品类视角-价格交叉',
+  '品类视角-热词频次': '品类视角-热词频次',
+  // 短名称别名
+  大盘趋势: '品类视角-大盘趋势',
+  销售价量: '品类视角-销售价量',
+  品牌列表: '品类视角-品牌列表',
+  店铺列表: '品类视角-店铺列表',
+  商品列表: '品类视角-商品列表',
+  价格区间: '品类视角-价格区间',
+  价格交叉: '品类视角-价格交叉',
+  热词频次: '品类视角-热词频次',
+};
+
+function resolveView(v: string | null): CategoryView | null {
+  if (!v) return null;
+  return VIEW_FULL_NAMES[v] ?? null;
 }
 
 export async function GET(req: NextRequest) {
@@ -51,7 +64,8 @@ export async function GET(req: NextRequest) {
       { status: 400 },
     );
   }
-  if (!isValidView(view)) {
+  const fullView = resolveView(view);
+  if (!fullView) {
     return NextResponse.json(
       { success: false, error: `view 非法：${view ?? ''}` },
       { status: 400 },
@@ -59,7 +73,7 @@ export async function GET(req: NextRequest) {
   }
 
   const categoryList: [string, string, string] = [l1, l2, l3 || ''];
-  const key = cacheKey(categoryList, view);
+  const key = cacheKey(categoryList, fullView);
 
   try {
     let entry = cache.get(key);
@@ -71,7 +85,7 @@ export async function GET(req: NextRequest) {
 
     const promise = crawlerDownloadData({
       categoryList,
-      categoryView: view,
+      categoryView: fullView,
     }).then((res) => {
       // 防御：确保即便底层返回未规范化结构，也再走一次规范化
       return normalizeDownloadResult(res as unknown);
