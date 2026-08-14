@@ -57,10 +57,39 @@ interface McpEnvelope {
   error?: { code?: number; message?: string };
 }
 
-async function mcpPost<T = unknown>(
+/**
+ * 全局限流：crawler-server 对 API Key 有 RPM 限制，
+ * 并发 3 个请求（品牌列表/大盘趋势/价格区间）会触发 KEY_RPM_EXCEEDED。
+ * 这里做一个最小间隔队列，保证请求之间至少间隔 MIN_GAP_MS。
+ */
+const MIN_GAP_MS = 1500;
+let lastRequestAt = 0;
+let chain: Promise<unknown> = Promise.resolve();
+
+function withRateLimit<T>(fn: () => Promise<T>): Promise<T> {
+  const run = chain.then(async () => {
+    const wait = Math.max(0, MIN_GAP_MS - (Date.now() - lastRequestAt));
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    lastRequestAt = Date.now();
+    return fn();
+  });
+  // 防止单个失败中断整条链
+  chain = run.catch(() => undefined);
+  return run;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function isRateLimitError(msg: string): boolean {
+  return /KEY_RPM_EXCEEDED|rpm|rate.?limit|too many requests/i.test(msg);
+}
+
+async function mcpPostOnce<T = unknown>(
   body: Record<string, unknown>,
   sessionId?: string,
-): Promise<{ data: T; sessionId: string }> {
+): Promise<{ data: T; sessionId: string; rateLimited: boolean }> {
   const url = `${MCP_BASE}/${CRAWLER_SERVER}`;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -84,7 +113,10 @@ async function mcpPost<T = unknown>(
 
   if (!res.ok) {
     const text = await res.text().catch(() => 'unknown');
-    throw new Error(`MCP ${CRAWLER_SERVER} HTTP ${res.status}: ${text.slice(0, 500)}`);
+    const msg = `MCP ${CRAWLER_SERVER} HTTP ${res.status}: ${text.slice(0, 500)}`;
+    const err = new Error(msg) as Error & { rateLimited?: boolean };
+    err.rateLimited = isRateLimitError(text);
+    throw err;
   }
 
   const text = await res.text();
@@ -125,13 +157,16 @@ async function mcpPost<T = unknown>(
     throw new Error(`MCP 响应解析失败: ${text.slice(0, 300)}`);
   }
   if (envelope.error) {
-    throw new Error(
-      `MCP error ${envelope.error.code ?? ''}: ${envelope.error.message || 'unknown'}`,
-    );
+    const msg = `MCP error ${envelope.error.code ?? ''}: ${envelope.error.message || 'unknown'}`;
+    const err = new Error(msg) as Error & { rateLimited?: boolean };
+    err.rateLimited = isRateLimitError(msg);
+    throw err;
   }
   if (envelope.result?.isError) {
     const txt = envelope.result.content?.[0]?.text || 'tool error';
-    throw new Error(`MCP tool error: ${txt}`);
+    const err = new Error(`MCP tool error: ${txt}`) as Error & { rateLimited?: boolean };
+    err.rateLimited = isRateLimitError(txt);
+    throw err;
   }
 
   let payload: unknown = envelope.result?.structuredContent;
@@ -146,7 +181,35 @@ async function mcpPost<T = unknown>(
     }
   }
 
-  return { data: payload as T, sessionId: nextSession };
+  return { data: payload as T, sessionId: nextSession, rateLimited: false };
+}
+
+async function mcpPost<T = unknown>(
+  body: Record<string, unknown>,
+  sessionId?: string,
+): Promise<{ data: T; sessionId: string }> {
+  // 进入全局限流队列
+  return withRateLimit(async () => {
+    let lastErr: Error | null = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const r = await mcpPostOnce<T>(body, sessionId);
+        return { data: r.data, sessionId: r.sessionId };
+      } catch (e) {
+        lastErr = e instanceof Error ? e : new Error(String(e));
+        const isRl = (lastErr as Error & { rateLimited?: boolean }).rateLimited;
+        if (isRl && attempt < 3) {
+          // 指数退避：3s, 8s, 15s
+          const backoff = [3000, 8000, 15000][attempt];
+          console.warn(`[crawler-mcp] 触发限流，${backoff}ms 后重试 (${attempt + 1}/3)`);
+          await sleep(backoff);
+          continue;
+        }
+        throw lastErr;
+      }
+    }
+    throw lastErr || new Error('mcpPost 未知错误');
+  });
 }
 
 async function initSession(): Promise<string> {
