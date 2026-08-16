@@ -34,7 +34,10 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 
 function parseExcelDate(serial: number): Date {
   const utcDays = Math.floor(serial - 25569);
-  return new Date(utcDays * 86400 * 1000);
+  const utcMs = utcDays * 86400 * 1000;
+  const beijingOffset = 8 * 3600 * 1000;
+  const d = new Date(utcMs + beijingOffset);
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
 
 function stripNumbers(name: string): string {

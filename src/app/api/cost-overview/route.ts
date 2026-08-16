@@ -128,8 +128,15 @@ async function getSheetIdFromWiki(token: string, wikiToken: string): Promise<str
 }
 
 function parseExcelDate(serial: number): Date {
+  // Excel serial 以 UTC 1899-12-30 为基准，加 8 小时偏移得到北京时间
   const utcDays = Math.floor(serial - 25569);
-  return new Date(utcDays * 86400 * 1000);
+  const utcMs = utcDays * 86400 * 1000;
+  const beijingOffset = 8 * 3600 * 1000;
+  // 取整到天，避免毫秒误差
+  const ms = utcMs + beijingOffset;
+  const d = new Date(ms);
+  // 归一化为北京时间当天 00:00
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
 
 function stripNumbers(name: string): string {
@@ -272,7 +279,7 @@ async function collectScheduleHours(
           const cell = rowData[col];
           if (typeof cell === "string" && cell.trim()) {
             const names = cell.split(/[,，、]/).map((n) => n.trim()).filter(Boolean);
-            const dateKey = date.toISOString().split("T")[0];
+            const dateKey = localDateStr(date);
             const holiday = isLegalHoliday(date);
             for (const name of names) {
               if (isDayLabel(name)) continue;
@@ -514,7 +521,7 @@ async function calcPurchaseCost(
         if (date >= range.start && date <= range.end) {
           const purchaseCell = rowData[purchaseCol];
           const amount = typeof purchaseCell === "number" ? purchaseCell : parseFloat(purchaseCell) || 0;
-          if (amount > 0) dailyCosts.push({ date: date.toISOString().split("T")[0], amount });
+          if (amount > 0) dailyCosts.push({ date: localDateStr(date), amount });
         }
       }
     }
@@ -534,6 +541,14 @@ function normalizeBrand(input: string): string {
   if (lower === "iqoo") return "iQOO";
   if (lower === "iot") return "IOT";
   return raw;
+}
+
+/** 本地日期格式化 YYYY-MM-DD，避免 toISOString() 时区偏移 */
+function localDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function parseDateParam(s: string | null, endOfDay = false): Date | null {
@@ -564,7 +579,7 @@ export async function GET(request: NextRequest) {
   }
   const range: DateRange = { start: startDate, end: endDate };
 
-  const rangeKey = `${startDate.toISOString().slice(0, 10)}_${endDate.toISOString().slice(0, 10)}`;
+  const rangeKey = `${localDateStr(startDate)}_${localDateStr(endDate)}`;
   const cacheKey = `${month}::${brand}::${rangeKey}`;
   const cached = responseCache.get(cacheKey);
   if (cached && cached.expireAt > Date.now()) {
@@ -605,8 +620,8 @@ export async function GET(request: NextRequest) {
       month,
       brand,
       dateRange: {
-        start: startDate.toISOString().slice(0, 10),
-        end: endDate.toISOString().slice(0, 10),
+        start: localDateStr(startDate),
+        end: localDateStr(endDate),
       },
       dimensions: {
         anchor: { total: anchorResult.total, details: anchorResult.details },
