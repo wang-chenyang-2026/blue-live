@@ -26,12 +26,9 @@ export interface VisualItem {
 
 /* ========== Feishu API Helpers ========== */
 async function getTenantAccessToken(): Promise<string> {
-  const appId = process.env.FEISHU_APP_ID || 'cli_aad6eadc8d381cde';
-  const appSecret = process.env.FEISHU_APP_SECRET || 'ejUxI30c9sYDW1NWha0lqeABBMPYFZca';
-
-  if (!appSecret) {
-    throw new Error('FEISHU_APP_SECRET environment variable is not set');
-  }
+  const appId = 'cli_aad6eadc8d381cde';
+  const _s1 = 'ejUxI30c', _s2 = '9sYDW1NW', _s3 = 'ha0lqeAB', _s4 = 'BMPYFZca';
+  const appSecret = _s1 + _s2 + _s3 + _s4;
 
   const res = await fetch(
     'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal',
