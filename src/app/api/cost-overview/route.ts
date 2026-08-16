@@ -197,27 +197,13 @@ async function buildNicknameMapping(
 }> {
   const nicknameToReal: Record<string, string> = {};
   const allNames = new Set<string>();
+  const fulltimeNames = new Set<string>();
 
   try {
-    const ptValues = await readSheetFeishu(feishuToken, NICKNAME_SHEET_TOKEN, `${NICKNAME_SHEETS.partTime}!A1:B100`);
-    for (let i = 1; i < ptValues.length; i++) {
-      const rawName = String(ptValues[i][0] || "").trim();
-      const nickname = String(ptValues[i][1] || "").trim();
-      if (rawName && nickname) {
-        // 保留完整姓名（含工号后缀），以区分同名不同人（如刘欣3649/刘欣6549）
-        nicknameToReal[nickname] = rawName;
-        allNames.add(rawName);
-        allNames.add(nickname);
-      }
-    }
-    const ftValues = await readSheetFeishu(feishuToken, NICKNAME_SHEET_TOKEN, `${NICKNAME_SHEETS.fullTime}!A1:B100`);
-    for (let i = 1; i < ftValues.length; i++) {
-      const name = String(ftValues[i][1] || "").trim();
-      if (name) allNames.add(name);
-    }
-    // 合并全职员工花名映射（如 芙芙→石一淇）
+    // 先标记全职员工真名（高优先级，不被兼职花名覆盖）
     if (fulltimeConfig) {
       for (const [realName, cfg] of Object.entries(fulltimeConfig)) {
+        fulltimeNames.add(realName);
         allNames.add(realName);
         if (cfg.nickname) {
           nicknameToReal[cfg.nickname] = realName;
@@ -225,25 +211,51 @@ async function buildNicknameMapping(
         }
       }
     }
+
+    const ptValues = await readSheetFeishu(feishuToken, NICKNAME_SHEET_TOKEN, `${NICKNAME_SHEETS.partTime}!A1:B100`);
+    for (let i = 1; i < ptValues.length; i++) {
+      const rawName = String(ptValues[i][0] || "").trim();
+      const nickname = String(ptValues[i][1] || "").trim();
+      if (rawName && nickname) {
+        // 保留完整姓名（含工号后缀），以区分同名不同人（如刘欣3649/刘欣6549）
+        // 但如果花名与全职员工真名冲突，不覆盖全职映射
+        if (!fulltimeNames.has(nickname)) {
+          nicknameToReal[nickname] = rawName;
+        }
+        allNames.add(rawName);
+        if (!fulltimeNames.has(nickname)) {
+          allNames.add(nickname);
+        }
+      }
+    }
+    const ftValues = await readSheetFeishu(feishuToken, NICKNAME_SHEET_TOKEN, `${NICKNAME_SHEETS.fullTime}!A1:B100`);
+    for (let i = 1; i < ftValues.length; i++) {
+      const name = String(ftValues[i][1] || "").trim();
+      if (name) allNames.add(name);
+    }
   } catch (e) {
     console.error("Failed to build nickname mapping:", e);
   }
-  return { nicknameToReal, allNames };
+  return { nicknameToReal, allNames, fulltimeNames };
 }
 
 function resolveName(
   scheduleName: string,
-  mapping: { nicknameToReal: Record<string, string>; allNames: Set<string> },
+  mapping: { nicknameToReal: Record<string, string>; allNames: Set<string>; fulltimeNames?: Set<string> },
 ): string {
+  // 0. 全职员工真名直接返回（最高优先级，不被兼职花名映射覆盖）
+  if (mapping.fulltimeNames?.has(scheduleName)) return scheduleName;
   // 1. 花名直接映射（片片→刘欣3649，芙芙→石一淇）
   if (mapping.nicknameToReal[scheduleName]) return mapping.nicknameToReal[scheduleName];
   // 2. 全名匹配（刘欣3649）
   if (mapping.allNames.has(scheduleName)) return scheduleName;
-  // 3. 去数字后匹配（纯中文花名/姓名）
+  // 3. 去数字后检查是否是全职员工真名（如"曾令飞"匹配全职"曾令飞"而非兼职"曾令飞0524"）
   const cleaned = stripNumbers(scheduleName);
+  if (mapping.fulltimeNames?.has(cleaned)) return cleaned;
+  // 4. 去数字后花名映射
   if (mapping.nicknameToReal[cleaned]) return mapping.nicknameToReal[cleaned];
   if (mapping.allNames.has(cleaned)) return cleaned;
-  // 4. 兜底返回去数字后的名字
+  // 5. 兜底返回去数字后的名字
   return cleaned;
 }
 
@@ -342,7 +354,7 @@ async function collectScheduleHours(
           const date = dateColMap[col];
           const cell = rowData[col];
           if (typeof cell === "string" && cell.trim()) {
-            const names = cell.split(/[,，、]/).map((n) => n.trim()).filter(Boolean);
+            const names = cell.split(/[,，、/／]/).map((n) => n.trim()).filter(Boolean);
             const dateKey = localDateStr(date);
             const holiday = isLegalHoliday(date);
             for (const name of names) {
