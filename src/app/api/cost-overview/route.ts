@@ -205,9 +205,9 @@ async function buildNicknameMapping(
       const rawName = String(ptValues[i][0] || "").trim();
       const nickname = String(ptValues[i][1] || "").trim();
       if (rawName && nickname) {
-        const realName = cleanSalaryName(rawName);
-        nicknameToReal[nickname] = realName;
-        allNames.add(realName);
+        // 保留完整姓名（含工号后缀），以区分同名不同人（如刘欣3649/刘欣6549）
+        nicknameToReal[nickname] = rawName;
+        allNames.add(rawName);
         allNames.add(nickname);
       }
     }
@@ -236,12 +236,15 @@ function resolveName(
   scheduleName: string,
   mapping: { nicknameToReal: Record<string, string>; allNames: Set<string> },
 ): string {
+  // 1. 花名直接映射（片片→刘欣3649，芙芙→石一淇）
+  if (mapping.nicknameToReal[scheduleName]) return mapping.nicknameToReal[scheduleName];
+  // 2. 全名匹配（刘欣3649）
+  if (mapping.allNames.has(scheduleName)) return scheduleName;
+  // 3. 去数字后匹配（纯中文花名/姓名）
   const cleaned = stripNumbers(scheduleName);
-  if (mapping.allNames.has(cleaned)) {
-    if (mapping.nicknameToReal[cleaned]) return mapping.nicknameToReal[cleaned];
-    return cleaned;
-  }
   if (mapping.nicknameToReal[cleaned]) return mapping.nicknameToReal[cleaned];
+  if (mapping.allNames.has(cleaned)) return cleaned;
+  // 4. 兜底返回去数字后的名字
   return cleaned;
 }
 
