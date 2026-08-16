@@ -134,12 +134,13 @@ async function buildFulltimeConfig(feishuToken: string): Promise<
       else if (rawProject.includes("vivo")) brand = "vivo";
       else if (rawProject.toUpperCase().includes("IOT")) brand = "IOT";
 
-      // 从备注列提取花名（格式如："2、主播石一淇匹配排班表中的花名为"芙芙""）
+      // 从备注列提取花名（格式如：花名为"芙芙"或花名为"芙芙"）
       let nickname: string | undefined;
       for (let c = 5; c < Math.min(row.length, 8); c++) {
         const cell = row[c];
         if (typeof cell === "string") {
-          const m = cell.match(/花名[为为:：\s]*[""]([^""]+)[""]/);
+          // 支持中文引号""和英文引号""
+          const m = cell.match(/花名[为为:：\s]*[""""]([^""""]+)["""]/);
           if (m) { nickname = m[1].trim(); break; }
           const m2 = cell.match(/花名[为为:：\s]*(\S+)/);
           if (m2) { nickname = m2[1].trim(); break; }
