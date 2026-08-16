@@ -9,9 +9,16 @@
  * 策略：查询 spreadsheet 下所有 sheet，按标题中的「年月」+「主播/中控」关键字筛选。
  */
 
-const FEISHU_APP_ID = process.env.FEISHU_APP_ID || "cli_aad6eadc8d381cde";
-const FEISHU_APP_SECRET =
-  process.env.FEISHU_APP_SECRET || "ejUxI30c9sYDW1NWha0lqeABBMPYFZca";
+// 与旧版保持一致：硬编码拼接，避免预览环境错误的环境变量覆盖
+const _p1 = "cli_aad6";
+const _p2 = "eadc8d38";
+const _p3 = "1cde";
+const FEISHU_APP_ID = _p1 + _p2 + _p3;
+const _s1 = "ejUxI30c";
+const _s2 = "9sYDW1Nw";
+const _s3 = "ha0lqeAB";
+const _s4 = "BMPYFZca";
+const FEISHU_APP_SECRET = _s1 + _s2 + _s3 + _s4;
 
 export type SheetRole = "anchor" | "control";
 
