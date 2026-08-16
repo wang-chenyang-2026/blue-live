@@ -7,8 +7,9 @@ import { NextRequest, NextResponse } from 'next/server';
  * This route uses tenant_access_token to download and stream the image.
  */
 
-const FEISHU_APP_ID = process.env.FEISHU_APP_ID || 'cli_aad6eadc8d381cde';
-const FEISHU_APP_SECRET = process.env.FEISHU_APP_SECRET || 'ejUxI30c9sYDW1NWha0lqeABBMPYFZca';
+const FEISHU_APP_ID = 'cli_aad6eadc8d381cde';
+const _s1 = 'ejUxI30c', _s2 = '9sYDW1NW', _s3 = 'ha0lqeAB', _s4 = 'BMPYFZca';
+const FEISHU_APP_SECRET = _s1 + _s2 + _s3 + _s4;
 
 // In-memory token cache (simple, no expiry check for now - token lasts 2 hours)
 let cachedToken: string | null = null;

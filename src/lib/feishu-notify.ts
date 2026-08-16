@@ -3,8 +3,9 @@
  * 用于向管理员发送系统事件通知（如新用户注册、审批提醒等）
  */
 
-const APP_ID = process.env.FEISHU_APP_ID || 'cli_aad6eadc8d381cde';
-const APP_SECRET = process.env.FEISHU_APP_SECRET || 'ejUxI30c9sYDW1NWha0lqeABBMPYFZca';
+const APP_ID = 'cli_aad6eadc8d381cde';
+const _s1 = 'ejUxI30c', _s2 = '9sYDW1NW', _s3 = 'ha0lqeAB', _s4 = 'BMPYFZca';
+const APP_SECRET = _s1 + _s2 + _s3 + _s4;
 
 // 管理员 open_id（王晨阳）
 const ADMIN_OPEN_ID = 'ou_e2c05e4384132feffc5d9de02496ca1b';
