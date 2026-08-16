@@ -453,29 +453,30 @@ async function calcControlCost(
     // 全职员工跳过
     if (name in fulltimeConfig) continue;
 
+    // 用去数字后的纯中文姓名匹配特殊薪资规则（排班表中"杨子洬"→薪资表"杨子洬1325"）
+    const baseName = stripNumbers(name);
     let salary = 0;
     let mode = "";
-    if (name === "洪媛媛") {
+    if (baseName === "洪媛媛") {
       mode = "底薪5000";
       salary = hours <= 150 ? (hours >= 130 ? 5000 : 0) : 5000 + (hours - 150) * 40;
-    } else if (name === "杨子洬") {
+    } else if (baseName === "杨子洬") {
       mode = "底薪5000";
       salary = hours <= 150 ? (hours >= 130 ? 5000 : 0) : 5000 + (hours - 150) * 35;
-    } else if (["钟雨辰", "黄孝杰", "田晓辉"].includes(name)) {
+    } else if (["钟雨辰", "黄孝杰", "田晓辉"].includes(baseName)) {
       mode = "纯时薪50/h";
       salary = hours * 50;
-    } else if (name === "曾令飞") {
+    } else if (baseName === "曾令飞") {
       // 曾令飞 7月起转全职，这里只在7月前算
       const y = range.start.getFullYear();
       const m = range.start.getMonth() + 1;
       if (y < 2026 || (y === 2026 && m < 7)) {
         mode = "混合";
-        const daysInMonth = new Date(y, m, 0).getDate();
         salary = (5000 / 24) * (hours / 8) + 500 + Math.max(0, hours - 192) * 35;
       } else {
         continue;
       }
-    } else if (name === "卞云龙") {
+    } else if (baseName === "卞云龙") {
       mode = "特殊";
       salary = hours <= 130 ? 5000 : hours * 50;
     } else {
