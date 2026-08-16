@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     if (urlList && Array.isArray(urlList) && urlList.length > 0) args.urlList = urlList;
     if (request && typeof request === 'object') args.request = request;
 
-    const result = await nmmCreateTask(args as Parameters<typeof nmmCreateTask>[0]);
+    const result = await nmmCreateTask(args as unknown as Parameters<typeof nmmCreateTask>[0]);
 
     const projectId = result.projectId ?? result.project_id ?? null;
 

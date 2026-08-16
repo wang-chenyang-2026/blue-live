@@ -165,6 +165,10 @@ export async function updateTask(
       | 'brief_keyword'
       | 'brief_password'
       | 'task_name'
+      | 'source_codes'
+      | 'content_modes'
+      | 'start_time'
+      | 'end_time'
     >
   >,
 ): Promise<SocialTaskRecord | null> {

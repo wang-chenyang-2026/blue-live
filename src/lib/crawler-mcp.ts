@@ -20,6 +20,12 @@ const API_KEY = process.env.BLUEAI_API_KEY || 'blueai-tMb8xB8ZOIS8osIdqznx9KkCMB
 export type CategoryView =
   | '品类视角-大盘趋势'
   | '品类视角-销售价量'
+  | '品类视角-品牌列表'
+  | '品类视角-店铺列表'
+  | '品类视角-商品列表'
+  | '品类视角-价格区间'
+  | '品类视角-价格交叉'
+  | '品类视角-热词频次'
   | '品牌列表'
   | '店铺列表'
   | '商品列表'

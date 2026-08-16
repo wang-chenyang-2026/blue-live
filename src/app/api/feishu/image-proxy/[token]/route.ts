@@ -37,7 +37,7 @@ async function getAccessToken(): Promise<string> {
 
   cachedToken = data.tenant_access_token;
   cachedTokenTime = now;
-  return cachedToken;
+  return cachedToken!;
 }
 
 export async function GET(

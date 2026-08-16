@@ -87,7 +87,6 @@ async function mcpPost<T = unknown>(
     method: 'POST',
     headers,
     body: JSON.stringify(body),
-    // @ts-expect-error Node 18+ / Next edge runtime supports
     cache: 'no-store',
   });
 

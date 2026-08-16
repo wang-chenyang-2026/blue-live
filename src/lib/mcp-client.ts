@@ -111,7 +111,7 @@ export async function initializeServer(serverName: string): Promise<{ sessionId:
     },
   });
 
-  const newSessionId = initRes.result?.['sessionId'] as string || '';
+  const newSessionId = (initRes.result as Record<string, unknown>)?.['sessionId'] as string || '';
 
   // List tools
   const toolsRes = await mcpRequest(
@@ -120,7 +120,7 @@ export async function initializeServer(serverName: string): Promise<{ sessionId:
     newSessionId || undefined,
   );
 
-  const tools: MCPTool[] = (toolsRes.result?.['tools'] as MCPTool[]) || [];
+  const tools: MCPTool[] = ((toolsRes.result as Record<string, unknown>)?.['tools'] as MCPTool[]) || [];
   return { sessionId: newSessionId, tools };
 }
 
