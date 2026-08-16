@@ -449,8 +449,10 @@ async function calcControlCost(
 
   const details: Array<{ name: string; hours: number; cost: number; serviceFee: number; mode: string }> = [];
 
-  // 计算日期范围天数，用于按比例折算全月底薪和门槛（130h/150h）
-  const rangeDays = Math.max(1, Math.round((range.end.getTime() - range.start.getTime()) / 86400000) + 1);
+  // 计算日期范围天数（按日历日差+1，避免end是23:59:59导致毫秒差多算一天）
+  const startDay = new Date(range.start.getFullYear(), range.start.getMonth(), range.start.getDate());
+  const endDay = new Date(range.end.getFullYear(), range.end.getMonth(), range.end.getDate());
+  const rangeDays = Math.max(1, Math.round((endDay.getTime() - startDay.getTime()) / 86400000) + 1);
   const ctMonths = expandMonths(range);
   const ctPrimary = ctMonths[0];
   const daysInMonth = new Date(ctPrimary.year, ctPrimary.month, 0).getDate();
