@@ -194,6 +194,7 @@ async function buildNicknameMapping(
 ): Promise<{
   nicknameToReal: Record<string, string>;
   allNames: Set<string>;
+  fulltimeNames: Set<string>;
 }> {
   const nicknameToReal: Record<string, string> = {};
   const allNames = new Set<string>();
