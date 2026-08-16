@@ -116,7 +116,8 @@ async function findColIndexForDate(
   }
   const header = json.data.valueRange.values[0];
   const target = new Date(dateStr);
-  const targetUtcDays = Math.floor(target.getTime() / 86400000);
+  // 北京时间的 UTC days（与 Excel serial + 8h 对齐）
+  const targetUtcDays = Math.floor((target.getTime() + 8 * 3600 * 1000) / 86400000);
 
   for (let col = 2; col < header.length; col++) {
     const cell = header[col];
