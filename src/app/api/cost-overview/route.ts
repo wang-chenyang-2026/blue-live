@@ -45,13 +45,41 @@ const LEGAL_HOLIDAYS_2026: Record<string, string[]> = {
   "10": ["01", "02", "03", "04", "05", "06", "07"],
 };
 
-// Part-time anchor hourly rates
-const ANCHOR_RATES: Record<string, number> = {
-  潘天宇: 180, 潘玥: 180, 刘欣3649: 3649, 黄译漫: 180, 孟依凡: 180, 刘艾嘉: 180,
-  陈海容: 170, 范曦文: 170, 肖茜: 170, 陶春汝: 170, 施瑶瑶: 170,
-  宋晨悦: 160, 张佳慧: 160, 王迪: 160, 袁野: 160, 刘欣6549: 160, 郑美金: 160, 王欢: 160,
-  孙悦: 150, 詹琪琪: 150, 汪恒莉: 150, 张宁: 150,
-};
+// 兼职主播时薪从飞书薪资表动态读取，不再硬编码
+// 旧的硬编码 ANCHOR_RATES 中 "刘欣3649: 3649" 把工号误当成时薪，导致片片薪资虚高
+interface AnchorRate {
+  rate: number;
+  nickname?: string; // 花名
+}
+
+async function buildAnchorRates(feishuToken: string): Promise<Record<string, AnchorRate>> {
+  const rates: Record<string, AnchorRate> = {};
+  try {
+    const values = await readSheetFeishu(feishuToken, NICKNAME_SHEET_TOKEN, `${NICKNAME_SHEETS.partTime}!A1:H100`);
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i];
+      if (!row || row.length < 4) continue;
+      const rawName = String(row[0] || "").trim();
+      const nickname = String(row[1] || "").trim();
+      const role = String(row[2] || "").trim();
+      const salaryStr = String(row[3] || "").trim();
+
+      if (!rawName || role !== "主播") continue;
+
+      // 解析时薪：支持 "180/小时"、"170元/小时"、"150" 等格式
+      const m = salaryStr.match(/(\d+)/);
+      if (!m) continue;
+      const rate = Number(m[1]);
+
+      // key 用完整姓名（保留工号后缀以区分两个刘欣），同时用花名做备选 key
+      rates[rawName] = { rate, nickname: nickname || undefined };
+      if (nickname) rates[nickname] = { rate, nickname: rawName };
+    }
+  } catch (e) {
+    console.error("Failed to build anchor rates:", e);
+  }
+  return rates;
+}
 
 interface DateRange {
   start: Date;
@@ -250,10 +278,11 @@ async function collectScheduleHours(
   role: SheetRole,
   range: DateRange,
   nicknameMapping: { nicknameToReal: Record<string, string>; allNames: Set<string> },
-): Promise<{ nameHours: Record<string, number>; nameDays: Record<string, Set<string>>; nameHolidayDays: Record<string, Set<string>> }> {
+): Promise<{ nameHours: Record<string, number>; nameDays: Record<string, Set<string>>; nameHolidayDays: Record<string, Set<string>>; nameNightHours: Record<string, number> }> {
   const nameHours: Record<string, number> = {};
   const nameDays: Record<string, Set<string>> = {};
   const nameHolidayDays: Record<string, Set<string>> = {};
+  const nameNightHours: Record<string, number> = {};
 
   // 选品牌 → 选择要扫的 (wikiToken, platform) 列表
   let targets: Array<{ wikiToken: string; platform?: string }> = [];
@@ -300,6 +329,12 @@ async function collectScheduleHours(
       for (let row = 2; row < values.length; row++) {
         const rowData = values[row];
         if (!rowData) continue;
+        // 读取 B 列时段（如 "2-3点"、"8-9点"），判断是否凌晨2-8点补贴时段
+        const timeLabel = String(rowData[1] || "").trim();
+        const tm = timeLabel.match(/(\d{1,2})\s*[-:：]\s*(\d{1,2})/);
+        const startHour = tm ? parseInt(tm[1]) : -1;
+        // 凌晨2点(含)到8点(不含)之间的时段
+        const isNightShift = startHour >= 2 && startHour < 8;
         for (const colStr of Object.keys(dateColMap)) {
           const col = parseInt(colStr);
           const date = dateColMap[col];
@@ -314,6 +349,9 @@ async function collectScheduleHours(
               if (!cleanName) continue;
               const resolvedName = resolveName(cleanName, nicknameMapping);
               nameHours[resolvedName] = (nameHours[resolvedName] || 0) + 1;
+              if (isNightShift && role === "anchor") {
+                nameNightHours[resolvedName] = (nameNightHours[resolvedName] || 0) + 1;
+              }
               if (!nameDays[resolvedName]) nameDays[resolvedName] = new Set();
               nameDays[resolvedName].add(dateKey);
               if (holiday) {
@@ -327,7 +365,7 @@ async function collectScheduleHours(
     }
   }
 
-  return { nameHours, nameDays, nameHolidayDays };
+  return { nameHours, nameDays, nameHolidayDays, nameNightHours };
 }
 
 // Dimension A: 兼职主播成本
@@ -336,22 +374,49 @@ async function calcAnchorCost(
   brand: string,
   range: DateRange,
   nicknameMapping: { nicknameToReal: Record<string, string>; allNames: Set<string> },
-): Promise<{ total: number; details: Array<{ name: string; hours: number; rate: number; cost: number }> }> {
-  const { nameHours } = await collectScheduleHours(feishuToken, brand, "anchor", range, nicknameMapping);
+  anchorRates: Record<string, AnchorRate>,
+): Promise<{ total: number; details: Array<{ name: string; hours: number; nightHours: number; rate: number; nightSubsidy: number; serviceFee: number; cost: number }> }> {
+  const { nameHours, nameNightHours } = await collectScheduleHours(feishuToken, brand, "anchor", range, nicknameMapping);
 
-  const details: Array<{ name: string; hours: number; rate: number; cost: number }> = [];
+  const details: Array<{ name: string; hours: number; nightHours: number; rate: number; nightSubsidy: number; serviceFee: number; cost: number }> = [];
   for (const [resolvedName, hours] of Object.entries(nameHours)) {
-    // 匹配费率表：先按 stripNumbers 后匹配
-    const matchedName =
-      Object.keys(ANCHOR_RATES).find((k) => stripNumbers(k) === resolvedName || k === resolvedName) || null;
-    if (matchedName) {
-      const rate = ANCHOR_RATES[matchedName];
-      details.push({ name: matchedName, hours, rate, cost: hours * rate });
+    // 全职主播跳过（在全职成本里算）
+    // resolvedName 是清洗后的真名（如"刘欣3649"），不是花名
+    // 用完整姓名匹配费率表
+    let rateEntry = anchorRates[resolvedName];
+    let matchedName = resolvedName;
+    if (!rateEntry) {
+      // 尝试 stripNumbers 后匹配（费率表 key 可能是纯中文姓名）
+      const stripped = stripNumbers(resolvedName);
+      const k = Object.keys(anchorRates).find(
+        (key) => stripNumbers(key) === stripped || key === resolvedName,
+      );
+      if (k) {
+        rateEntry = anchorRates[k];
+        matchedName = k;
+      }
     }
-    // 兼职主播只算费率表里的（全职主播不在这里算）
+    if (!rateEntry) continue; // 未在兼职主播薪资表中的（如全职主播）跳过
+
+    const nightHours = nameNightHours[resolvedName] || 0;
+    const baseSalary = hours * rateEntry.rate;
+    const nightSubsidy = nightHours * 20; // 凌晨2-8点每小时+20元
+    const salaryBeforeFee = baseSalary + nightSubsidy;
+    const serviceFee = Math.round(salaryBeforeFee * 0.066 * 100) / 100; // 服务费6.6%
+    const cost = Math.round((salaryBeforeFee + serviceFee) * 100) / 100;
+
+    details.push({
+      name: matchedName,
+      hours,
+      nightHours,
+      rate: rateEntry.rate,
+      nightSubsidy,
+      serviceFee,
+      cost,
+    });
   }
   details.sort((a, b) => b.hours - a.hours);
-  return { total: details.reduce((s, d) => s + d.cost, 0), details };
+  return { total: Math.round(details.reduce((s, d) => s + d.cost, 0) * 100) / 100, details };
 }
 
 // Dimension B: 兼职中控成本
@@ -361,26 +426,26 @@ async function calcControlCost(
   range: DateRange,
   nicknameMapping: { nicknameToReal: Record<string, string>; allNames: Set<string> },
   fulltimeConfig: Record<string, { brand: string; base: number; subsidy: number; role: string; nickname?: string }>,
-): Promise<{ total: number; details: Array<{ name: string; hours: number; cost: number; mode: string }> }> {
+): Promise<{ total: number; details: Array<{ name: string; hours: number; cost: number; serviceFee: number; mode: string }> }> {
   const { nameHours } = await collectScheduleHours(feishuToken, brand, "control", range, nicknameMapping);
 
-  const details: Array<{ name: string; hours: number; cost: number; mode: string }> = [];
+  const details: Array<{ name: string; hours: number; cost: number; serviceFee: number; mode: string }> = [];
 
   for (const [name, hours] of Object.entries(nameHours)) {
     // 全职员工跳过
     if (name in fulltimeConfig) continue;
 
-    let cost = 0;
+    let salary = 0;
     let mode = "";
     if (name === "洪媛媛") {
       mode = "底薪5000";
-      cost = hours <= 150 ? (hours >= 130 ? 5000 : 0) : 5000 + (hours - 150) * 40;
+      salary = hours <= 150 ? (hours >= 130 ? 5000 : 0) : 5000 + (hours - 150) * 40;
     } else if (name === "杨子洬") {
       mode = "底薪5000";
-      cost = hours <= 150 ? (hours >= 130 ? 5000 : 0) : 5000 + (hours - 150) * 35;
+      salary = hours <= 150 ? (hours >= 130 ? 5000 : 0) : 5000 + (hours - 150) * 35;
     } else if (["钟雨辰", "黄孝杰", "田晓辉"].includes(name)) {
       mode = "纯时薪50/h";
-      cost = hours * 50;
+      salary = hours * 50;
     } else if (name === "曾令飞") {
       // 曾令飞 7月起转全职，这里只在7月前算
       const y = range.start.getFullYear();
@@ -388,22 +453,24 @@ async function calcControlCost(
       if (y < 2026 || (y === 2026 && m < 7)) {
         mode = "混合";
         const daysInMonth = new Date(y, m, 0).getDate();
-        cost = (5000 / 24) * (hours / 8) + 500 + Math.max(0, hours - 192) * 35;
+        salary = (5000 / 24) * (hours / 8) + 500 + Math.max(0, hours - 192) * 35;
       } else {
         continue;
       }
     } else if (name === "卞云龙") {
       mode = "特殊";
-      cost = hours <= 130 ? 5000 : hours * 50;
+      salary = hours <= 130 ? 5000 : hours * 50;
     } else {
       mode = "默认50/h";
-      cost = hours * 50;
+      salary = hours * 50;
     }
-    details.push({ name, hours, cost, mode });
+    const serviceFee = Math.round(salary * 0.066 * 100) / 100;
+    const cost = Math.round((salary + serviceFee) * 100) / 100;
+    details.push({ name, hours, cost, serviceFee, mode });
   }
 
   details.sort((a, b) => b.hours - a.hours);
-  return { total: details.reduce((s, d) => s + d.cost, 0), details };
+  return { total: Math.round(details.reduce((s, d) => s + d.cost, 0) * 100) / 100, details };
 }
 
 // Dimension C: 全职员工成本
@@ -623,9 +690,10 @@ export async function GET(request: NextRequest) {
     const feishuToken = await getFeishuToken();
     const fulltimeConfig = await buildFulltimeConfig(feishuToken);
     const nicknameMapping = await buildNicknameMapping(feishuToken, fulltimeConfig);
+    const anchorRates = await buildAnchorRates(feishuToken);
 
     const [anchorResult, controlResult, fulltimeResult, purchaseResult] = await Promise.all([
-      calcAnchorCost(feishuToken, brand, range, nicknameMapping),
+      calcAnchorCost(feishuToken, brand, range, nicknameMapping, anchorRates),
       calcControlCost(feishuToken, brand, range, nicknameMapping, fulltimeConfig),
       calcFulltimeCost(feishuToken, brand, range, fulltimeConfig, nicknameMapping),
       calcPurchaseCost(feishuToken, brand, range),
@@ -639,7 +707,7 @@ export async function GET(request: NextRequest) {
       await Promise.all(
         subBrands.map(async (b) => {
           const [a, c, f, p] = await Promise.all([
-            calcAnchorCost(feishuToken, b, range, nicknameMapping),
+            calcAnchorCost(feishuToken, b, range, nicknameMapping, anchorRates),
             calcControlCost(feishuToken, b, range, nicknameMapping, fulltimeConfig),
             calcFulltimeCost(feishuToken, b, range, fulltimeConfig, nicknameMapping),
             calcPurchaseCost(feishuToken, b, range),
