@@ -270,13 +270,16 @@ function isLegalHoliday(date: Date): boolean {
   return LEGAL_HOLIDAYS_2026[month]?.includes(day) || false;
 }
 
-function countSaturdays(year: number, month: number): number {
-  let count = 0;
+function countWeekendDays(year: number, month: number): { saturdays: number; sundays: number } {
+  let saturdays = 0;
+  let sundays = 0;
   const daysInMonth = new Date(year, month, 0).getDate();
   for (let d = 1; d <= daysInMonth; d++) {
-    if (new Date(year, month - 1, d).getDay() === 6) count++;
+    const dow = new Date(year, month - 1, d).getDay();
+    if (dow === 6) saturdays++;
+    if (dow === 0) sundays++;
   }
-  return count;
+  return { saturdays, sundays };
 }
 
 function getLegalHolidayCount(year: number, month: number): number {
@@ -503,9 +506,9 @@ async function calcFulltimeCost(
   const year = primary.year;
   const monthNum = primary.month;
   const daysInMonth = new Date(year, monthNum, 0).getDate();
-  const saturdays = countSaturdays(year, monthNum);
+  const { saturdays, sundays } = countWeekendDays(year, monthNum);
   const legalHolidays = getLegalHolidayCount(year, monthNum);
-  const workDays = daysInMonth - saturdays - legalHolidays;
+  const workDays = daysInMonth - saturdays - sundays - legalHolidays;
 
   // 统计所有排班表（主播+中控）里全职员工的出勤
   const anchorData = await collectScheduleHours(feishuToken, brand === "all" ? "all" : brand, "anchor", range, nicknameMapping);
