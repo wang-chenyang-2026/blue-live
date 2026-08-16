@@ -1,16 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { resolveScheduleSheet } from '@/lib/feishu-sheets';
 
-// 飞书API配置（直接使用正确凭据，避免被Coze Code项目环境变量覆盖）
-const FEISHU_APP_ID = 'cli_aad6eadc8d381cde';
+// 多品牌排班表格配置（sheet ID 运行时动态解析，不再硬编码）
+interface TableAccount {
+  name: string;
+  displayName: string;
+  startRow: number;
+  endRow: number;
+}
+interface TableConfig {
+  spreadsheetToken: string;
+  platform?: string; // 用于动态 sheet 匹配（如 快手 / 抖音）
+  accounts: TableAccount[];
+}
+interface BrandConfig {
+  tables: TableConfig[];
+}
 
-// 多品牌排班表格配置（支持多月sheet自动匹配）
-const BRAND_CONFIGS: Record<string, {
-  tables: Array<{
-    spreadsheetToken: string;
-    accounts: Array<{ name: string; displayName: string; startRow: number; endRow: number }>;
-    sheets: Array<{ sheetId: string; baseDate: string }>;
-  }>;
-}> = {
+const BRAND_CONFIGS: Record<string, BrandConfig> = {
   vivo: {
     tables: [{
       spreadsheetToken: 'HgdSwkq98iYiy5kgxVUcVe08n5f',
@@ -19,89 +26,31 @@ const BRAND_CONFIGS: Record<string, {
         { name: 'vivo官方旗舰店（抖音）', displayName: 'vivo官方旗舰店（抖音）', startRow: 30, endRow: 53 },
         { name: 'vivo官方旗舰店（快手）', displayName: 'vivo官方旗舰店（快手）', startRow: 57, endRow: 80 },
       ],
-      sheets: [
-        { sheetId: '5690e8', baseDate: '2026-06-01' },  // 6月主播排班
-        { sheetId: 'CWyBs5', baseDate: '2026-07-01' },  // 7月主播排班
-        { sheetId: 'CLahtk', baseDate: '2026-08-01' },  // 8月主播排班
-      ],
     }],
   },
   iQOO: {
     tables: [
       {
         spreadsheetToken: 'XSwFwf2tPi2SOzkEeGrcctZMn7c',
+        platform: '快手',
         accounts: [
           { name: 'iQOO手机', displayName: 'iQOO手机（快手）', startRow: 3, endRow: 26 },
-        ],
-        sheets: [
-          { sheetId: '3efb46', baseDate: '2026-05-01' },  // 5月快手主播
-          { sheetId: 'DR4r5x', baseDate: '2026-06-01' },  // 6月快手主播
-          { sheetId: 'XmaSDl', baseDate: '2026-07-01' },  // 7月快手主播
-          { sheetId: 'jD0fRi', baseDate: '2026-08-01' },  // 8月快手主播
         ],
       },
       {
         spreadsheetToken: 'OjXIwcmMNidCrzk5G5OcWaFJnzg',
+        platform: '抖音',
         accounts: [
           { name: 'iQOO手机', displayName: 'iQOO手机（抖音）', startRow: 3, endRow: 26 },
           { name: 'iQOO官方旗舰店（抖音）', displayName: 'iQOO官方旗舰店（抖音）', startRow: 30, endRow: 53 },
-        ],
-        sheets: [
-          { sheetId: '7fa2c2', baseDate: '2026-06-01' },  // 6月抖音主播
-          { sheetId: '19tDJP', baseDate: '2026-07-01' },  // 7月抖音主播
-          { sheetId: 'Fe0yr0', baseDate: '2026-08-01' },  // 8月抖音主播
         ],
       },
     ],
   },
 };
 
-// 中控表配置（与主播表结构一致，只是sheet不同）
-const CONTROL_TABLE_CONFIGS: Record<string, typeof BRAND_CONFIGS[string]> = {
-  vivo: {
-    tables: [{
-      spreadsheetToken: 'HgdSwkq98iYiy5kgxVUcVe08n5f',
-      accounts: [
-        { name: 'vivo（大号）', displayName: 'vivo（大号）', startRow: 3, endRow: 26 },
-        { name: 'vivo官方旗舰店（抖音）', displayName: 'vivo官方旗舰店（抖音）', startRow: 30, endRow: 53 },
-        { name: 'vivo官方旗舰店（快手）', displayName: 'vivo官方旗舰店（快手）', startRow: 57, endRow: 80 },
-      ],
-      sheets: [
-        { sheetId: '3xQ1Kq', baseDate: '2026-06-01' },  // 6月中控排班
-        { sheetId: 'qKqNVP', baseDate: '2026-07-01' },  // 7月中控排班
-        { sheetId: 'xywCrp', baseDate: '2026-08-01' },  // 8月中控排班
-      ],
-    }],
-  },
-  iQOO: {
-    tables: [
-      {
-        spreadsheetToken: 'XSwFwf2tPi2SOzkEeGrcctZMn7c',
-        accounts: [
-          { name: 'iQOO手机', displayName: 'iQOO手机（快手）', startRow: 3, endRow: 26 },
-        ],
-        sheets: [
-          { sheetId: 'z2ln4e', baseDate: '2026-05-01' },  // 5月快手中控
-          { sheetId: '2GiEeM', baseDate: '2026-06-01' },  // 6月快手中控
-          { sheetId: 'vStsKE', baseDate: '2026-07-01' },  // 7月快手中控
-          { sheetId: '4nimSd', baseDate: '2026-08-01' },  // 8月快手中控
-        ],
-      },
-      {
-        spreadsheetToken: 'OjXIwcmMNidCrzk5G5OcWaFJnzg',
-        accounts: [
-          { name: 'iQOO手机', displayName: 'iQOO手机（抖音）', startRow: 3, endRow: 26 },
-          { name: 'iQOO官方旗舰店（抖音）', displayName: 'iQOO官方旗舰店（抖音）', startRow: 30, endRow: 53 },
-        ],
-        sheets: [
-          { sheetId: 'UyzPvX', baseDate: '2026-06-01' },  // 6月抖音中控
-          { sheetId: '5XHIti', baseDate: '2026-07-01' },  // 7月抖音中控
-          { sheetId: 'LwoXsl', baseDate: '2026-08-01' },  // 8月抖音中控
-        ],
-      },
-    ],
-  },
-};
+// 中控表与主播表共用同一 spreadsheet，仅角色不同（通过 sheet 标题区分）
+const CONTROL_TABLE_CONFIGS: Record<string, BrandConfig> = BRAND_CONFIGS;
 
 // 时间段名称标准化：统一不同表格中的写法
 function normalizeTimeSlot(slot: string): string {
@@ -134,17 +83,10 @@ function normalizeTimeSlot(slot: string): string {
   return s;
 }
 
-// 获取飞书 tenant_access_token
+// 获取飞书 tenant_access_token（复用共享工具，保持向后兼容）
 async function getFeishuToken(): Promise<string> {
-  const appSecret = 'ejUxI30c9sYDW1NWha0lqeABBMPYFZca';
-  const response = await fetch('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ app_id: FEISHU_APP_ID, app_secret: appSecret }),
-  });
-  const data = await response.json();
-  if (data.code !== 0 || !data.tenant_access_token) throw new Error(`Failed to get token: ${data.msg}`);
-  return data.tenant_access_token;
+  const { getFeishuToken: getToken } = await import('@/lib/feishu-sheets');
+  return getToken();
 }
 
 // 列索引转列名
@@ -158,12 +100,32 @@ function colToLetter(col: number): string {
   return name;
 }
 
-// 日期 → 列索引（根据基准日期计算）
-function dateToColIndex(dateStr: string, baseDate: string): number {
-  const base = new Date(baseDate);
+// 日期 → 列索引（读取 sheet 第1行表头，从 Excel serial 数字中匹配对应日期，避免依赖 baseDate）
+async function findColIndexForDate(
+  token: string,
+  spreadsheetToken: string,
+  sheetId: string,
+  dateStr: string,
+): Promise<number> {
+  // 读取表头行（row 1）足够宽的范围，找出所有日期列
+  const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${sheetId}!A1:CZ1`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const json = await res.json();
+  if (json.code !== 0 || !json.data?.valueRange?.values?.[0]) {
+    throw new Error(`读取表头失败: ${json.msg}`);
+  }
+  const header = json.data.valueRange.values[0];
   const target = new Date(dateStr);
-  const diff = Math.floor((target.getTime() - base.getTime()) / (86400000));
-  return 2 + diff; // C列 = index 2
+  const targetUtcDays = Math.floor(target.getTime() / 86400000);
+
+  for (let col = 2; col < header.length; col++) {
+    const cell = header[col];
+    if (typeof cell === 'number' && cell > 40000) {
+      const utcDays = Math.floor(cell - 25569);
+      if (utcDays === targetUtcDays) return col;
+    }
+  }
+  return -1; // 该 sheet 中没有目标日期
 }
 
 // 解析人员名字和时长
@@ -323,58 +285,69 @@ export async function GET(request: NextRequest) {
 
     const token = await getFeishuToken();
 
-    // 收集所有账号的数据
-    const allAccountsMap: Record<string, {
-      accountName: string;
-      personSummary: { name: string; timeSlots: string[]; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number }[];
-      stats: { personCount: number; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number };
-    }[]> = {};
-
     // 初始化每个日期的账号数据
+    const allAccountsMap: Record<string, Awaited<ReturnType<typeof processAccountDay>>[]> = {};
     dates.forEach(date => {
       allAccountsMap[date] = [];
     });
 
-    // 处理每个表格的每个sheet
-    for (const table of brandConfig.tables) {
-      // 为每个日期找到对应的sheet
-      for (const sheet of table.sheets) {
-        const sheetBase = new Date(sheet.baseDate);
-        const sheetDates = dates.filter(date => new Date(date) >= sheetBase);
+    // 预先解析每个 table 在涉及到的月份里应该用哪个 sheetId
+    // 形如 resolvedSheets[tableIdx][YYYY-MM] = sheetId
+    const monthsSet = new Set(dates.map(d => d.slice(0, 7)));
+    const roleSheet: 'anchor' | 'control' = role === 'control' ? 'control' : 'anchor';
 
-        // 排除已被后续sheet覆盖的日期（每个日期只属于一个sheet）
-        const sheetIdx = table.sheets.indexOf(sheet);
-        const nextSheet = table.sheets[sheetIdx + 1];
-        const effectiveDates = nextSheet
-          ? sheetDates.filter(date => new Date(date) < new Date(nextSheet.baseDate))
-          : sheetDates;
+    for (let tableIdx = 0; tableIdx < brandConfig.tables.length; tableIdx++) {
+      const table = brandConfig.tables[tableIdx];
 
-        if (effectiveDates.length === 0) continue;
+      // 并行解析每个月的 sheet
+      const monthSheetMap: Record<string, string> = {};
+      await Promise.all(
+        Array.from(monthsSet).map(async (ym) => {
+          const [y, m] = ym.split('-').map(Number);
+          try {
+            const resolved = await resolveScheduleSheet(
+              table.spreadsheetToken,
+              y,
+              m,
+              roleSheet,
+              table.platform,
+            );
+            monthSheetMap[ym] = resolved.sheetId;
+          } catch (e) {
+            console.warn(`[schedule] ${brand}/${role} ${ym} 未找到排班sheet:`, e);
+          }
+        }),
+      );
 
-        // 并行读取该sheet所有日期的列数据
-        const colReads = effectiveDates.map(date => {
-          const colIndex = dateToColIndex(date, sheet.baseDate);
-          const maxRow = Math.max(...table.accounts.map(a => a.endRow));
-          return readColumn(token, table.spreadsheetToken, sheet.sheetId, colIndex, 3, maxRow)
-            .then(values => ({ date, values }));
+      // 为每个日期查找列索引（按月份对应的 sheetId）并读取列数据
+      const maxRow = Math.max(...table.accounts.map(a => a.endRow));
+      const colReads = dates.map(async (date) => {
+        const ym = date.slice(0, 7);
+        const sheetId = monthSheetMap[ym];
+        if (!sheetId) return { date, values: [] as Array<{ timeSlot: string; value: string }> };
+        const colIndex = await findColIndexForDate(token, table.spreadsheetToken, sheetId, date);
+        if (colIndex < 0) return { date, values: [] as Array<{ timeSlot: string; value: string }> };
+        const values = await readColumn(
+          token,
+          table.spreadsheetToken,
+          sheetId,
+          colIndex,
+          3,
+          maxRow,
+        );
+        return { date, values };
+      });
+
+      const colResults = await Promise.all(colReads);
+
+      for (const { date, values } of colResults) {
+        const accountDataList = table.accounts.map(account => {
+          const offset = account.startRow - 3;
+          const cellValues = values.slice(offset, offset + 24);
+          const { personSummary, stats } = processAccountDay(cellValues);
+          return { accountName: account.displayName, personSummary, stats };
         });
-
-        const colResults = await Promise.all(colReads);
-
-        // 处理每个日期的数据
-        for (const { date, values } of colResults) {
-          const accountDataList = table.accounts.map(account => {
-            const offset = account.startRow - 3;
-            const cellValues = values.slice(offset, offset + 24);
-            const { personSummary, stats } = processAccountDay(cellValues);
-            return {
-              accountName: account.displayName,
-              personSummary,
-              stats,
-            };
-          });
-          allAccountsMap[date] = [...allAccountsMap[date], ...accountDataList];
-        }
+        allAccountsMap[date] = [...allAccountsMap[date], ...accountDataList];
       }
     }
 

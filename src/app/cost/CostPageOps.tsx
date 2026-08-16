@@ -238,12 +238,15 @@ export default function CostPageOps() {
   }, [loadKPIs]);
 
   // 获取飞书数据
-  const fetchFeishuData = useCallback(async (month: string, brand: string) => {
+  const fetchFeishuData = useCallback(async (month: string, brand: string, start?: string, end?: string) => {
     if (!month) return;
     setFeishuLoading(true);
     try {
       const brandParam = brand === 'iqoo' ? 'iQOO' : brand === 'iot' ? 'IOT' : brand === 'all' ? 'all' : brand;
-      const res = await fetch(`/api/cost-overview?month=${month}&brand=${brandParam}`);
+      const params = new URLSearchParams({ month, brand: brandParam });
+      if (start) params.set('startDate', start);
+      if (end) params.set('endDate', end);
+      const res = await fetch(`/api/cost-overview?${params.toString()}`);
       const data = await res.json();
       if (data.success) {
         setFeishuData(data.data);
@@ -257,9 +260,9 @@ export default function CostPageOps() {
 
   useEffect(() => {
     if (selectedMonth) {
-      fetchFeishuData(selectedMonth, activeBrand);
+      fetchFeishuData(selectedMonth, activeBrand, startDate || undefined, endDate || undefined);
     }
-  }, [selectedMonth, activeBrand, fetchFeishuData]);
+  }, [selectedMonth, activeBrand, startDate, endDate, fetchFeishuData]);
 
   // 成本分类计算
   const categoryData = useMemo(() => {
