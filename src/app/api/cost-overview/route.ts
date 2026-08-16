@@ -449,6 +449,17 @@ async function calcControlCost(
 
   const details: Array<{ name: string; hours: number; cost: number; serviceFee: number; mode: string }> = [];
 
+  // 计算日期范围天数，用于按比例折算全月底薪和门槛（130h/150h）
+  const rangeDays = Math.max(1, Math.round((range.end.getTime() - range.start.getTime()) / 86400000) + 1);
+  const ctMonths = expandMonths(range);
+  const ctPrimary = ctMonths[0];
+  const daysInMonth = new Date(ctPrimary.year, ctPrimary.month, 0).getDate();
+  const monthRatio = rangeDays / daysInMonth;
+  // 按比例折算门槛和底薪
+  const minHoursThreshold = Math.round(130 * monthRatio);
+  const maxHoursThreshold = Math.round(150 * monthRatio);
+  const proratedBase = Math.round(5000 * monthRatio);
+
   for (const [name, hours] of Object.entries(nameHours)) {
     // 全职员工跳过
     if (name in fulltimeConfig) continue;
@@ -458,11 +469,11 @@ async function calcControlCost(
     let salary = 0;
     let mode = "";
     if (baseName === "洪媛媛") {
-      mode = "底薪5000";
-      salary = hours <= 150 ? (hours >= 130 ? 5000 : 0) : 5000 + (hours - 150) * 40;
+      mode = `底薪${proratedBase}(≥${minHoursThreshold}h)`;
+      salary = hours <= maxHoursThreshold ? (hours >= minHoursThreshold ? proratedBase : 0) : proratedBase + (hours - maxHoursThreshold) * 40;
     } else if (baseName === "杨子洬") {
-      mode = "底薪5000";
-      salary = hours <= 150 ? (hours >= 130 ? 5000 : 0) : 5000 + (hours - 150) * 35;
+      mode = `底薪${proratedBase}(≥${minHoursThreshold}h)`;
+      salary = hours <= maxHoursThreshold ? (hours >= minHoursThreshold ? proratedBase : 0) : proratedBase + (hours - maxHoursThreshold) * 35;
     } else if (["钟雨辰", "黄孝杰", "田晓辉"].includes(baseName)) {
       mode = "纯时薪50/h";
       salary = hours * 50;
@@ -477,8 +488,9 @@ async function calcControlCost(
         continue;
       }
     } else if (baseName === "卞云龙") {
-      mode = "特殊";
-      salary = hours <= 130 ? 5000 : hours * 50;
+      const bianThreshold = Math.round(130 * monthRatio);
+      mode = `底薪${proratedBase}(≤${bianThreshold}h)`;
+      salary = hours <= bianThreshold ? proratedBase : hours * 50;
     } else {
       mode = "默认50/h";
       salary = hours * 50;
