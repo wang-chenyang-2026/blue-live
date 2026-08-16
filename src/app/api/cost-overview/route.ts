@@ -83,12 +83,13 @@ function expandMonths(range: DateRange): Array<{ year: number; month: number; da
 
 // Build full-time employee config dynamically from Feishu salary sheet
 async function buildFulltimeConfig(feishuToken: string): Promise<
-  Record<string, { brand: string; base: number; subsidy: number; role: string }>
+  Record<string, { brand: string; base: number; subsidy: number; role: string; nickname?: string }>
 > {
-  const config: Record<string, { brand: string; base: number; subsidy: number; role: string }> = {};
+  const config: Record<string, { brand: string; base: number; subsidy: number; role: string; nickname?: string }> = {};
 
   try {
-    const values = await readSheetFeishu(feishuToken, NICKNAME_SHEET_TOKEN, `${NICKNAME_SHEETS.fullTime}!A1:D100`);
+    // 读取 A:H 列（含补贴、备注等）
+    const values = await readSheetFeishu(feishuToken, NICKNAME_SHEET_TOKEN, `${NICKNAME_SHEETS.fullTime}!A1:H100`);
     for (let i = 1; i < values.length; i++) {
       const row = values[i];
       if (!row || row.length < 4) continue;
@@ -96,6 +97,7 @@ async function buildFulltimeConfig(feishuToken: string): Promise<
       const name = String(row[1] || "").trim();
       const role = String(row[2] || "").trim();
       const base = Number(row[3]);
+      const subsidy = Number(row[4]) || 500;
 
       if (!name || !rawProject || !role || isNaN(base) || base <= 0) continue;
 
@@ -104,7 +106,19 @@ async function buildFulltimeConfig(feishuToken: string): Promise<
       else if (rawProject.includes("vivo")) brand = "vivo";
       else if (rawProject.toUpperCase().includes("IOT")) brand = "IOT";
 
-      config[name] = { brand, base, subsidy: 500, role };
+      // 从备注列提取花名（格式如："2、主播石一淇匹配排班表中的花名为"芙芙""）
+      let nickname: string | undefined;
+      for (let c = 5; c < Math.min(row.length, 8); c++) {
+        const cell = row[c];
+        if (typeof cell === "string") {
+          const m = cell.match(/花名[为为:：\s]*[""]([^""]+)[""]/);
+          if (m) { nickname = m[1].trim(); break; }
+          const m2 = cell.match(/花名[为为:：\s]*(\S+)/);
+          if (m2) { nickname = m2[1].trim(); break; }
+        }
+      }
+
+      config[name] = { brand, base, subsidy, role, nickname };
     }
   } catch (e) {
     console.error("Failed to build fulltime config:", e);
@@ -147,7 +161,10 @@ function cleanSalaryName(name: string): string {
   return name.replace(/[^\u4e00-\u9fa5]+$/, "").trim();
 }
 
-async function buildNicknameMapping(feishuToken: string): Promise<{
+async function buildNicknameMapping(
+  feishuToken: string,
+  fulltimeConfig?: Record<string, { brand: string; base: number; subsidy: number; role: string; nickname?: string }>,
+): Promise<{
   nicknameToReal: Record<string, string>;
   allNames: Set<string>;
 }> {
@@ -170,6 +187,16 @@ async function buildNicknameMapping(feishuToken: string): Promise<{
     for (let i = 1; i < ftValues.length; i++) {
       const name = String(ftValues[i][1] || "").trim();
       if (name) allNames.add(name);
+    }
+    // 合并全职员工花名映射（如 芙芙→石一淇）
+    if (fulltimeConfig) {
+      for (const [realName, cfg] of Object.entries(fulltimeConfig)) {
+        allNames.add(realName);
+        if (cfg.nickname) {
+          nicknameToReal[cfg.nickname] = realName;
+          allNames.add(cfg.nickname);
+        }
+      }
     }
   } catch (e) {
     console.error("Failed to build nickname mapping:", e);
@@ -333,7 +360,7 @@ async function calcControlCost(
   brand: string,
   range: DateRange,
   nicknameMapping: { nicknameToReal: Record<string, string>; allNames: Set<string> },
-  fulltimeConfig: Record<string, { brand: string; base: number; subsidy: number; role: string }>,
+  fulltimeConfig: Record<string, { brand: string; base: number; subsidy: number; role: string; nickname?: string }>,
 ): Promise<{ total: number; details: Array<{ name: string; hours: number; cost: number; mode: string }> }> {
   const { nameHours } = await collectScheduleHours(feishuToken, brand, "control", range, nicknameMapping);
 
@@ -384,7 +411,7 @@ async function calcFulltimeCost(
   feishuToken: string,
   brand: string,
   range: DateRange,
-  fulltimeConfig: Record<string, { brand: string; base: number; subsidy: number; role: string }>,
+  fulltimeConfig: Record<string, { brand: string; base: number; subsidy: number; role: string; nickname?: string }>,
   nicknameMapping: { nicknameToReal: Record<string, string>; allNames: Set<string> },
 ): Promise<{ total: number; details: Array<{ name: string; base: number; subsidy: number; cost: number; role: string; hours?: number; days?: number }> }> {
   // 全职成本按「整月」概念算底薪，按日期范围算实际出勤和加班
@@ -451,16 +478,22 @@ async function calcFulltimeCost(
 
     const expectedHours = config.role === "主播" ? 90 : workDays * 8;
 
+    // 主播加班费 170/h，中控加班费 35/h
     const otherSalary =
       config.role === "主播"
         ? Math.max(0, (actualHours - expectedHours) * 170)
         : Math.max(0, (actualHours - expectedHours) * 35);
 
+    // 主播无法定节假日薪资
     const holidaySalary =
       config.role === "主播" ? 0 : (config.base / workDays) * holidayDays * 3;
 
+    // 主播：底薪+补贴+加班费（不按出勤天折算）
+    // 中控/其他：(底薪+补贴)/应出勤天数*实际出勤天数 + 加班费 + 节假日薪资
     const realTimeSalary =
-      (config.base + config.subsidy) / workDays * attendanceDays + otherSalary + holidaySalary;
+      config.role === "主播"
+        ? config.base + config.subsidy + otherSalary
+        : (config.base + config.subsidy) / workDays * attendanceDays + otherSalary + holidaySalary;
 
     const socialInsurance = 1600;
     const tax = realTimeSalary * 0.0318;
@@ -588,8 +621,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const feishuToken = await getFeishuToken();
-    const nicknameMapping = await buildNicknameMapping(feishuToken);
     const fulltimeConfig = await buildFulltimeConfig(feishuToken);
+    const nicknameMapping = await buildNicknameMapping(feishuToken, fulltimeConfig);
 
     const [anchorResult, controlResult, fulltimeResult, purchaseResult] = await Promise.all([
       calcAnchorCost(feishuToken, brand, range, nicknameMapping),
