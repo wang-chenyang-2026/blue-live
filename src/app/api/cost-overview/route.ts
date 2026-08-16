@@ -139,11 +139,9 @@ async function buildFulltimeConfig(feishuToken: string): Promise<
       for (let c = 5; c < Math.min(row.length, 8); c++) {
         const cell = row[c];
         if (typeof cell === "string") {
-          // 支持中文引号""和英文引号""
-          const m = cell.match(/花名[为为:：\s]*[""""]([^""""]+)["""]/);
+          // 支持中英文引号：" " " "
+          const m = cell.match(/花名[为为:：\s]*["\u201c\u201d]([^"\u201c\u201d]+)["\u201c\u201d]/);
           if (m) { nickname = m[1].trim(); break; }
-          const m2 = cell.match(/花名[为为:：\s]*(\S+)/);
-          if (m2) { nickname = m2[1].trim(); break; }
         }
       }
 
