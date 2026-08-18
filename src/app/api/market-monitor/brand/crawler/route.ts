@@ -79,8 +79,10 @@ export async function GET(req: NextRequest) {
     let entry = cache.get(key);
     const now = Date.now();
     if (!force && entry && now - entry.ts < CACHE_TTL_MS) {
-      const data = await entry.promise;
-      return NextResponse.json({ success: true, data, cached: true });
+      const raw = await entry.promise;
+      const columns = raw.headers || [];
+      const data = raw.rows || [];
+      return NextResponse.json({ success: true, data: { ...raw, columns, data }, cached: true });
     }
 
     const promise = crawlerDownloadData({
@@ -95,10 +97,13 @@ export async function GET(req: NextRequest) {
 
     cache.set(key, { ts: now, promise });
 
-    const data = await promise;
+    const result = await promise;
     // 打印规范化后的数据
-    console.log('[brand/crawler] normalized data:', JSON.stringify(data, null, 2));
-    return NextResponse.json({ success: true, data, cached: false });
+    console.log('[brand/crawler] normalized data:', JSON.stringify(result, null, 2));
+    // 映射 headers -> columns, rows -> data，确保前端能正确读取
+    const columns = result.headers || [];
+    const data = result.rows || [];
+    return NextResponse.json({ success: true, data: { ...result, columns, data }, cached: false });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[brand/crawler]', msg);
