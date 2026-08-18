@@ -225,8 +225,15 @@ function formatPercent(n: number | null | undefined, digits = 1): string {
 function pickKey(headers: string[] | undefined, aliases: string[]): string | null {
   if (!headers) return null;
   for (const a of aliases) {
-    const hit = headers.find((h) => h && h.includes(a));
-    if (hit) return hit;
+    // 对于品牌列，使用负向前瞻排除包含排名、榜单等词的列
+    if (a === '品牌') {
+      const regex = /品牌(?!.*(排名|榜单|列表|店铺|商品|数量|总数|数))/i;
+      const hit = headers.find((h) => h && regex.test(h));
+      if (hit) return hit;
+    } else {
+      const hit = headers.find((h) => h && h.includes(a));
+      if (hit) return hit;
+    }
   }
   return null;
 }
@@ -376,7 +383,14 @@ function parseBrandRows(result: CrawlerResult | undefined): BrandRow[] {
 
   return result.rows
     .map((row) => {
-      const name = String(getCell(row, kName) ?? '').trim();
+      // 先尝试匹配到的列名，没有匹配时尝试 row['品牌'] 和 row['品牌名']
+      let name = String(getCell(row, kName) ?? '').trim();
+      if (!name) {
+        name = String(row['品牌'] ?? '').trim();
+      }
+      if (!name) {
+        name = String(row['品牌名'] ?? '').trim();
+      }
       if (!name) return null;
       const salesRaw = toNum(getCell(row, kSales));
       const sales = salesRaw == null ? null : salesIsWan ? salesRaw * 10000 : salesRaw;

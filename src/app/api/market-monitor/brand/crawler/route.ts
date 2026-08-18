@@ -87,6 +87,8 @@ export async function GET(req: NextRequest) {
       categoryList,
       categoryView: fullView,
     }).then((res) => {
+      // 打印 MCP 原始返回，方便排查
+      console.log('[brand/crawler] MCP raw response:', JSON.stringify(res, null, 2));
       // 防御：确保即便底层返回未规范化结构，也再走一次规范化
       return normalizeDownloadResult(res as unknown);
     });
@@ -94,6 +96,8 @@ export async function GET(req: NextRequest) {
     cache.set(key, { ts: now, promise });
 
     const data = await promise;
+    // 打印规范化后的数据
+    console.log('[brand/crawler] normalized data:', JSON.stringify(data, null, 2));
     return NextResponse.json({ success: true, data, cached: false });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
