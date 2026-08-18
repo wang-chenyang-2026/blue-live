@@ -1,0 +1,71 @@
+{
+  "tasks": [
+    {
+      "id": "5d399381-0e4f-4e64-a379-5ebd700ec6e4",
+      "project_id": 1959,
+      "task_name": "欧莱雅-抖音-20260818",
+      "product_name": "面膜",
+      "brand": "欧莱雅",
+      "brief_summary": "品牌：欧莱雅\n产品：面膜\n目标人群：25-35岁抗初老女性，精致职场人群\n直播类型：品牌种草\n预算：5-20万\n平台：抖音\n达人类型：中腰部",
+      "keyword_groups": [
+        {
+          "content": "抗初老护肤分享",
+          "query": "((抗初老+初老+抗老+抗氧)*(紧致+淡纹+细纹+提拉+弹润)) + ((熬夜肌+垮脸+暗沉+松弛+法令纹)*(急救+修护+维稳+回春+补救))",
+          "pass_word": []
+        },
+        {
+          "content": "面膜测评清单",
+          "query": "((面膜+贴片+涂抹+泥膜+睡眠膜)*(测评+实测+亲测+对比+回购)) + ((补水+保湿+修护+维稳+急救)*(面膜+贴片+泥膜+睡眠膜+涂抹))",
+          "pass_word": []
+        },
+        {
+          "content": "成分党功效解析",
+          "query": "((成分党+配方+功效+成分表+配方表)*(玻尿酸+烟酰胺+神经酰胺+胜肽+视黄醇)) + ((A醇+视黄醇+胜肽+玻尿酸+烟酰胺)*(敏感肌+维稳+修护+屏障+耐受))",
+          "pass_word": []
+        },
+        {
+          "content": "精致职场护肤",
+          "query": "((通勤+上班+打工人+职场+白领)*(护肤+保养+妆前+急救+维稳)) + ((办公室+通勤包+工位+通勤妆+开会)*(补水+保湿+修护+面膜+急救))",
+          "pass_word": []
+        },
+        {
+          "content": "直播种草好物",
+          "query": "((直播+开播+直播间+种草+带货)*(护肤+美妆+好物+清单+囤货)) + ((直播间+开播+带货+种草+囤货)*(面膜+精华+水乳+面霜+眼霜))",
+          "pass_word": []
+        }
+      ],
+      "metrics": {
+        "kolNumLower": 50,
+        "kolFansRangeLower": 100000,
+        "kolFansRangeUpper": 1000000,
+        "priceLower1": 1000,
+        "priceUpper1": 50000,
+        "priceLower20": 2000,
+        "priceUpper20": 80000,
+        "priceLower60": 5000,
+        "priceUpper60": 150000,
+        "playAvgLower": 3000,
+        "interactionAvgLower": 60,
+        "interactionRateAvgLower": 0.005,
+        "cpmUpper": 800,
+        "cpeUpper": 30,
+        "noteCountLower": 4,
+        "likeRate1000Lower": 0.01,
+        "likeRate10000Lower": 0,
+        "completionRateLower": 0.01,
+        "dataStabilityIndexLower": 30,
+        "interactionFansRateLower": 0.003,
+        "fansGrowthRateLower": -0.013,
+        "fansGenderRate": 0.1,
+        "anyFieldNull": true
+      },
+      "status": "running",
+      "result_data": null,
+      "file_url": null,
+      "mcp_status": 0,
+      "mcp_status_desc": "执行中",
+      "created_at": "2026-08-18T11:40:08.670Z",
+      "created_by": "anonymous"
+    }
+  ]
+}
