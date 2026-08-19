@@ -49,7 +49,7 @@ pnpm build
 
 echo -e "${GREEN}[7/7]${NC} 启动应用..."
 pm2 delete blue-live 2>/dev/null || true
-PORT=8080 pm2 start node_modules/.bin/next --name blue-live -- start -p 8080 -H 0.0.0.0
+pm2 start node_modules/next/dist/bin/next --name blue-live -- start -p 8080 -H 0.0.0.0
 pm2 save
 
 echo -e "${GREEN}写入 PATH 到 .bashrc...${NC}"
