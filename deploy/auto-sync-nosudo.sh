@@ -2,9 +2,8 @@
 APP_DIR="$HOME/blue-live"
 LOG_FILE="$HOME/blue-live/auto-deploy.log"
 
-# 加载 nvm 环境变量
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+# 加载 Node.js 环境变量
+export PATH="$HOME/.local/node-v20.18.0-linux-x64/bin:$PATH"
 
 cd "$APP_DIR" || exit 1
 git fetch origin main 2>/dev/null
