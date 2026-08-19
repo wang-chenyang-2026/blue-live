@@ -243,6 +243,7 @@ export default function CostPagePM() {
   // 状态
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [quickRange, setQuickRange] = useState<string>('');
   const [activeBrand, setActiveBrand] = useState('all');
   const [feishuData, setFeishuData] = useState<FeishuData | null>(null);
   const [feishuLoading, setFeishuLoading] = useState(false);
@@ -547,7 +548,7 @@ export default function CostPagePM() {
           <input
             type="date"
             value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
+            onChange={(e) => { setStartDate(e.target.value); setQuickRange(''); }}
             className="bg-transparent border rounded-lg px-3 py-1.5 text-sm focus:outline-none"
             style={{ borderColor: '#374151', color: '#E5E7EB' }}
           />
@@ -555,7 +556,7 @@ export default function CostPagePM() {
           <input
             type="date"
             value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
+            onChange={(e) => { setEndDate(e.target.value); setQuickRange(''); }}
             className="bg-transparent border rounded-lg px-3 py-1.5 text-sm focus:outline-none"
             style={{ borderColor: '#374151', color: '#E5E7EB' }}
           />
@@ -563,9 +564,10 @@ export default function CostPagePM() {
             onClick={() => {
               setStartDate(getDaysAgo(6));
               setEndDate(getToday());
+              setQuickRange('7d');
             }}
             className="px-3 py-1.5 text-xs rounded-lg border transition"
-            style={{ borderColor: '#374151', color: '#9CA3AF' }}
+            style={{ borderColor: quickRange === '7d' ? brandColor : '#374151', color: quickRange === '7d' ? brandColor : '#9CA3AF', backgroundColor: quickRange === '7d' ? brandColor + '15' : 'transparent' }}
           >
             近7天
           </button>
@@ -574,9 +576,10 @@ export default function CostPagePM() {
               const range = getMonthRange(safeMonth);
               setStartDate(range.start);
               setEndDate(range.end);
+              setQuickRange('month');
             }}
             className="px-3 py-1.5 text-xs rounded-lg border transition"
-            style={{ borderColor: '#374151', color: '#9CA3AF' }}
+            style={{ borderColor: quickRange === 'month' ? brandColor : '#374151', color: quickRange === 'month' ? brandColor : '#9CA3AF', backgroundColor: quickRange === 'month' ? brandColor + '15' : 'transparent' }}
           >
             本月
           </button>

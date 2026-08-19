@@ -195,6 +195,7 @@ export default function CostPageOps() {
   // 状态
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [quickRange, setQuickRange] = useState<string>('');
   const [activeBrand, setActiveBrand] = useState('all');
   const [feishuData, setFeishuData] = useState<FeishuData | null>(null);
   const [feishuLoading, setFeishuLoading] = useState(false);
@@ -483,9 +484,10 @@ export default function CostPageOps() {
             onClick={() => {
               setStartDate(getDaysAgo(6));
               setEndDate(getToday());
+              setQuickRange('7d');
             }}
             className="px-3 py-1.5 text-xs rounded-lg border transition"
-            style={{ borderColor: '#374151', color: '#9CA3AF', backgroundColor: 'transparent' }}
+            style={quickRange === '7d' ? { borderColor: '#4158D0', color: '#4158D0', backgroundColor: '#4158D015' } : { borderColor: '#374151', color: '#9CA3AF', backgroundColor: 'transparent' }}
           >
             近7天
           </button>
@@ -494,9 +496,10 @@ export default function CostPageOps() {
               const range = getMonthRange(safeMonth);
               setStartDate(range.start);
               setEndDate(range.end);
+              setQuickRange('month');
             }}
             className="px-3 py-1.5 text-xs rounded-lg border transition"
-            style={{ borderColor: '#374151', color: '#9CA3AF', backgroundColor: 'transparent' }}
+            style={quickRange === 'month' ? { borderColor: '#4158D0', color: '#4158D0', backgroundColor: '#4158D015' } : { borderColor: '#374151', color: '#9CA3AF', backgroundColor: 'transparent' }}
           >
             本月
           </button>
@@ -504,7 +507,7 @@ export default function CostPageOps() {
           <input
             type="date"
             value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
+            onChange={(e) => { setStartDate(e.target.value); setQuickRange(''); }}
             className="bg-transparent border rounded-lg px-3 py-1.5 text-sm focus:outline-none"
             style={{ borderColor: '#374151', color: '#E5E7EB' }}
           />
@@ -512,7 +515,7 @@ export default function CostPageOps() {
           <input
             type="date"
             value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
+            onChange={(e) => { setEndDate(e.target.value); setQuickRange(''); }}
             className="bg-transparent border rounded-lg px-3 py-1.5 text-sm focus:outline-none"
             style={{ borderColor: '#374151', color: '#E5E7EB' }}
           />
