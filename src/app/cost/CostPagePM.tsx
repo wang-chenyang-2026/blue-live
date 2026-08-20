@@ -152,6 +152,7 @@ function DocumentIcon({ color }: { color: string }) {
 const CATEGORY_ICONS: Record<string, { icon: React.ReactNode; color: string; bg: string }> = {
   '兼职主播成本': { icon: <PersonIcon color="#4158D0" />, color: '#4158D0', bg: 'rgba(65,88,208,0.15)' },
   '兼职中控成本': { icon: <MonitorIcon color="#7B61FF" />, color: '#7B61FF', bg: 'rgba(123,97,255,0.15)' },
+  '设计分摊成本': { icon: <BoxIcon color="#A855F7" />, color: '#A855F7', bg: 'rgba(168,85,247,0.15)' },
   '全职主播成本': { icon: <PersonIcon color="#6B7FE8" />, color: '#6B7FE8', bg: 'rgba(65,88,208,0.1)' },
   '全职中控成本': { icon: <MonitorIcon color="#9B85FF" />, color: '#9B85FF', bg: 'rgba(123,97,255,0.1)' },
   '全职运营成本': { icon: <PersonIcon color="#10B981" />, color: '#10B981', bg: 'rgba(16,185,129,0.1)' },
@@ -172,6 +173,10 @@ interface FeishuDimension {
     subsidy?: number;
     remark?: string;
     mode?: string;
+    project?: string;
+    amount?: number;
+    monthlyRate?: number;
+    days?: number;
   }>;
 }
 
@@ -183,6 +188,7 @@ interface FeishuData {
     control: FeishuDimension;
     fulltime: FeishuDimension;
     purchase: FeishuDimension;
+    design: FeishuDimension;
   };
   totalCost: number;
   byBrand: Record<string, number>;
@@ -367,6 +373,9 @@ export default function CostPagePM() {
       } else if (config.dimKey === 'control') {
         cost = dims.control.total;
         count = dims.control.details.length;
+      } else if (config.dimKey === 'design') {
+        cost = dims.design?.total || 0;
+        count = dims.design?.details?.length || 0;
       } else if (config.dimKey === 'fulltime' && config.role) {
         const details = dims.fulltime.details.filter((d) => d.role === config.role);
         cost = details.reduce((s, d) => s + d.cost, 0);
@@ -413,6 +422,19 @@ export default function CostPagePM() {
         remark: d.remark || '',
       });
     });
+
+    // 设计分摊成本
+    if (feishuData.dimensions.design?.details) {
+      (feishuData.dimensions.design.details as Array<{ project?: string; amount?: number }>).forEach((d, i: number) => {
+        rows.push({
+          id: `design-${i}`,
+          category: '设计分摊成本',
+          name: d.project || '设计分摊',
+          amount: d.amount || 0,
+          remark: '设计岗位成本分摊',
+        });
+      });
+    }
 
     feishuData.dimensions.fulltime.details.forEach((d, i) => {
       let cat = '全职中控成本';

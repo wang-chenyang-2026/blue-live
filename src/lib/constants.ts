@@ -158,6 +158,7 @@ export const ATTENDANCE_STATUSES = ['正常', '迟到', '早退', '缺勤', '请
 export const COST_CATEGORIES = [
   '兼职主播成本',
   '兼职中控成本',
+  '设计分摊成本',
   '全职主播成本',
   '全职中控成本',
   '全职运营成本',

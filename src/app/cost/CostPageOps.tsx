@@ -128,6 +128,10 @@ interface FeishuDimension {
     subsidy?: number;
     remark?: string;
     mode?: string;
+    project?: string;
+    amount?: number;
+    monthlyRate?: number;
+    days?: number;
   }>;
 }
 
@@ -139,6 +143,7 @@ interface FeishuData {
     control: FeishuDimension;
     fulltime: FeishuDimension;
     purchase: FeishuDimension;
+    design: FeishuDimension;
   };
   totalCost: number;
   byBrand: Record<string, number>;

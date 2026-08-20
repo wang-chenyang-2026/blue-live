@@ -13,6 +13,8 @@ const NICKNAME_SHEETS = {
   fullTime: "CxB4xa", // 全职 sheet (A=所属项目, B=姓名)
 };
 
+const PROJECT_SHEET = "KjrM2H"; // 项目详情sheet: A项目名称 B项目执行状态 C项目开始时间 D项目结束时间
+
 // 排班表 wiki 配置（不再硬编码 sheet ID，运行时按年月动态查找）
 const SCHEDULE_CONFIG = {
   vivo: [
@@ -111,13 +113,13 @@ function expandMonths(range: DateRange): Array<{ year: number; month: number; da
 
 // Build full-time employee config dynamically from Feishu salary sheet
 async function buildFulltimeConfig(feishuToken: string): Promise<
-  Record<string, { brand: string; base: number; subsidy: number; role: string; nickname?: string }>
+  Record<string, { brand: string; base: number; subsidy: number; role: string; nickname?: string; workStatus: string; hireDate: Date | null; leaveDate: Date | null; rules: string }>
 > {
-  const config: Record<string, { brand: string; base: number; subsidy: number; role: string; nickname?: string }> = {};
+  const config: Record<string, { brand: string; base: number; subsidy: number; role: string; nickname?: string; workStatus: string; hireDate: Date | null; leaveDate: Date | null; rules: string }> = {};
 
   try {
-    // 读取 A:H 列（含补贴、备注等）
-    const values = await readSheetFeishu(feishuToken, NICKNAME_SHEET_TOKEN, `${NICKNAME_SHEETS.fullTime}!A1:H100`);
+    // 读取 A:S 列（含工作状态、入职时间、离职时间、统计规则等）
+    const values = await readSheetFeishu(feishuToken, NICKNAME_SHEET_TOKEN, `${NICKNAME_SHEETS.fullTime}!A1:S100`);
     for (let i = 1; i < values.length; i++) {
       const row = values[i];
       if (!row || row.length < 4) continue;
@@ -139,13 +141,45 @@ async function buildFulltimeConfig(feishuToken: string): Promise<
       for (let c = 5; c < Math.min(row.length, 8); c++) {
         const cell = row[c];
         if (typeof cell === "string") {
-          // 支持中英文引号：" " " "
           const m = cell.match(/花名[为为:：\s]*["\u201c\u201d]([^"\u201c\u201d]+)["\u201c\u201d]/);
           if (m) { nickname = m[1].trim(); break; }
         }
       }
 
-      config[name] = { brand, base, subsidy, role, nickname };
+      // F列(index 5) = 工作状态
+      const workStatus = row.length > 5 ? String(row[5] || "在职").trim() : "在职";
+
+      // G列(index 6) = 入职时间（Excel序列号数值）
+      let hireDate: Date | null = null;
+      if (row.length > 6) {
+        const hireCell = row[6];
+        if (hireCell && typeof hireCell === "number" && hireCell > 0) {
+          hireDate = parseExcelDate(hireCell);
+        }
+      }
+
+      // H列(index 7) = 离职时间（Excel序列号数值或"/"）
+      let leaveDate: Date | null = null;
+      if (row.length > 7) {
+        const leaveCell = row[7];
+        if (leaveCell && typeof leaveCell === "number" && leaveCell > 0) {
+          leaveDate = parseExcelDate(leaveCell);
+        }
+      }
+
+      // S列(index 18) = 全职员工信息统计规则
+      let rules = "";
+      if (row.length > 18) {
+        const rulesCell = row[18];
+        if (Array.isArray(rulesCell)) {
+          // 富文本segment数组，提取.text字段拼接
+          rules = rulesCell.map((seg: Record<string, string>) => seg.text || "").join("");
+        } else if (typeof rulesCell === "string") {
+          rules = rulesCell;
+        }
+      }
+
+      config[name] = { brand, base, subsidy, role, nickname, workStatus, hireDate, leaveDate, rules };
     }
   } catch (e) {
     console.error("Failed to build fulltime config:", e);
@@ -190,7 +224,7 @@ function cleanSalaryName(name: string): string {
 
 async function buildNicknameMapping(
   feishuToken: string,
-  fulltimeConfig?: Record<string, { brand: string; base: number; subsidy: number; role: string; nickname?: string }>,
+  fulltimeConfig?: Record<string, { brand: string; base: number; subsidy: number; role: string; nickname?: string; workStatus?: string; hireDate?: Date | null; leaveDate?: Date | null; rules?: string }>,
 ): Promise<{
   nicknameToReal: Record<string, string>;
   allNames: Set<string>;
@@ -443,7 +477,7 @@ async function calcControlCost(
   brand: string,
   range: DateRange,
   nicknameMapping: { nicknameToReal: Record<string, string>; allNames: Set<string> },
-  fulltimeConfig: Record<string, { brand: string; base: number; subsidy: number; role: string; nickname?: string }>,
+  fulltimeConfig: Record<string, { brand: string; base: number; subsidy: number; role: string; nickname?: string; workStatus?: string; hireDate?: Date | null; leaveDate?: Date | null; rules?: string }>,
 ): Promise<{ total: number; details: Array<{ name: string; hours: number; cost: number; serviceFee: number; mode: string }> }> {
   const { nameHours } = await collectScheduleHours(feishuToken, brand, "control", range, nicknameMapping);
 
@@ -506,16 +540,163 @@ async function calcControlCost(
   return { total: Math.round(details.reduce((s, d) => s + d.cost, 0) * 100) / 100, details };
 }
 
+// 读取项目详情sheet
+interface ProjectItem {
+  name: string;
+  status: string;
+  startDate: Date | null;
+  endDate: Date | null;
+}
+
+async function buildProjectList(feishuToken: string): Promise<ProjectItem[]> {
+  const values = await readSheetFeishu(feishuToken, NICKNAME_SHEET_TOKEN, `${PROJECT_SHEET}!A1:D50`);
+
+  const projects: ProjectItem[] = [];
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i] || [];
+    const name = String(row[0] || "").trim();
+    const status = String(row[1] || "").trim();
+    const startRaw = row[2];
+    const endRaw = row[3];
+
+    if (!name) continue;
+
+    let startDate: Date | null = null;
+    if (startRaw && typeof startRaw === "number" && startRaw > 0) {
+      startDate = parseExcelDate(startRaw);
+    }
+    let endDate: Date | null = null;
+    if (endRaw && typeof endRaw === "number" && endRaw > 0) {
+      endDate = parseExcelDate(endRaw);
+    }
+
+    projects.push({ name, status, startDate, endDate });
+  }
+
+  return projects;
+}
+
+// 设计岗位成本计算
+async function calcDesignCost(
+  _feishuToken: string,
+  brand: string,
+  range: DateRange,
+  projectList: ProjectItem[],
+): Promise<{ total: number; details: Array<{ project: string; monthlyRate: number; days: number; amount: number }> }> {
+  const DESIGN_MONTHLY_COST = 14391; // 13500 * 1.066
+
+  const isProjectActiveInMonth = (project: ProjectItem, monthStart: Date, monthEnd: Date): boolean => {
+    if (!project.startDate) return false;
+    return project.startDate <= monthEnd && (project.endDate === null || project.endDate >= monthStart);
+  };
+
+  const months = expandMonths(range);
+  // Track per-project accumulated amounts and per-month details
+  const projectAmounts: Record<string, number> = {};
+  const projectDetails: Array<{ project: string; monthlyRate: number; days: number; amount: number }> = [];
+
+  for (const project of projectList) {
+    projectAmounts[project.name] = 0;
+  }
+
+  for (const { year, month: monthNum, dayStart, dayEnd } of months) {
+    const daysInMonth = new Date(year, monthNum, 0).getDate();
+    const monthStart = new Date(year, monthNum - 1, dayStart);
+    const monthEnd = new Date(year, monthNum - 1, dayEnd);
+    const daysInRange = dayEnd - dayStart + 1;
+
+    const activeProjects = projectList.filter((p) => isProjectActiveInMonth(p, monthStart, monthEnd));
+    if (activeProjects.length === 0) continue;
+
+    const monthlyRate = DESIGN_MONTHLY_COST / activeProjects.length;
+    const perDayRate = monthlyRate / daysInMonth;
+
+    for (const project of activeProjects) {
+      const amount = perDayRate * daysInRange;
+      projectAmounts[project.name] += amount;
+      projectDetails.push({
+        project: project.name,
+        monthlyRate: Math.round(monthlyRate * 100) / 100,
+        days: daysInRange,
+        amount: Math.round(amount * 100) / 100,
+      });
+    }
+  }
+
+  // Brand filtering
+  let filteredNames: Set<string>;
+  if (brand === "all") {
+    filteredNames = new Set(projectList.map((p) => p.name));
+  } else if (brand === "iQOO") {
+    filteredNames = new Set(projectList.filter((p) => p.name.includes("iQOO")).map((p) => p.name));
+  } else {
+    // vivo / IOT: case-insensitive match
+    const lower = brand.toLowerCase();
+    filteredNames = new Set(projectList.filter((p) => p.name.toLowerCase().includes(lower)).map((p) => p.name));
+  }
+
+  const details = projectDetails.filter((d) => filteredNames.has(d.project) && d.amount > 0);
+  const total = details.reduce((sum, d) => sum + d.amount, 0);
+
+  return { total: Math.round(total * 100) / 100, details };
+}
+
+// 读取全职员工信息统计规则（S列）和备注信息
+interface CostRules {
+  rules: string[];
+  notes: string[];
+}
+
+async function buildCostRules(feishuToken: string): Promise<CostRules> {
+  const result: CostRules = {
+    rules: [],
+    notes: [],
+  };
+
+  // 读取全职sheet S列的规则
+  try {
+    const fulltimeData = await readSheetFeishu(feishuToken, NICKNAME_SHEET_TOKEN, `${NICKNAME_SHEETS.fullTime}!S1:S100`);
+    for (let i = 1; i < fulltimeData.length; i++) {
+      const row = fulltimeData[i];
+      if (!row) continue;
+      const cell = row[0];
+      let rule = "";
+      if (Array.isArray(cell)) {
+        rule = cell.map((seg: Record<string, string>) => seg.text || "").join("");
+      } else if (typeof cell === "string") {
+        rule = cell;
+      }
+      rule = rule.trim();
+      if (rule) result.rules.push(rule);
+    }
+  } catch (e) {
+    console.warn("Failed to read fulltime rules:", e);
+  }
+
+  // 读取备注信息sheet
+  try {
+    const notesData = await readSheetFeishu(feishuToken, NICKNAME_SHEET_TOKEN, "xCCsCp!A1:B20");
+    for (let i = 1; i < notesData.length; i++) {
+      const row = notesData[i];
+      if (!row || row.length < 2) continue;
+      const note = String(row[1] || "").trim();
+      if (note) result.notes.push(note);
+    }
+  } catch (e) {
+    console.warn("Failed to read notes:", e);
+  }
+
+  return result;
+}
+
 // Dimension C: 全职员工成本
 async function calcFulltimeCost(
   feishuToken: string,
   brand: string,
   range: DateRange,
-  fulltimeConfig: Record<string, { brand: string; base: number; subsidy: number; role: string; nickname?: string }>,
+  fulltimeConfig: Record<string, { brand: string; base: number; subsidy: number; role: string; nickname?: string; workStatus: string; hireDate: Date | null; leaveDate: Date | null; rules: string }>,
   nicknameMapping: { nicknameToReal: Record<string, string>; allNames: Set<string> },
-): Promise<{ total: number; details: Array<{ name: string; base: number; subsidy: number; cost: number; role: string; hours?: number; days?: number }> }> {
-  // 全职成本按「整月」概念算底薪，按日期范围算实际出勤和加班
-  // 取范围内第一个月作为计薪基准月（跨月时主要场景是单月，跨月时分摊简化为按首月）
+): Promise<{ total: number; details: Array<{ name: string; base: number; subsidy: number; cost: number; role: string; hours: number; days: number; status: string; hireDate: string | null; leaveDate: string | null; socialInsurance: number }> }> {
   const months = expandMonths(range);
   const primary = months[0];
   const year = primary.year;
@@ -545,7 +726,7 @@ async function calcFulltimeCost(
     }
   }
 
-  const details: Array<{ name: string; base: number; subsidy: number; cost: number; role: string; hours: number; days: number }> = [];
+  const details: Array<{ name: string; base: number; subsidy: number; cost: number; role: string; hours: number; days: number; status: string; hireDate: string | null; leaveDate: string | null; socialInsurance: number }> = [];
 
   for (const [name, config] of Object.entries(fulltimeConfig)) {
     if (brand !== "all" && config.brand !== brand) continue;
@@ -557,26 +738,117 @@ async function calcFulltimeCost(
         : true;
     if (!isFulltimeMonth) continue;
 
+    const hireDate = config.hireDate;
+    const leaveDate = config.leaveDate;
+    const status = config.workStatus || "在职";
+
+    // 3.1 入离职按天裁剪
+    // 离职日期 < range.start → 已离职且离职日在范围之前，跳过
+    if (leaveDate && leaveDate < range.start) continue;
+    // 入职日期 > range.end → 完全不计入
+    if (hireDate && hireDate > range.end) continue;
+
+    // 员工有效区间
+    const effectiveStart = hireDate && hireDate > range.start ? hireDate : range.start;
+    const effectiveEnd = leaveDate && leaveDate < range.end ? leaveDate : range.end;
+    if (effectiveStart > effectiveEnd) continue;
+
+    // 3.2 应出勤天数计算：遍历 effectiveStart 到 effectiveEnd 的每一天
+    // 如果是周一到周五（getDay() 1-5）且不是法定节假日，计入 expectedDays
+    let expectedDays = 0;
+    const cursor = new Date(effectiveStart);
+    while (cursor <= effectiveEnd) {
+      const dow = cursor.getDay();
+      if (dow >= 1 && dow <= 5 && !isLegalHoliday(cursor)) {
+        expectedDays++;
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    // 整月workDays用于主播按比例折算
+    const totalMonthWorkDays = Math.max(1, workDays);
+
+    // 主播expectedHours按比例 = 90 / 整月workDays * expectedDays
+    // 中控expectedHours = expectedDays * 8
+    const expectedHours = config.role === "主播"
+      ? (90 / totalMonthWorkDays) * expectedDays
+      : expectedDays * 8;
+
+    // 3.4 实际出勤裁剪：过滤掉入职前和离职后的出勤
+    const rawDays = nameDays[name] || new Set<string>();
+    const rawHours = nameHours[name] || 0;
+    let effectiveAttendanceDays = rawDays.size;
+    let actualHours = rawHours;
+
+    if (hireDate || leaveDate) {
+      const validDays = new Set<string>();
+      let removedDayCount = 0;
+      rawDays.forEach((dayStr) => {
+        const dayDate = new Date(dayStr);
+        if (hireDate && dayDate < hireDate) { removedDayCount++; return; }
+        if (leaveDate && dayDate > leaveDate) { removedDayCount++; return; }
+        validDays.add(dayStr);
+      });
+      effectiveAttendanceDays = validDays.size;
+      // 按出勤天数比例折算工时（因为nameHours无法按天拆分）
+      if (rawDays.size > 0) {
+        actualHours = Math.round(rawHours * (effectiveAttendanceDays / rawDays.size) * 100) / 100;
+      } else {
+        actualHours = 0;
+      }
+    }
+
+    // 3.3 社保规则：1600/月
+    // 入职当月：hireDate.getDate() <= 15 则当月缴，>15 则当月不缴（次月起缴）
+    // 离职当月仍缴社保
+    let socialInsurance = 1600;
+    if (hireDate) {
+      const hireDay = hireDate.getDate();
+      const hireMonth = hireDate.getMonth() + 1;
+      const hireYear = hireDate.getFullYear();
+      // 入职当月
+      if (year === hireYear && monthNum === hireMonth) {
+        if (hireDay > 15) {
+          socialInsurance = 0;
+        }
+      }
+      // 入职前的月份
+      if (year < hireYear || (year === hireYear && monthNum < hireMonth)) {
+        socialInsurance = 0;
+      }
+    }
+    if (leaveDate) {
+      const leaveMonth = leaveDate.getMonth() + 1;
+      const leaveYear = leaveDate.getFullYear();
+      // 离职后的月份
+      if (year > leaveYear || (year === leaveYear && monthNum > leaveMonth)) {
+        socialInsurance = 0;
+      }
+    }
+
+    // 社保按实际出勤天数折算
+    const socialInsuranceRealTime = Math.round((socialInsurance / daysInMonth * effectiveAttendanceDays) * 100) / 100;
+
     // 运营不参与排班
     if (config.role === "运营") {
-      const socialInsurance = 1600;
+      const opCost = config.base + config.subsidy + socialInsuranceRealTime;
       details.push({
         name,
         base: config.base,
         subsidy: config.subsidy,
-        cost: config.base + config.subsidy + socialInsurance,
+        cost: Math.round(opCost * 100) / 100,
         role: config.role,
         hours: 0,
         days: 0,
+        status,
+        hireDate: hireDate ? localDateStr(hireDate) : null,
+        leaveDate: leaveDate ? localDateStr(leaveDate) : null,
+        socialInsurance: socialInsuranceRealTime,
       });
       continue;
     }
 
-    const attendanceDays = nameDays[name]?.size || 0;
-    const actualHours = nameHours[name] || 0;
     const holidayDays = nameHolidayDays[name]?.size || 0;
-
-    const expectedHours = config.role === "主播" ? 90 : workDays * 8;
 
     // 主播加班费 170/h，中控加班费 35/h
     const otherSalary =
@@ -586,18 +858,17 @@ async function calcFulltimeCost(
 
     // 主播无法定节假日薪资
     const holidaySalary =
-      config.role === "主播" ? 0 : (config.base / workDays) * holidayDays * 3;
+      config.role === "主播" ? 0 : (config.base / Math.max(1, expectedDays)) * holidayDays * 3;
 
     // 主播：底薪+补贴+加班费（不按出勤天折算）
     // 中控/其他：(底薪+补贴)/应出勤天数*实际出勤天数 + 加班费 + 节假日薪资
     const realTimeSalary =
       config.role === "主播"
         ? config.base + config.subsidy + otherSalary
-        : (config.base + config.subsidy) / workDays * attendanceDays + otherSalary + holidaySalary;
+        : (config.base + config.subsidy) / Math.max(1, expectedDays) * effectiveAttendanceDays + otherSalary + holidaySalary;
 
-    const socialInsurance = 1600;
-    const tax = realTimeSalary * 0.0318;
-    const totalCost = realTimeSalary + socialInsurance + tax;
+    const tax = Math.round(realTimeSalary * 0.0318 * 100) / 100;
+    const totalCost = Math.round((realTimeSalary + socialInsuranceRealTime + tax) * 100) / 100;
 
     details.push({
       name,
@@ -606,11 +877,15 @@ async function calcFulltimeCost(
       cost: totalCost,
       role: config.role,
       hours: actualHours,
-      days: attendanceDays,
+      days: effectiveAttendanceDays,
+      status,
+      hireDate: hireDate ? localDateStr(hireDate) : null,
+      leaveDate: leaveDate ? localDateStr(leaveDate) : null,
+      socialInsurance: socialInsuranceRealTime,
     });
   }
 
-  return { total: details.reduce((s, d) => s + d.cost, 0), details };
+  return { total: Math.round(details.reduce((s, d) => s + d.cost, 0) * 100) / 100, details };
 }
 
 // Dimension D: 采买成本（按日期范围）
@@ -724,28 +999,32 @@ export async function GET(request: NextRequest) {
     const fulltimeConfig = await buildFulltimeConfig(feishuToken);
     const nicknameMapping = await buildNicknameMapping(feishuToken, fulltimeConfig);
     const anchorRates = await buildAnchorRates(feishuToken);
+    const projectList = await buildProjectList(feishuToken);
 
-    const [anchorResult, controlResult, fulltimeResult, purchaseResult] = await Promise.all([
+    const [anchorResult, controlResult, fulltimeResult, purchaseResult, designResult, rulesResult] = await Promise.all([
       calcAnchorCost(feishuToken, brand, range, nicknameMapping, anchorRates),
       calcControlCost(feishuToken, brand, range, nicknameMapping, fulltimeConfig),
       calcFulltimeCost(feishuToken, brand, range, fulltimeConfig, nicknameMapping),
       calcPurchaseCost(feishuToken, brand, range),
+      calcDesignCost(feishuToken, brand, range, projectList),
+      buildCostRules(feishuToken),
     ]);
 
-    const totalCost = anchorResult.total + controlResult.total + fulltimeResult.total + purchaseResult.total;
+    const totalCost = anchorResult.total + controlResult.total + fulltimeResult.total + purchaseResult.total + designResult.total;
 
     const byBrand: Record<string, number> = {};
     if (brand === "all") {
       const subBrands = ["vivo", "iQOO", "IOT"] as const;
       await Promise.all(
         subBrands.map(async (b) => {
-          const [a, c, f, p] = await Promise.all([
+          const [a, c, f, p, d] = await Promise.all([
             calcAnchorCost(feishuToken, b, range, nicknameMapping, anchorRates),
             calcControlCost(feishuToken, b, range, nicknameMapping, fulltimeConfig),
             calcFulltimeCost(feishuToken, b, range, fulltimeConfig, nicknameMapping),
             calcPurchaseCost(feishuToken, b, range),
+            calcDesignCost(feishuToken, b, range, projectList),
           ]);
-          byBrand[b] = a.total + c.total + f.total + p.total;
+          byBrand[b] = a.total + c.total + f.total + p.total + d.total;
         }),
       );
     }
@@ -762,7 +1041,10 @@ export async function GET(request: NextRequest) {
         control: { total: controlResult.total, details: controlResult.details },
         fulltime: { total: fulltimeResult.total, details: fulltimeResult.details },
         purchase: { total: purchaseResult.total, details: purchaseResult.details },
+        design: { total: designResult.total, details: designResult.details },
       },
+      rules: rulesResult.rules,
+      notes: rulesResult.notes,
       totalCost,
       byBrand,
     };
