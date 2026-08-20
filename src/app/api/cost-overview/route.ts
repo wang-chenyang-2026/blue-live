@@ -1082,7 +1082,7 @@ export async function GET(request: NextRequest) {
         purchase: { total: purchaseResult.total, details: purchaseResult.details },
         design: { total: designResult.total, details: designResult.details },
       },
-      rules: rulesResult.rules,
+      fulltimeRules: rulesResult.rules.join('\n'),
       notes: rulesResult.notes,
       totalCost,
       byBrand,
