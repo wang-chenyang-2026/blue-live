@@ -185,7 +185,8 @@ async function buildFulltimeConfig(feishuToken: string): Promise<
     // 单独读取 S 列（全职员工信息统计规则），避免稀疏数组导致列偏移
     try {
       const sValues = await readSheetFeishu(feishuToken, NICKNAME_SHEET_TOKEN, `${NICKNAME_SHEETS.fullTime}!S1:S100`);
-      console.log("[fulltime] S column first 3 rows:", JSON.stringify(sValues.slice(0, 3)));
+      console.log("[fulltime] S column raw values (first 5 rows):", JSON.stringify(sValues.slice(0, 5)));
+      console.log("[fulltime] S column row lengths:", sValues.slice(0, 5).map(r => r?.length));
       // 找到第一个非空值作为全局规则文本
       let rulesText = "";
       for (let i = 1; i < sValues.length; i++) {
@@ -732,7 +733,7 @@ async function calcFulltimeCost(
   range: DateRange,
   fulltimeConfig: Record<string, { brand: string; base: number; subsidy: number; role: string; nickname?: string; workStatus: string; hireDate: Date | null; leaveDate: Date | null; rules: string }>,
   nicknameMapping: { nicknameToReal: Record<string, string>; allNames: Set<string> },
-): Promise<{ total: number; details: Array<{ name: string; base: number; subsidy: number; cost: number; role: string; hours: number; days: number; status: string; hireDate: string | null; leaveDate: string | null; socialInsurance: number; expectedDays: number }> }> {
+): Promise<{ total: number; details: Array<{ name: string; base: number; subsidy: number; cost: number; role: string; hours: number; days: number; workStatus: string; hireDate: string | null; leaveDate: string | null; socialInsurance: number; expectedDays: number }> }> {
   const months = expandMonths(range);
   const primary = months[0];
   const year = primary.year;
@@ -762,7 +763,7 @@ async function calcFulltimeCost(
     }
   }
 
-  const details: Array<{ name: string; base: number; subsidy: number; cost: number; role: string; hours: number; days: number; status: string; hireDate: string | null; leaveDate: string | null; socialInsurance: number; expectedDays: number }> = [];
+  const details: Array<{ name: string; base: number; subsidy: number; cost: number; role: string; hours: number; days: number; workStatus: string; hireDate: string | null; leaveDate: string | null; socialInsurance: number; expectedDays: number }> = [];
 
   for (const [name, config] of Object.entries(fulltimeConfig)) {
     if (brand !== "all" && config.brand !== brand) continue;
@@ -776,7 +777,7 @@ async function calcFulltimeCost(
 
     const hireDate = config.hireDate;
     const leaveDate = config.leaveDate;
-    const status = config.workStatus || "在职";
+    const workStatus = config.workStatus || "在职";
 
     // 3.1 入离职按天裁剪
     // 离职日期 < range.start → 已离职且离职日在范围之前，跳过
@@ -876,7 +877,7 @@ async function calcFulltimeCost(
         role: config.role,
         hours: 0,
         days: 0,
-        status,
+        workStatus,
         hireDate: hireDate ? localDateStr(hireDate) : null,
         leaveDate: leaveDate ? localDateStr(leaveDate) : null,
         socialInsurance: socialInsuranceRealTime,
@@ -915,7 +916,7 @@ async function calcFulltimeCost(
       role: config.role,
       hours: actualHours,
       days: effectiveAttendanceDays,
-      status,
+      workStatus,
       hireDate: hireDate ? localDateStr(hireDate) : null,
       leaveDate: leaveDate ? localDateStr(leaveDate) : null,
       socialInsurance: socialInsuranceRealTime,
