@@ -97,6 +97,15 @@ const CATEGORY_CONFIG: Record<string, {
     tagText: '#6B7280',
     dimKey: 'purchase',
   },
+  '设计费分摊': {
+    label: '设计费',
+    icon: <Package className="w-4 h-4" />,
+    bg: 'rgba(245,158,11,0.15)',
+    text: '#F59E0B',
+    tagBg: 'rgba(245,158,11,0.15)',
+    tagText: '#F59E0B',
+    dimKey: 'design',
+  },
   '其它成本': {
     label: '其它',
     icon: <MoreHorizontal className="w-4 h-4" />,
@@ -132,6 +141,11 @@ interface FeishuDimension {
     amount?: number;
     monthlyRate?: number;
     days?: number;
+    workStatus?: string;
+    hireDate?: string | null;
+    leaveDate?: string | null;
+    socialInsurance?: number;
+    expectedDays?: number;
   }>;
 }
 
@@ -143,10 +157,11 @@ interface FeishuData {
     control: FeishuDimension;
     fulltime: FeishuDimension;
     purchase: FeishuDimension;
-    design: FeishuDimension;
+    design?: FeishuDimension;
   };
   totalCost: number;
   byBrand: Record<string, number>;
+  fulltimeRules?: string;
 }
 
 interface TableRow {
@@ -287,6 +302,9 @@ export default function CostPageOps() {
       } else if (config.dimKey === 'control') {
         cost = dims.control.total;
         count = dims.control.details.length;
+      } else if (config.dimKey === 'design') {
+        cost = dims.design?.total || 0;
+        count = dims.design?.details?.length || 0;
       } else if (config.dimKey === 'fulltime' && config.role) {
         const details = dims.fulltime.details.filter((d) => d.role === config.role);
         cost = details.reduce((s, d) => s + d.cost, 0);
@@ -351,6 +369,20 @@ export default function CostPageOps() {
         source: 'feishu',
       });
     });
+
+    // 设计分摊成本
+    if (feishuData.dimensions.design?.details) {
+      (feishuData.dimensions.design.details as Array<{ project: string; monthlyRate: number; days: number; amount: number }>).forEach((d, i) => {
+        rows.push({
+          id: `design-${i}`,
+          category: '设计费分摊',
+          name: d.project,
+          amount: d.amount,
+          remark: `¥${d.monthlyRate.toFixed(0)}/月 ÷ ${d.days}天`,
+          source: 'feishu',
+        });
+      });
+    }
 
     // 全职
     feishuData.dimensions.fulltime.details.forEach((d, i) => {
@@ -818,6 +850,32 @@ export default function CostPageOps() {
                             </td>
                             <td className="p-3 font-medium" style={{ color: '#E5E7EB' }}>
                               {row.name}
+                              {row.id.startsWith('fulltime-') && (() => {
+                                const idx = parseInt(row.id.replace('fulltime-', ''));
+                                const d = feishuData?.dimensions.fulltime.details[idx];
+                                if (!d) return null;
+                                const hireDateStr = d.hireDate ? new Date(d.hireDate).toLocaleDateString('zh-CN') : null;
+                                const leaveDateStr = d.leaveDate ? new Date(d.leaveDate).toLocaleDateString('zh-CN') : null;
+                                const isInRange = (dateStr: string | null) => {
+                                  if (!dateStr) return false;
+                                  const dt = new Date(dateStr);
+                                  return dt >= new Date(startDate) && dt <= new Date(endDate);
+                                };
+                                return (
+                                  <>
+                                    {isInRange(hireDateStr) && (
+                                      <span style={{ marginLeft: 6, padding: '1px 6px', borderRadius: 4, fontSize: 11, backgroundColor: '#D1FAE5', color: '#059669' }}>
+                                        入职 {hireDateStr}
+                                      </span>
+                                    )}
+                                    {(d.workStatus === '离职' || d.leaveDate) && (
+                                      <span style={{ marginLeft: 6, padding: '1px 6px', borderRadius: 4, fontSize: 11, backgroundColor: '#FEE2E2', color: '#DC2626' }}>
+                                        离职{leaveDateStr ? ` ${leaveDateStr}` : ''}
+                                      </span>
+                                    )}
+                                  </>
+                                );
+                              })()}
                             </td>
                             <td className="p-3 text-right font-mono font-medium" style={{ color: '#E5E7EB' }}>
                               {formatCurrency(row.amount)}
@@ -874,6 +932,11 @@ export default function CostPageOps() {
               )}
             </div>
           </div>
+        )}
+
+        {/* ===== 计算规则说明 ===== */}
+        {feishuData?.fulltimeRules && (
+          <RulesSection rules={feishuData.fulltimeRules} />
         )}
 
         {/* ===== 6. KPI 管理 Tab ===== */}
@@ -1185,3 +1248,35 @@ const KPITab = memo(function KPITab({
     </div>
   );
 });
+
+function RulesSection({ rules }: { rules: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-4 rounded-xl border" style={{ borderColor: '#1f2937', backgroundColor: '#0B0F19' }}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 px-4 py-3 text-left"
+        style={{ color: '#9CA3AF' }}
+      >
+        <span style={{ fontSize: 12, transition: 'transform 0.2s', transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+          ▶
+        </span>
+        <span style={{ fontSize: 14 }}>计算规则说明</span>
+      </button>
+      {open && (
+        <div
+          style={{
+            padding: 12,
+            fontSize: 13,
+            color: '#6B7280',
+            lineHeight: 1.6,
+            whiteSpace: 'pre-wrap',
+            borderTop: '1px solid #1f2937',
+          }}
+        >
+          {rules}
+        </div>
+      )}
+    </div>
+  );
+}
