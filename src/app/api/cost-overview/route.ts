@@ -120,6 +120,12 @@ async function buildFulltimeConfig(feishuToken: string): Promise<
   try {
     // 读取 A:S 列（含工作状态、入职时间、离职时间、统计规则等）
     const values = await readSheetFeishu(feishuToken, NICKNAME_SHEET_TOKEN, `${NICKNAME_SHEETS.fullTime}!A1:S100`);
+    // Debug: 打印第一行（表头）和第二行（首个员工）确认列索引
+    if (values.length > 1) {
+      console.log("[fulltime] header row:", JSON.stringify(values[0]));
+      console.log("[fulltime] first data row:", JSON.stringify(values[1]));
+      console.log("[fulltime] row length:", values[1]?.length);
+    }
     for (let i = 1; i < values.length; i++) {
       const row = values[i];
       if (!row || row.length < 4) continue;
@@ -168,18 +174,48 @@ async function buildFulltimeConfig(feishuToken: string): Promise<
       }
 
       // S列(index 18) = 全职员工信息统计规则
+      // 飞书API可能返回稀疏数组，S列数据可能不在row[18]
+      // 改为单独读取S列
       let rules = "";
-      if (row.length > 18) {
-        const rulesCell = row[18];
-        if (Array.isArray(rulesCell)) {
-          // 富文本segment数组，提取.text字段拼接
-          rules = rulesCell.map((seg: Record<string, string>) => seg.text || "").join("");
-        } else if (typeof rulesCell === "string") {
-          rules = rulesCell;
-        }
-      }
+      // rules 将在外部单独读取后注入，此处先留空
 
       config[name] = { brand, base, subsidy, role, nickname, workStatus, hireDate, leaveDate, rules };
+    }
+
+    // 单独读取 S 列（全职员工信息统计规则），避免稀疏数组导致列偏移
+    try {
+      const sValues = await readSheetFeishu(feishuToken, NICKNAME_SHEET_TOKEN, `${NICKNAME_SHEETS.fullTime}!S1:S100`);
+      console.log("[fulltime] S column first 3 rows:", JSON.stringify(sValues.slice(0, 3)));
+      // 找到第一个非空值作为全局规则文本
+      let rulesText = "";
+      for (let i = 1; i < sValues.length; i++) {
+        const cell = sValues[i]?.[0];
+        if (cell) {
+          if (Array.isArray(cell)) {
+            // 富文本格式: [{"text":"..."}] 或 [{"textSegments":[{"text":"..."}]}]
+            rulesText = cell.map((seg: Record<string, unknown>) => {
+              if (typeof seg === "string") return seg;
+              if (seg && typeof seg === "object" && "text" in seg) return String((seg as Record<string, string>).text || "");
+              if (seg && typeof seg === "object" && "textSegments" in seg) {
+                const segments = (seg as Record<string, Array<Record<string, string>>>).textSegments;
+                if (Array.isArray(segments)) return segments.map(s => s.text || "").join("");
+              }
+              return "";
+            }).join("");
+          } else if (typeof cell === "string") {
+            rulesText = cell;
+          }
+          if (rulesText.trim()) break;
+        }
+      }
+      // 将规则文本注入所有员工配置
+      if (rulesText.trim()) {
+        for (const name of Object.keys(config)) {
+          config[name].rules = rulesText.trim();
+        }
+      }
+    } catch (e) {
+      console.warn("[fulltime] Failed to read S column:", e);
     }
   } catch (e) {
     console.error("Failed to build fulltime config:", e);
@@ -696,7 +732,7 @@ async function calcFulltimeCost(
   range: DateRange,
   fulltimeConfig: Record<string, { brand: string; base: number; subsidy: number; role: string; nickname?: string; workStatus: string; hireDate: Date | null; leaveDate: Date | null; rules: string }>,
   nicknameMapping: { nicknameToReal: Record<string, string>; allNames: Set<string> },
-): Promise<{ total: number; details: Array<{ name: string; base: number; subsidy: number; cost: number; role: string; hours: number; days: number; status: string; hireDate: string | null; leaveDate: string | null; socialInsurance: number }> }> {
+): Promise<{ total: number; details: Array<{ name: string; base: number; subsidy: number; cost: number; role: string; hours: number; days: number; status: string; hireDate: string | null; leaveDate: string | null; socialInsurance: number; expectedDays: number }> }> {
   const months = expandMonths(range);
   const primary = months[0];
   const year = primary.year;
@@ -726,7 +762,7 @@ async function calcFulltimeCost(
     }
   }
 
-  const details: Array<{ name: string; base: number; subsidy: number; cost: number; role: string; hours: number; days: number; status: string; hireDate: string | null; leaveDate: string | null; socialInsurance: number }> = [];
+  const details: Array<{ name: string; base: number; subsidy: number; cost: number; role: string; hours: number; days: number; status: string; hireDate: string | null; leaveDate: string | null; socialInsurance: number; expectedDays: number }> = [];
 
   for (const [name, config] of Object.entries(fulltimeConfig)) {
     if (brand !== "all" && config.brand !== brand) continue;
@@ -826,8 +862,8 @@ async function calcFulltimeCost(
       }
     }
 
-    // 社保按实际出勤天数折算
-    const socialInsuranceRealTime = Math.round((socialInsurance / daysInMonth * effectiveAttendanceDays) * 100) / 100;
+    // 社保为固定值1600/月（满足缴纳条件时），不按天数折算
+    const socialInsuranceRealTime = socialInsurance;
 
     // 运营不参与排班
     if (config.role === "运营") {
@@ -844,6 +880,7 @@ async function calcFulltimeCost(
         hireDate: hireDate ? localDateStr(hireDate) : null,
         leaveDate: leaveDate ? localDateStr(leaveDate) : null,
         socialInsurance: socialInsuranceRealTime,
+        expectedDays,
       });
       continue;
     }
@@ -882,6 +919,7 @@ async function calcFulltimeCost(
       hireDate: hireDate ? localDateStr(hireDate) : null,
       leaveDate: leaveDate ? localDateStr(leaveDate) : null,
       socialInsurance: socialInsuranceRealTime,
+      expectedDays,
     });
   }
 
