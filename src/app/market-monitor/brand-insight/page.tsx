@@ -601,6 +601,12 @@ function EcommercePanel() {
             if (j.success) setBrandResult(j.data);
             else throw new Error(j.error || '品牌列表加载失败');
           })
+          .catch((e) => {
+            if (e?.name !== 'AbortError') {
+              console.warn('[brand]', e);
+              setBrandResult(undefined);
+            }
+          })
           .finally(() => setLoadingBrand(false)),
 
         fetch(
