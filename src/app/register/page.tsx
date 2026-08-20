@@ -243,12 +243,12 @@ export default function RegisterPage() {
         </div>
       </div>
       {/* 备案信息 */}
-      <div className="absolute bottom-4 left-0 right-0 text-center">
-        <p className="text-xs text-muted-foreground">
-          <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">
-            粤ICP备2025064508号
-          </a>
-        </p>
+      <div className="absolute bottom-4 left-0 right-0 flex flex-col items-center gap-1 text-xs text-muted-foreground/60">
+        <span>COPYRIGHT©BLUEXH.COM 蓝色星合传媒科技（北京）有限公司</span>
+        <div className="flex items-center gap-3">
+          <a href="https://beian.mps.gov.cn/#/query/webSearch?code=11010502049595" target="_blank" rel="noreferrer" className="hover:text-muted-foreground">京公网安备 1101050204959597号</a>
+          <a href="https://beian.miit.gov.cn/" target="_blank" rel="noreferrer" className="hover:text-muted-foreground">京ICP备20220122255号-2</a>
+        </div>
       </div>
     </div>
   );
