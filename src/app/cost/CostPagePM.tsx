@@ -964,13 +964,6 @@ export default function CostPagePM() {
                                       </span>
                                     );
                                   }
-                                  if (ftDetail.hireDate && !ftDetail.leaveDate) {
-                                    tags.push(
-                                      <span key="hire" style={{ marginLeft: 6, padding: '1px 6px', borderRadius: 4, fontSize: 11, backgroundColor: '#D1FAE5', color: '#059669' }}>
-                                        入职 {ftDetail.hireDate}
-                                      </span>
-                                    );
-                                  }
                                   return tags;
                                 })()}
                               </td>

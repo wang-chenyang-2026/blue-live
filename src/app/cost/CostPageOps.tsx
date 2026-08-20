@@ -854,20 +854,9 @@ export default function CostPageOps() {
                                 const idx = parseInt(row.id.replace('fulltime-', ''));
                                 const d = feishuData?.dimensions.fulltime.details[idx];
                                 if (!d) return null;
-                                const hireDateStr = d.hireDate ? new Date(d.hireDate).toLocaleDateString('zh-CN') : null;
                                 const leaveDateStr = d.leaveDate ? new Date(d.leaveDate).toLocaleDateString('zh-CN') : null;
-                                const isInRange = (dateStr: string | null) => {
-                                  if (!dateStr) return false;
-                                  const dt = new Date(dateStr);
-                                  return dt >= new Date(startDate) && dt <= new Date(endDate);
-                                };
                                 return (
                                   <>
-                                    {isInRange(hireDateStr) && (
-                                      <span style={{ marginLeft: 6, padding: '1px 6px', borderRadius: 4, fontSize: 11, backgroundColor: '#D1FAE5', color: '#059669' }}>
-                                        入职 {hireDateStr}
-                                      </span>
-                                    )}
                                     {(d.workStatus === '离职' || d.leaveDate) && (
                                       <span style={{ marginLeft: 6, padding: '1px 6px', borderRadius: 4, fontSize: 11, backgroundColor: '#FEE2E2', color: '#DC2626' }}>
                                         离职{leaveDateStr ? ` ${leaveDateStr}` : ''}
