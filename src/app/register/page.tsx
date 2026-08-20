@@ -109,7 +109,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen relative">
       {/* 左侧装饰区 */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-primary/20 via-background to-background">
         <div className="absolute inset-0 flex flex-col items-center justify-center p-12">
@@ -241,6 +241,14 @@ export default function RegisterPage() {
             </Link>
           </p>
         </div>
+      </div>
+      {/* 备案信息 */}
+      <div className="absolute bottom-4 left-0 right-0 text-center">
+        <p className="text-xs text-muted-foreground">
+          <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">
+            粤ICP备2025064508号
+          </a>
+        </p>
       </div>
     </div>
   );
