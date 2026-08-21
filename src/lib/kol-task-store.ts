@@ -19,6 +19,7 @@ export interface KolTaskRecord {
   status: 'pending' | 'running' | 'completed' | 'failed';
   result_data: unknown | null;
   file_url: string | null;
+  kol_list: unknown | null;
   mcp_status: number | null;
   mcp_status_desc: string | null;
   created_at: string;
@@ -92,6 +93,7 @@ export async function createTask(
     status: row.status,
     result_data: row.result_data ?? null,
     file_url: row.file_url ?? null,
+    kol_list: row.kol_list ?? null,
     mcp_status: row.mcp_status ?? null,
     mcp_status_desc: row.mcp_status_desc ?? null,
     created_at: row.created_at || new Date().toISOString(),
@@ -107,7 +109,7 @@ export async function updateTask(
   patch: Partial<
     Pick<
       KolTaskRecord,
-      'status' | 'result_data' | 'file_url' | 'mcp_status' | 'mcp_status_desc'
+      'status' | 'result_data' | 'file_url' | 'kol_list' | 'mcp_status' | 'mcp_status_desc'
     >
   >,
 ): Promise<KolTaskRecord | null> {

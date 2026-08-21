@@ -290,3 +290,53 @@ export async function kolGetRouteTaskResult(
   );
   return unwrap<RouteTaskResult>(data);
 }
+
+/**
+ * 下载并解析 KOL 选号结果 Excel 文件
+ * 不引入新依赖，使用项目已有的 xlsx 库
+ */
+export async function parseKolExcel(
+  fileUrl: string,
+): Promise<{ columns: string[]; rows: Record<string, unknown>[]; total: number }> {
+  try {
+    if (!fileUrl || !/^https?:\/\//i.test(fileUrl)) {
+      return { columns: [], rows: [], total: 0 };
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60_000);
+
+    const res = await fetch(fileUrl, {
+      signal: controller.signal,
+      headers: { Accept: 'application/octet-stream' },
+    });
+    clearTimeout(timeout);
+
+    if (!res.ok) {
+      console.warn('[parseKolExcel] fetch failed:', res.status);
+      return { columns: [], rows: [], total: 0 };
+    }
+
+    const buffer = await res.arrayBuffer();
+    const XLSX = await import('xlsx');
+    const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+
+    const firstSheet = workbook.SheetNames[0];
+    if (!firstSheet) return { columns: [], rows: [], total: 0 };
+
+    const sheet = workbook.Sheets[firstSheet];
+    const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+      defval: '',
+    });
+
+    if (!Array.isArray(jsonData) || jsonData.length === 0) {
+      return { columns: [], rows: [], total: 0 };
+    }
+
+    const columns = Object.keys(jsonData[0]);
+    return { columns, rows: jsonData, total: jsonData.length };
+  } catch (err) {
+    console.warn('[parseKolExcel] failed:', err instanceof Error ? err.message : String(err));
+    return { columns: [], rows: [], total: 0 };
+  }
+}

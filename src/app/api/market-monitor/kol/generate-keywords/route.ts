@@ -8,12 +8,24 @@ import { kolGenerateKeywords } from '@/lib/kol-mcp';
  * {
  *   brand, product, targetAudience, liveType, budget,
  *   priceRanges: { lower1, upper1, lower20, upper20, lower60, upper60 },
- *   influencerType?, platform?
+ *   influencerType?, platform?, content_direction?, background?
  * }
  *
  * 返回：
  * { success, data: { keyword_groups, metrics, user_metrics, contword, task_name, raw } }
  */
+
+// 按达人类型的默认刊例价和粉丝范围
+const INFLUENCER_DEFAULTS: Record<string, {
+  fansLower: number; fansUpper: number;
+  priceLower60: number; priceUpper60: number;
+}> = {
+  '头部': { fansLower: 1000000, fansUpper: 10000000, priceLower60: 100000, priceUpper60: 500000 },
+  '中腰部': { fansLower: 100000, fansUpper: 1000000, priceLower60: 10000, priceUpper60: 100000 },
+  '尾部': { fansLower: 10000, fansUpper: 100000, priceLower60: 1000, priceUpper60: 10000 },
+  '素人': { fansLower: 1000, fansUpper: 10000, priceLower60: 0, priceUpper60: 1000 },
+};
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -26,6 +38,8 @@ export async function POST(req: NextRequest) {
       platform = '抖音',
       influencerType = '',
       priceRanges = {},
+      content_direction = '',
+      background = '',
     } = body as {
       brand?: string;
       product?: string;
@@ -42,6 +56,8 @@ export async function POST(req: NextRequest) {
         lower60?: number;
         upper60?: number;
       };
+      content_direction?: string;
+      background?: string;
     };
 
     if (!product?.trim()) {
@@ -51,13 +67,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 兜底默认刊例价（若前端没传）
+    // 获取达人类型默认值（默认中腰部）
+    const defaults = INFLUENCER_DEFAULTS[influencerType] || INFLUENCER_DEFAULTS['中腰部'];
+
+    // 刊例价：前端传了就用前端的，否则用达人类型默认值
     const lower1 = Number(priceRanges.lower1 ?? 1000);
     const upper1 = Number(priceRanges.upper1 ?? 50000);
     const lower20 = Number(priceRanges.lower20 ?? 2000);
     const upper20 = Number(priceRanges.upper20 ?? 80000);
-    const lower60 = Number(priceRanges.lower60 ?? 5000);
-    const upper60 = Number(priceRanges.upper60 ?? 150000);
+    const lower60 = Number(priceRanges.lower60 ?? defaults.priceLower60);
+    const upper60 = Number(priceRanges.upper60 ?? defaults.priceUpper60);
+
+    // 粉丝范围默认值
+    const kolFansRangeLower = defaults.fansLower;
+    const kolFansRangeUpper = defaults.fansUpper;
 
     const compressedBriefParts = [
       brand && `品牌${brand}`,
@@ -66,6 +89,8 @@ export async function POST(req: NextRequest) {
       liveType && `直播类型${liveType}`,
       budget && `预算${budget}`,
       influencerType && `达人类型${influencerType}`,
+      content_direction && `内容方向${content_direction}`,
+      background && `项目背景${background}`,
       `平台${platform}`,
     ].filter(Boolean);
     const compressedBrief = compressedBriefParts.join('，');
@@ -75,7 +100,11 @@ export async function POST(req: NextRequest) {
       platform,
       brand: brand || undefined,
       influencer_type: influencerType || undefined,
+      content_direction: content_direction || undefined,
+      background: background || undefined,
       metrics: {
+        kolFansRangeLower,
+        kolFansRangeUpper,
         priceLower1: lower1,
         priceUpper1: upper1,
         priceLower20: lower20,
@@ -93,6 +122,8 @@ export async function POST(req: NextRequest) {
       budget && `预算：${budget}`,
       `平台：${platform}`,
       influencerType && `达人类型：${influencerType}`,
+      content_direction && `内容方向：${content_direction}`,
+      background && `项目背景：${background}`,
     ]
       .filter(Boolean)
       .join('\n');

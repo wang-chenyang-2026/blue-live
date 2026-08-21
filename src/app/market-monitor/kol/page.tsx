@@ -61,6 +61,8 @@ interface BriefForm {
   brand: string;
   product: string;
   targetAudience: string;
+  contentDirection: string;
+  background: string;
   liveType: string;
   budget: string;
   influencerType: string;
@@ -96,6 +98,9 @@ interface TaskItem {
   mcpStatusDesc: string | null;
   fileUrl: string | null;
   hasResult: boolean;
+  kolList?: unknown[];
+  columns?: string[];
+  total?: number;
   createdAt: string;
 }
 
@@ -107,6 +112,7 @@ interface TaskResultData {
   fileUrl: string;
   fileName: string;
   kolList: unknown[];
+  columns?: string[];
   total?: number;
   raw?: unknown;
 }
@@ -118,7 +124,7 @@ const STEPS: { key: StepKey; label: string; icon: React.ReactNode; description: 
   { key: 'filters', label: '筛选指标', icon: <Filter className="h-4 w-4" />, description: '确认粉丝量、互动率等筛选条件' },
 ];
 
-const LIVE_TYPES = ['新品首发', '日常带货', '大促专场', '品牌种草', '达人专场', '测评开箱'];
+const LIVE_TYPES = ['新品首发', '品牌种草', '测评开箱', '产品测评', '好物推荐', '知识科普'];
 const INFLUENCER_TYPES = ['头部', '中腰部', '尾部', '素人'];
 const PLATFORMS = ['抖音', '快手', '小红书', 'B站'];
 
@@ -128,6 +134,8 @@ const DEFAULT_BRIEF: BriefForm = {
   brand: '',
   product: '',
   targetAudience: '',
+  contentDirection: '',
+  background: '',
   liveType: '新品首发',
   budget: '5-20万',
   influencerType: '中腰部',
@@ -234,6 +242,14 @@ function BriefStep({ form, setForm }: { form: BriefForm; setForm: (f: BriefForm)
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* 种草范围提示 */}
+      <div className="md:col-span-2 flex items-start gap-2 rounded-lg border border-blue-500/30 bg-blue-500/5 px-4 py-3">
+        <AlertCircle className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+        <p className="text-xs text-blue-600 dark:text-blue-400">
+          本功能仅支持筛选抖音种草类博主，暂不支持直播带货主播和企业号。
+        </p>
+      </div>
+
       <div className="space-y-2">
         <Label htmlFor="brand">品牌名称</Label>
         <Input id="brand" placeholder="如：vivo" value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} />
@@ -250,6 +266,24 @@ function BriefStep({ form, setForm }: { form: BriefForm; setForm: (f: BriefForm)
           value={form.targetAudience}
           onChange={(e) => setForm({ ...form, targetAudience: e.target.value })}
           className="flex min-h-[100px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-none focus-visible:ring-[3px] resize-y"
+        />
+      </div>
+      <div className="space-y-2 md:col-span-2">
+        <Label htmlFor="content-direction">内容方向（选填）</Label>
+        <Input
+          id="content-direction"
+          placeholder="如：母婴种草、数码测评、穿搭分享..."
+          value={form.contentDirection}
+          onChange={(e) => setForm({ ...form, contentDirection: e.target.value })}
+        />
+      </div>
+      <div className="space-y-2 md:col-span-2">
+        <Label htmlFor="background">项目背景（选填）</Label>
+        <Input
+          id="background"
+          placeholder="补充投放背景信息，帮助AI更精准匹配..."
+          value={form.background}
+          onChange={(e) => setForm({ ...form, background: e.target.value })}
         />
       </div>
       <div className="space-y-2">
@@ -573,19 +607,29 @@ function TaskResultDialog({
   }, [fetchResult]);
 
   const kolList = useMemo<Record<string, unknown>[]>(() => {
+    // 优先用后端返回的解析结果
+    if (result?.kolList && Array.isArray(result.kolList) && result.kolList.length > 0) {
+      return result.kolList as Record<string, unknown>[];
+    }
+    // 其次用 task 里已存的
+    if (task.kolList && Array.isArray(task.kolList) && task.kolList.length > 0) {
+      return task.kolList as Record<string, unknown>[];
+    }
+    // fallback: 从 raw 中提取
     if (!result) return [];
-    const list = result.kolList;
-    if (Array.isArray(list)) return list as Record<string, unknown>[];
     const raw = result.raw as Record<string, unknown> | undefined;
     if (raw && Array.isArray(raw.kolList)) return raw.kolList as Record<string, unknown>[];
     if (raw && Array.isArray((raw.data as Record<string, unknown>)?.kolList)) {
       return (raw.data as Record<string, unknown>).kolList as Record<string, unknown>[];
     }
     return [];
-  }, [result]);
+  }, [result, task.kolList]);
 
-  // 自动推断列
+  // 优先用后端返回的 columns，否则自动推断
   const columns = useMemo(() => {
+    if (result?.columns && Array.isArray(result.columns) && result.columns.length > 0) {
+      return (result.columns as string[]).map((k) => ({ key: k, label: k }));
+    }
     if (kolList.length === 0) return [] as { key: string; label: string }[];
     const labelMap: Record<string, string> = {
       nickname: '昵称',
@@ -690,16 +734,16 @@ function TaskResultDialog({
                   </a>
                 )}
                 <Button variant="outline" size="sm" onClick={fetchResult} disabled={loading}>
-                  <RefreshCw className="h-3.5 w-3.5 mr-1" /> 刷新
+                  <RefreshCw className="h-3.5 w-3.5 mr-1" /> 刷新结果
                 </Button>
-                {typeof result.total === 'number' && (
-                  <span className="text-sm text-muted-foreground">共 {result.total} 位达人</span>
+                {(typeof result.total === 'number' || (task.total && task.total > 0)) && (
+                  <span className="text-sm text-muted-foreground">共 {result.total || task.total} 位达人</span>
                 )}
               </div>
 
               {result.status !== 'completed' && (
                 <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 text-sm text-blue-700">
-                  任务仍在执行中（{result.statusDesc || '处理中'}），请稍后刷新查看结果。
+                  选号进行中，预计30分钟~2小时，请稍后刷新查看。当前状态：{result.statusDesc || '处理中'}
                 </div>
               )}
 
@@ -781,7 +825,7 @@ function TaskList({ refreshKey }: { refreshKey: number }) {
       counts[t.projectId] = 0;
       pollTimersRef.current[t.projectId] = window.setInterval(async () => {
         counts[t.projectId] += 1;
-        if (counts[t.projectId] > 30) {
+        if (counts[t.projectId] > 240) {
           window.clearInterval(pollTimersRef.current[t.projectId]);
           return;
         }
@@ -806,6 +850,9 @@ function TaskList({ refreshKey }: { refreshKey: number }) {
                         mcpStatusDesc: json.data.statusDesc,
                         fileUrl: json.data.fileUrl || null,
                         hasResult: !!json.data.fileUrl || (Array.isArray(json.data.kolList) && json.data.kolList.length > 0),
+                        kolList: Array.isArray(json.data.kolList) ? json.data.kolList : undefined,
+                        columns: Array.isArray(json.data.columns) ? json.data.columns : undefined,
+                        total: typeof json.data.total === 'number' ? json.data.total : undefined,
                       }
                     : x,
                 ),
@@ -815,7 +862,7 @@ function TaskList({ refreshKey }: { refreshKey: number }) {
         } catch {
           /* ignore poll error */
         }
-      }, 10_000);
+      }, 30_000);
     });
 
     return () => {
@@ -909,6 +956,7 @@ export default function KolPage() {
   const [submitting, setSubmitting] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState<{ projectId: number } | null>(null);
   const [filters, setFilters] = useState<FilterForm>(DEFAULT_FILTERS);
   const [tasksRefreshKey, setTasksRefreshKey] = useState(0);
 
@@ -947,6 +995,8 @@ export default function KolPage() {
           platform: briefForm.platform,
           influencerType: briefForm.influencerType,
           priceRanges: briefForm.priceRanges,
+          content_direction: briefForm.contentDirection,
+          background: briefForm.background,
         }),
       });
       const json = await res.json();
@@ -1063,13 +1113,17 @@ export default function KolPage() {
             platform: briefForm.platform,
             brand: briefForm.brand,
             influencer_type: briefForm.influencerType,
+            content_direction: briefForm.contentDirection,
+            background: briefForm.background,
           },
         }),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || '提交失败');
 
-      // 重置向导
+      const data = json.data as { projectId: number };
+
+      // 重置表单但保留在新建tab
       setCurrentStep('brief');
       setBriefForm(DEFAULT_BRIEF);
       setKeywordGroups([]);
@@ -1079,7 +1133,9 @@ export default function KolPage() {
       setSuggestedTaskName('');
       setFilters(DEFAULT_FILTERS);
       setTasksRefreshKey((k) => k + 1);
-      setMainTab('tasks');
+
+      // 显示成功提示
+      setSubmitSuccess({ projectId: data.projectId });
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1132,6 +1188,42 @@ export default function KolPage() {
                 {submitError && (
                   <div className="mb-4 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600">
                     {submitError}
+                  </div>
+                )}
+                {submitSuccess && (
+                  <div className="mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-4">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500 mt-0.5 shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                          选号任务已提交（任务号：{submitSuccess.projectId}）
+                        </p>
+                        <p className="text-xs text-emerald-600/80 dark:text-emerald-400/70 mt-1">
+                          预计需要30分钟~2小时完成。完成后达人名单会自动同步到任务列表，您可以随时在「我的任务」中查看进度。
+                        </p>
+                        <div className="flex gap-2 mt-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() => {
+                              setSubmitSuccess(null);
+                              setMainTab('tasks');
+                            }}
+                          >
+                            查看任务列表
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs"
+                            onClick={() => setSubmitSuccess(null)}
+                          >
+                            继续创建
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
 
