@@ -68,6 +68,53 @@
       "mcp_status_desc": "已完成",
       "created_at": "2026-08-18T11:40:08.670Z",
       "created_by": "anonymous"
+    },
+    {
+      "id": "916f4f7c-04eb-48ce-b750-21e4b1e97070",
+      "project_id": 1985,
+      "task_name": "维达-抖音-20260821-测试",
+      "product_name": "抽纸",
+      "brand": "维达",
+      "brief_summary": "品牌：维达\n产品：抽纸\n目标人群：25-35岁都市白领女性\n平台：抖音\n达人类型：中腰部\n内容方向：家居好物推荐",
+      "keyword_groups": [
+        {
+          "content": "抽纸测评对比",
+          "query": "(抽纸+纸巾+面巾纸+餐巾纸+便携纸+原木纸)*(测评+评测+对比+实测+亲测+开箱)",
+          "pass_word": []
+        },
+        {
+          "content": "品质家居日常",
+          "query": "(精致生活+提升幸福感+生活仪式感+居家好物+家居好物+品质生活)*(纸巾+抽纸+湿巾+厨房纸+收纳+清洁)",
+          "pass_word": []
+        },
+        {
+          "content": "白领通勤办公室",
+          "query": "(#白领日常+#打工人日常+#上班族日常+#通勤日常+#职场日常)*(办公桌+工位+办公室+通勤包+随身好物+便携纸)",
+          "pass_word": []
+        }
+      ],
+      "metrics": {
+        "kolNumLower": 50,
+        "kolFansRangeLower": 100000,
+        "kolFansRangeUpper": 1000000,
+        "priceLower1": 1000,
+        "priceUpper1": 50000,
+        "priceLower20": 2000,
+        "priceUpper20": 80000,
+        "priceLower60": 5000,
+        "priceUpper60": 100000,
+        "playAvgLower": 3000,
+        "interactionRateAvgLower": 0.005,
+        "noteCountLower": 4
+      },
+      "status": "running",
+      "result_data": null,
+      "file_url": null,
+      "kol_list": null,
+      "mcp_status": 0,
+      "mcp_status_desc": "执行中",
+      "created_at": "2026-08-21T07:13:12.964Z",
+      "created_by": "anonymous"
     }
   ]
 }
