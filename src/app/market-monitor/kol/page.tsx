@@ -576,6 +576,52 @@ function FiltersStep({
 }
 
 /* ========== Task Result Viewer ========== */
+const PRIORITY_COLUMNS = new Set([
+  '头像', '达人名称', '抖音号', '地址', 'MCN机构', '达人简介',
+  '内容类型标签', '内容主题标签',
+  '1-20s报价', '21-60s报价', '60s以上报价',
+  '星图粉丝量', '抖音粉丝量', '评赞率', '预期播放量', '达人推荐理由',
+]);
+
+const TAG_COLUMNS = new Set(['内容类型标签', '内容主题标签', '标签', '标签列表']);
+const NUMERIC_COLUMNS = new Set([
+  '1-20s报价', '21-60s报价', '60s以上报价',
+  '星图粉丝量', '抖音粉丝量', '评赞率', '预期播放量',
+  '粉丝量', '总点赞', '互动率', '平均播放', '预估GMV', '作品数',
+]);
+const LONG_TEXT_COLUMNS = new Set(['达人简介', '达人推荐理由', '签名', '备注']);
+
+function renderTagValue(v: unknown): React.ReactNode {
+  if (Array.isArray(v)) {
+    const items = v.filter((x) => x != null && x !== '');
+    if (items.length === 0) return '-';
+    return (
+      <div className="flex flex-wrap gap-1">
+        {items.map((item, i) => {
+          const text = typeof item === 'object' ? JSON.stringify(item) : String(item);
+          return <Badge key={i} variant="secondary" className="text-xs m-0 whitespace-normal">{text}</Badge>;
+        })}
+      </div>
+    );
+  }
+  if (typeof v === 'object' && v !== null) {
+    const entries = Object.entries(v as Record<string, unknown>);
+    if (entries.length === 0) return '-';
+    return (
+      <div className="flex flex-wrap gap-1">
+        {entries.map(([key, val]) => {
+          const valText = Array.isArray(val) ? val.join('、') : String(val);
+          return <Badge key={key} variant="secondary" className="text-xs m-0 whitespace-normal">{key}: {valText}</Badge>;
+        })}
+      </div>
+    );
+  }
+  if (typeof v === 'string' && v) {
+    return <Badge variant="secondary" className="text-xs m-0 whitespace-normal">{v}</Badge>;
+  }
+  return '-';
+}
+
 function TaskResultDialog({
   task,
   onClose,
@@ -586,6 +632,7 @@ function TaskResultDialog({
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<TaskResultData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showAllColumns, setShowAllColumns] = useState(false);
 
   const fetchResult = useCallback(async () => {
     setLoading(true);
@@ -607,15 +654,12 @@ function TaskResultDialog({
   }, [fetchResult]);
 
   const kolList = useMemo<Record<string, unknown>[]>(() => {
-    // 优先用后端返回的解析结果
     if (result?.kolList && Array.isArray(result.kolList) && result.kolList.length > 0) {
       return result.kolList as Record<string, unknown>[];
     }
-    // 其次用 task 里已存的
     if (task.kolList && Array.isArray(task.kolList) && task.kolList.length > 0) {
       return task.kolList as Record<string, unknown>[];
     }
-    // fallback: 从 raw 中提取
     if (!result) return [];
     const raw = result.raw as Record<string, unknown> | undefined;
     if (raw && Array.isArray(raw.kolList)) return raw.kolList as Record<string, unknown>[];
@@ -625,46 +669,32 @@ function TaskResultDialog({
     return [];
   }, [result, task.kolList]);
 
-  // 优先用后端返回的 columns，否则自动推断
-  const columns = useMemo(() => {
+  const allColumns = useMemo(() => {
     if (result?.columns && Array.isArray(result.columns) && result.columns.length > 0) {
       return (result.columns as string[]).map((k) => ({ key: k, label: k }));
     }
     if (kolList.length === 0) return [] as { key: string; label: string }[];
     const labelMap: Record<string, string> = {
-      nickname: '昵称',
-      name: '昵称',
-      nickName: '昵称',
-      uniqueId: '抖音号',
-      shortId: '抖音号',
-      douyinId: '抖音号',
-      avatar: '头像',
-      avatarThumb: '头像',
-      followerCount: '粉丝量',
-      fansCount: '粉丝量',
-      fans: '粉丝量',
-      follower: '粉丝量',
-      totalFavorited: '总点赞',
-      heartCount: '总点赞',
-      interactionRate: '互动率',
-      interactionRateAvg: '互动率',
-      avgPlay: '平均播放',
-      playCountAvg: '平均播放',
-      avgGmv: '预估GMV',
-      gmv: 'GMV',
-      productGmv: '商品GMV',
-      price1: '1-20s刊例价',
-      price20: '20-60s刊例价',
-      price60: '60s+刊例价',
-      awemeCount: '作品数',
-      signature: '签名',
-      city: '城市',
-      verifyInfo: '认证',
-      customVerify: '认证',
+      nickname: '昵称', name: '昵称', nickName: '昵称',
+      uniqueId: '抖音号', shortId: '抖音号', douyinId: '抖音号',
+      avatar: '头像', avatarThumb: '头像',
+      followerCount: '粉丝量', fansCount: '粉丝量', fans: '粉丝量',
+      totalFavorited: '总点赞', heartCount: '总点赞',
+      interactionRate: '互动率', interactionRateAvg: '互动率',
+      avgPlay: '平均播放', playCountAvg: '平均播放',
+      avgGmv: '预估GMV', gmv: 'GMV', productGmv: '商品GMV',
+      price1: '1-20s刊例价', price20: '20-60s刊例价', price60: '60s+刊例价',
+      awemeCount: '作品数', signature: '签名', city: '城市',
+      verifyInfo: '认证', customVerify: '认证',
     };
     const keys = Object.keys(kolList[0]).slice(0, 10);
     return keys.map((k) => ({ key: k, label: labelMap[k] || k }));
-  }, [kolList]);
+  }, [kolList, result?.columns]);
+
+  const columns = useMemo(() => {
+    if (showAllColumns) return allColumns;
+    return allColumns.filter((c) => PRIORITY_COLUMNS.has(c.label));
+  }, [allColumns, showAllColumns]);
 
   const formatValue = (k: string, v: unknown): React.ReactNode => {
     if (v === null || v === undefined || v === '') return '-';
@@ -677,9 +707,8 @@ function TaskResultDialog({
       return v.toLocaleString();
     }
     if (typeof v === 'string') {
-      if (/^https?:\/\//i.test(v) && /avatar|img|cover/i.test(k)) {
-        // eslint-disable-next-line @next/next/no-img-element
-        return <img src={v} alt="" className="h-8 w-8 rounded-full object-cover" referrerPolicy="no-referrer" />;
+      if (/^https?:\/\//i.test(v) && /avatar|img|cover|头像/i.test(k)) {
+        return <img src={v} alt="" className="h-10 w-10 rounded-full object-cover" referrerPolicy="no-referrer" />;
       }
       if (/^https?:\/\//i.test(v)) {
         return (
@@ -688,16 +717,22 @@ function TaskResultDialog({
           </a>
         );
       }
-      return v.length > 30 ? `${v.slice(0, 30)}...` : v;
+      return v;
     }
-    if (typeof v === 'object') return JSON.stringify(v).slice(0, 40);
+    if (Array.isArray(v)) return renderTagValue(v);
+    if (typeof v === 'object') return renderTagValue(v);
     return String(v);
   };
 
+  const isFirstColumn = (idx: number) => idx === 0;
+  const isTagColumn = (label: string) => TAG_COLUMNS.has(label);
+  const isNumericColumn = (label: string) => NUMERIC_COLUMNS.has(label);
+  const isLongTextColumn = (label: string) => LONG_TEXT_COLUMNS.has(label);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-5xl max-h-[85vh] overflow-hidden rounded-xl bg-background shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+      <div className="w-full max-w-[95vw] max-h-[90vh] overflow-hidden rounded-xl bg-background shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-border px-6 py-4 shrink-0">
           <div>
             <h3 className="text-lg font-semibold text-foreground">{task.taskName} - 选号结果</h3>
             <p className="text-xs text-muted-foreground mt-0.5">项目ID: {task.projectId} · 产品: {task.productName}</p>
@@ -723,12 +758,7 @@ function TaskResultDialog({
               <div className="flex flex-wrap items-center gap-3">
                 {statusBadge(result.status as TaskItem['status'], result.statusDesc)}
                 {result.fileUrl && (
-                  <a
-                    href={result.fileUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                  >
+                  <a href={result.fileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
                     <FileDown className="h-4 w-4" />
                     {result.fileName || '下载结果文件'}
                   </a>
@@ -739,6 +769,13 @@ function TaskResultDialog({
                 {(typeof result.total === 'number' || (task.total && task.total > 0)) && (
                   <span className="text-sm text-muted-foreground">共 {result.total || task.total} 位达人</span>
                 )}
+                {allColumns.length > 0 && (
+                  <div className="flex items-center gap-2 ml-auto">
+                    <span className="text-xs text-muted-foreground">显示全部列</span>
+                    <Switch checked={showAllColumns} onCheckedChange={setShowAllColumns} />
+                    <span className="text-xs text-muted-foreground">{showAllColumns ? allColumns.length : columns.length}/{allColumns.length} 列</span>
+                  </div>
+                )}
               </div>
 
               {result.status !== 'completed' && (
@@ -748,23 +785,41 @@ function TaskResultDialog({
               )}
 
               {kolList.length > 0 ? (
-                <div className="rounded-lg border border-border overflow-x-auto">
+                <div className="rounded-lg border border-border overflow-x-auto max-h-[65vh]">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        {columns.map((c) => (
-                          <TableHead key={c.key} className="whitespace-nowrap">{c.label}</TableHead>
+                        {columns.map((c, idx) => (
+                          <TableHead
+                            key={c.key}
+                            className={`whitespace-nowrap sticky top-0 bg-background z-10 min-w-[120px] max-w-[280px] ${isTagColumn(c.label) ? 'min-w-[200px] max-w-[320px]' : ''} ${isNumericColumn(c.label) ? 'text-right' : ''} ${isFirstColumn(idx) ? 'sticky left-0 z-20 bg-background' : ''}`}
+                          >
+                            {c.label}
+                          </TableHead>
                         ))}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {kolList.map((row, i) => (
                         <TableRow key={i}>
-                          {columns.map((c) => (
-                            <TableCell key={c.key} className="whitespace-nowrap max-w-[240px]">
-                              {formatValue(c.key, row[c.key])}
-                            </TableCell>
-                          ))}
+                          {columns.map((c, idx) => {
+                            const cellValue = row[c.key];
+                            const cellText = cellValue != null ? (typeof cellValue === 'object' ? JSON.stringify(cellValue) : String(cellValue)) : '';
+                            return (
+                              <TableCell
+                                key={c.key}
+                                className={`whitespace-normal break-words align-top py-3 min-w-[120px] max-w-[280px] ${isTagColumn(c.label) ? 'min-w-[200px] max-w-[320px]' : ''} ${isNumericColumn(c.label) ? 'text-right' : ''} ${isFirstColumn(idx) ? 'sticky left-0 bg-background z-10' : ''}`}
+                              >
+                                {isLongTextColumn(c.label) && cellText.length > 0 ? (
+                                  <div className="line-clamp-3 text-xs leading-relaxed" title={cellText}>
+                                    {formatValue(c.key, cellValue)}
+                                  </div>
+                                ) : (
+                                  formatValue(c.key, cellValue)
+                                )}
+                              </TableCell>
+                            );
+                          })}
                         </TableRow>
                       ))}
                     </TableBody>
