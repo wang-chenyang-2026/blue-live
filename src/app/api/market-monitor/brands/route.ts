@@ -92,13 +92,15 @@ export async function GET(req: Request) {
 
     const brands = Array.from(brandMap.entries())
       .sort((a, b) => b[1] - a[1])
-      .map(([name, totalSales]) => ({ name, totalSales }));
+      .map(([name, sales]) => ({ name, sales }));
 
     return NextResponse.json({
       success: true,
-      brands,
-      total: brands.length,
-      dateRange: { start: startMonth, end: endMonth },
+      data: {
+        brands,
+        total: brands.length,
+        dateRange: { start: startMonth, end: endMonth },
+      },
     });
   } catch (err) {
     return NextResponse.json(
