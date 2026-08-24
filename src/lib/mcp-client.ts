@@ -235,8 +235,8 @@ export async function initializeServer(serverName: string): Promise<MCPSession> 
     newSessionId,
   );
 
-  const toolsResult = toolsRes.result as { tools?: MCPTool[] } | undefined;
-  const tools = toolsResult?.tools || [];
+  const toolsResult = toolsRes.result as { result?: { tools?: MCPTool[] } } | undefined;
+  const tools = toolsResult?.result?.tools || [];
 
   const session: MCPSession = {
     serverName,
@@ -277,10 +277,13 @@ export async function callTool(
   };
 
   const res = await mcpRequest(serverName, callBody, sessionId);
-  const result = res.result as MCPToolResult | undefined;
+  // res.result is JSON-RPC envelope {jsonrpc, id, result: MCPToolResult}
+  const envelope = res.result as { result?: MCPToolResult; error?: { message?: string } } | undefined;
+  const result = envelope?.result;
 
   if (!result) {
-    throw new Error(`MCP callTool ${toolName} returned no result`);
+    const errMsg = envelope?.error?.message || 'MCP callTool returned no result';
+    throw new Error(`MCP ${toolName} error: ${errMsg}`);
   }
 
   if (result.isError) {
