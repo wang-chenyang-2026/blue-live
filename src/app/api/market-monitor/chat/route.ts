@@ -17,6 +17,7 @@ interface ChatRequest {
   message: string;
   category?: string[];
   view?: string;
+  timeRange?: string;
   brand?: string;
   history?: ChatMessage[];
 }
@@ -34,18 +35,54 @@ interface ChatResponse {
 }
 
 /**
+ * Calculate start_date and end_date from timeRange string
+ */
+function calcDateRange(timeRange: string): { startMonth: string; endMonth: string } {
+  const now = new Date();
+  const endMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const startDate = new Date(now);
+
+  const monthMap: Record<string, number> = {
+    '近30天': 1,
+    '近90天': 3,
+    '近半年': 6,
+    '近一年': 12,
+    '本年度': 0,
+  };
+
+  if (timeRange === '本年度') {
+    startDate.setMonth(0);
+  } else {
+    const months = monthMap[timeRange] ?? 3;
+    startDate.setMonth(startDate.getMonth() - months);
+  }
+
+  const startMonth = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}`;
+  return { startMonth, endMonth };
+}
+
+/**
  * Handle ecommerce data queries via crawler-server
  */
 async function handleCrawlerQuery(
   intent: ParsedIntent,
   category?: string[],
   brand?: string,
+  viewOverride?: string,
+  timeRange?: string,
 ): Promise<{ reply: string; data?: unknown; dataType?: string }> {
-  const view = intent.view || '大盘趋势';
-  const catList = category || ['手机'];
-  const now = new Date();
-  const endMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const startMonth = `${now.getFullYear() - 1}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  // Use viewOverride if provided (already in correct format like "品类视角-大盘趋势")
+  // Otherwise fall back to intent.view from parseIntent
+  const view = viewOverride || intent.view || '品类视角-大盘趋势';
+
+  if (!category || category.length === 0) {
+    return {
+      reply: '请提供品类路径（至少需要一级品类）。',
+      dataType: 'error',
+    };
+  }
+
+  const { startMonth, endMonth } = calcDateRange(timeRange || '近90天');
 
   try {
     const { sessionId } = await initializeServer('crawler-server');
@@ -53,7 +90,7 @@ async function handleCrawlerQuery(
       'crawler-server',
       'download_data',
       {
-        category_list: catList,
+        category_list: category,
         category_view: view,
         start_date: startMonth,
         end_date: endMonth,
@@ -65,19 +102,30 @@ async function handleCrawlerQuery(
     const textContent = result.content?.[0]?.text || '';
     let parsedData: unknown = null;
     try {
-      parsedData = JSON.parse(textContent);
+      const parsed = JSON.parse(textContent);
+      // MCP返回格式: {code:200, data:[...]}
+      if (parsed && typeof parsed === 'object' && 'code' in parsed) {
+        if (parsed.code === 200 && Array.isArray(parsed.data)) {
+          parsedData = parsed.data;
+        } else {
+          parsedData = { error: parsed.detail || parsed.message || '接口返回异常', raw: parsed };
+        }
+      } else {
+        parsedData = parsed;
+      }
     } catch {
       parsedData = textContent;
     }
 
+    const catLabel = category.join(' > ');
     return {
-      reply: `已获取「${catList.join(' > ')}」类目${view}数据（${startMonth} ~ ${endMonth}）`,
+      reply: `已获取「${catLabel}」类目${view}数据（${startMonth} ~ ${endMonth}）`,
       data: parsedData,
       dataType: view,
     };
   } catch (err) {
     return {
-      reply: `获取${view}数据失败：${err instanceof Error ? err.message : '未知错误'}。请检查品类路径是否正确。`,
+      reply: `获取数据失败：${err instanceof Error ? err.message : '未知错误'}。请检查品类路径是否正确。`,
       dataType: 'error',
     };
   }
@@ -208,13 +256,19 @@ async function handleCommonToolsQuery(
 export async function POST(req: Request): Promise<NextResponse<ChatResponse>> {
   try {
     const body: ChatRequest = await req.json();
-    const { message, category, brand } = body;
+    const { message, category, brand, view, timeRange } = body;
 
-    if (!message?.trim()) {
+    if (!message?.trim() && !view) {
       return NextResponse.json({ success: false, error: '消息不能为空' });
     }
 
-    const intent = parseIntent(message);
+    const intent = parseIntent(message || '');
+
+    // If view is provided directly, use it (already in correct format)
+    if (view) {
+      intent.view = view;
+      intent.service = 'crawler-server';
+    }
 
     let result: { reply: string; data?: unknown; dataType?: string };
 
@@ -233,7 +287,7 @@ export async function POST(req: Request): Promise<NextResponse<ChatResponse>> {
         break;
       case 'crawler-server':
       default:
-        result = await handleCrawlerQuery(intent, category, brand);
+        result = await handleCrawlerQuery(intent, category, brand, view, timeRange);
         break;
     }
 

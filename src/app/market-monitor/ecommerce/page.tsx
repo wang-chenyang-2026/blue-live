@@ -68,6 +68,7 @@ interface EcommerceView {
 interface FilterState {
   industry: string;
   category: string;
+  subcategory: string;
   brand: string;
   timeRange: string;
 }
@@ -827,9 +828,11 @@ export default function EcommercePage() {
   const [filters, setFilters] = useState<FilterState>({
     industry: '',
     category: '',
+    subcategory: '',
     brand: '',
     timeRange: '近90天',
   });
+  const [realBrands, setRealBrands] = useState<string[]>([]);
 
   // AbortController ref for cancelling stale requests
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -849,10 +852,14 @@ export default function EcommercePage() {
           const firstCategory = firstIndustry && tree[firstIndustry]
             ? Object.keys(tree[firstIndustry])[0] || ''
             : '';
+          const firstSubcategory = firstIndustry && firstCategory && tree[firstIndustry]?.[firstCategory]
+            ? tree[firstIndustry][firstCategory][0] || ''
+            : '';
           const firstBrand = getBrandsForIndustry(firstIndustry)[0] || '';
           setFilters({
             industry: firstIndustry,
             category: firstCategory,
+            subcategory: firstSubcategory,
             brand: firstBrand,
             timeRange: '近90天',
           });
@@ -875,7 +882,10 @@ export default function EcommercePage() {
     return Object.keys(categoryTree[filters.industry]);
   }, [filters.industry, categoryTree]);
 
-  const brands = useMemo(() => getBrandsForIndustry(filters.industry), [filters.industry]);
+  const brands = useMemo(() => {
+    if (realBrands.length > 0) return ['全部品牌', ...realBrands];
+    return getBrandsForIndustry(filters.industry);
+  }, [filters.industry, realBrands]);
 
   /* ---------- 3. KPI cards (dynamic based on industry + category) ---------- */
   const kpiCards: KpiCard[] = useMemo(() => {
@@ -885,7 +895,7 @@ export default function EcommercePage() {
 
   /* ---------- 4. fetchViewData with specific deps + AbortController ---------- */
   const fetchViewData = useCallback(
-    async (viewKey: string, industry: string, category: string, brand: string) => {
+    async (viewKey: string, industry: string, category: string, subcategory: string, brand: string, timeRange: string) => {
       // Cancel previous request
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -895,13 +905,33 @@ export default function EcommercePage() {
 
       setLoading(true);
       try {
+        // Build category_list: 3 levels [一级, 二级, 三级]
+        const categoryList = subcategory
+          ? [industry, category, subcategory]
+          : [industry, category];
+
+        // Map viewKey to the correct category_view format
+        const viewMap: Record<string, string> = {
+          '大盘趋势': '品类视角-大盘趋势',
+          '品牌排行': '品类视角-品牌列表',
+          '销售价量': '品类视角-销售价量',
+          '店铺列表': '品类视角-店铺列表',
+          '商品列表': '品类视角-商品列表',
+          '价格区间': '品类视角-价格区间',
+          '价格交叉': '品类视角-价格交叉',
+          '热词频次': '品类视角-热词频次',
+        };
+        const categoryView = viewMap[viewKey] || '品类视角-大盘趋势';
+
         const res = await fetch('/api/market-monitor/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message: `查看${category}类目${viewKey}数据`,
-            category: [industry, category],
+            category: categoryList,
             brand: brand === '全部品牌' ? '' : brand,
+            view: categoryView,
+            timeRange,
           }),
           signal: controller.signal,
         });
@@ -966,32 +996,67 @@ export default function EcommercePage() {
   /* ---------- 5. Single useEffect for data fetching ---------- */
   useEffect(() => {
     if (!filters.industry || !filters.category) return;
-    fetchViewData(activeView, filters.industry, filters.category, filters.brand);
+    fetchViewData(activeView, filters.industry, filters.category, filters.subcategory, filters.brand, filters.timeRange);
 
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
     };
-  }, [activeView, filters.industry, filters.category, filters.brand, fetchViewData]);
+  }, [activeView, filters.industry, filters.category, filters.subcategory, filters.brand, filters.timeRange, fetchViewData]);
+
+  /* ---------- 5b. Fetch real brands when category/subcategory changes ---------- */
+  useEffect(() => {
+    if (!filters.industry || !filters.category) return;
+    const categoryList = filters.subcategory
+      ? [filters.industry, filters.category, filters.subcategory]
+      : [filters.industry, filters.category];
+
+    let cancelled = false;
+    async function loadBrands() {
+      try {
+        const res = await fetch(
+          `/api/market-monitor/brands?category=${encodeURIComponent(JSON.stringify(categoryList))}&timeRange=${encodeURIComponent(filters.timeRange)}`
+        );
+        const json = await res.json();
+        if (!cancelled && json.success && json.brands) {
+          const brandNames = json.brands.map((b: { name: string }) => b.name);
+          setRealBrands(brandNames);
+        }
+      } catch {
+        // Silently fail, will use PRESET_BRANDS as fallback
+      }
+    }
+    loadBrands();
+    return () => { cancelled = true; };
+  }, [filters.industry, filters.category, filters.subcategory, filters.timeRange]);
 
   /* ---------- 6. Event handlers (functional updates) ---------- */
   const handleIndustryChange = useCallback((v: string) => {
     setFilters((prev) => {
       const cats = categoryTree[v] ? Object.keys(categoryTree[v]) : [];
+      const firstCat = cats[0] || '';
+      const subs = firstCat && categoryTree[v]?.[firstCat] ? categoryTree[v][firstCat] : [];
+      const firstSub = subs[0] || '';
       const brandList = getBrandsForIndustry(v);
       return {
         ...prev,
         industry: v,
-        category: cats[0] || '',
+        category: firstCat,
+        subcategory: firstSub,
         brand: brandList[0] || '',
       };
     });
   }, [categoryTree]);
 
   const handleCategoryChange = useCallback((v: string) => {
-    setFilters((prev) => ({ ...prev, category: v }));
-  }, []);
+    setFilters((prev) => {
+      const subs = prev.industry && v && categoryTree[prev.industry]?.[v]
+        ? categoryTree[prev.industry][v]
+        : [];
+      return { ...prev, category: v, subcategory: subs[0] || '' };
+    });
+  }, [categoryTree]);
 
   const handleBrandChange = useCallback((v: string) => {
     setFilters((prev) => ({ ...prev, brand: v }));
@@ -1007,7 +1072,7 @@ export default function EcommercePage() {
 
   const handleRefresh = () => {
     if (filters.industry && filters.category) {
-      fetchViewData(activeView, filters.industry, filters.category, filters.brand);
+      fetchViewData(activeView, filters.industry, filters.category, filters.subcategory, filters.brand, filters.timeRange);
     }
   };
 
