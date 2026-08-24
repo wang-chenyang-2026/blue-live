@@ -399,7 +399,7 @@ function BrandRankingView({ loading, data }: { loading: boolean; data: any[] }) 
               <div className="flex items-center justify-between mb-1">
                 <span className="text-sm font-medium text-foreground">{brand.name}</span>
                 <span className="text-sm font-mono text-foreground">
-                  {brand.sales.toLocaleString()}万
+                  {(brand.sales / 10000).toLocaleString(undefined, { maximumFractionDigits: 1 })}万
                 </span>
               </div>
               <div className="h-2 rounded-full bg-secondary overflow-hidden">
@@ -710,6 +710,95 @@ export default function EcommercePage() {
     return calculateKpi(filters.industry, filters.category);
   }, [filters.industry, filters.category]);
 
+  const displayKpiCards = useMemo(() => {
+    if (realBrands.length > 0) {
+      return kpiCards.map(card => {
+        if (card.label.includes('品牌') || card.label === '品牌数') {
+          return { ...card, value: `${realBrands.length}个` };
+        }
+        return card;
+      });
+    }
+    return kpiCards;
+  }, [kpiCards, realBrands]);
+
+  /* ---------- 3b. normalizeViewData: map Chinese field names to English ---------- */
+  function normalizeViewData(viewKey: string, raw: any[]): any[] {
+    if (!raw || raw.length === 0) return [];
+
+    switch (viewKey) {
+      case '品牌排行':
+        return raw.map((item, i) => ({
+          rank: i + 1,
+          name: item['品牌'] || '-',
+          sales: Number(item['销售额(元)']) || 0,
+          share: item['销售额占比(%)'] ?? 0,
+          avgPrice: Number(item['均价(元)']) || 0,
+          volume: Number(item['销量(件)']) || 0,
+          yoy: item['销售额同比(%)'] ?? '-',
+          color: CHART_COLORS[i % CHART_COLORS.length],
+        }));
+
+      case '大盘趋势':
+        return raw.map((item) => ({
+          date: String(item['日期'] || ''),
+          platform: item['平台'] || '-',
+          sales: Number(item['销售额(元)']) || 0,
+          volume: Number(item['销量(件)']) || 0,
+          avgPrice: Number(item['均价(元)']) || 0,
+          salesYoy: item['销售额同比(%)'] ?? '-',
+          volumeYoy: item['销量同比(%)'] ?? '-',
+        }));
+
+      case '销售价量':
+        return raw.map((item) => ({
+          date: String(item['日期'] || ''),
+          platform: item['平台'] || '-',
+          sales: Number(item['销售额(元)']) || 0,
+          volume: Number(item['销量(件)']) || 0,
+          avgPrice: Number(item['均价(元)']) || 0,
+        }));
+
+      case '店铺列表':
+        return raw.map((item, i) => ({
+          id: i + 1,
+          name: item['店铺名称'] || item['店铺'] || '-',
+          platform: item['平台'] || '-',
+          sales: Number(item['销售额(元)']) || 0,
+          volume: Number(item['销量(件)']) || 0,
+          avgPrice: Number(item['均价(元)']) || 0,
+        }));
+
+      case '商品列表':
+        return raw.map((item, i) => ({
+          id: i + 1,
+          name: item['商品名称'] || item['商品'] || '-',
+          brand: item['品牌'] || '-',
+          price: Number(item['均价(元)']) || Number(item['价格']) || 0,
+          sales: Number(item['销售额(元)']) || 0,
+          volume: Number(item['销量(件)']) || 0,
+        }));
+
+      case '价格区间':
+      case '价格交叉':
+        return raw.map((item) => ({
+          ...item,
+          range: item['价格区间'] || item['价格带'] || '-',
+          sales: Number(item['销售额(元)']) || 0,
+          volume: Number(item['销量(件)']) || 0,
+        }));
+
+      case '热词频次':
+        return raw.map((item) => ({
+          word: item['热词'] || item['关键词'] || item['词汇'] || '-',
+          count: Number(item['频次'] || item['出现次数']) || 0,
+        }));
+
+      default:
+        return raw;
+    }
+  }
+
   /* ---------- 4. fetchViewData with specific deps + AbortController ---------- */
   const fetchViewData = useCallback(
     async (viewKey: string, industry: string, category: string, subcategory: string, brand: string, timeRange: string) => {
@@ -758,7 +847,7 @@ export default function EcommercePage() {
 
         // If API returns valid array data, use it; otherwise fall back to mock
         if (json.success && json.data?.data && Array.isArray(json.data.data)) {
-          setViewData(json.data.data);
+          setViewData(normalizeViewData(viewKey, json.data.data));
         } else {
           // Generate mock data based on view type + industry + category
           generateMockData(viewKey, industry, category);
@@ -1094,7 +1183,7 @@ export default function EcommercePage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpiCards.map((card, i) => (
+        {displayKpiCards.map((card, i) => (
           <KpiCardComp key={i} {...card} />
         ))}
       </div>
