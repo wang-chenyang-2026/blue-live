@@ -256,24 +256,87 @@ function generatePriceCrossData(industry: string, category: string) {
 }
 
 /* ========== KPI Calculation ========== */
-function calculateKpi(industry: string, category: string): KpiCard[] {
-  const hash = hashString(industry + category);
-  const rand = seededRandom(hash);
-  const baseScale = 0.3 + (hash % 70) / 100; // 0.3 - 1.0 倍率
-  const totalSales = (286.5 * baseScale).toFixed(1);
-  const totalVolume = (8.6 * baseScale).toFixed(1);
-  const avgPrice = Math.floor(3331 * baseScale);
-  const brandCount = Math.floor(128 * baseScale);
-  const salesChange = +(5 + rand() * 15).toFixed(1);
-  const volumeChange = +(3 + rand() * 10).toFixed(1);
-  const priceChange = +((rand() - 0.4) * 8).toFixed(1);
-  const brandChange = +(2 + rand() * 8).toFixed(1);
+/**
+ * 基于大盘趋势原始数据计算 KPI
+ */
+function buildKpiFromTrend(raw: any[], realBrandCount: number): KpiCard[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return [
+      { label: '总销售额', value: '—', change: 0, icon: <DollarSign className="h-5 w-5" />, color: '#4158D0' },
+      { label: '总销量', value: '—', change: 0, icon: <Package className="h-5 w-5" />, color: '#C850C0' },
+      { label: '平均价格', value: '—', change: 0, icon: <Tag className="h-5 w-5" />, color: '#10B981' },
+      { label: '品牌数', value: realBrandCount > 0 ? `${realBrandCount}个` : '—', change: 0, icon: <Building2 className="h-5 w-5" />, color: '#F59E0B' },
+    ];
+  }
+
+  const byMonth = new Map<number, { sales: number; volume: number }>();
+  for (const r of raw) {
+    const m = Number(r['日期']);
+    if (!m) continue;
+    const cur = byMonth.get(m) || { sales: 0, volume: 0 };
+    cur.sales += Number(r['销售额(元)']) || 0;
+    cur.volume += Number(r['销量(件)']) || 0;
+    byMonth.set(m, cur);
+  }
+  const months = [...byMonth.keys()].sort((a, b) => a - b);
+
+  let totalSales = 0;
+  let totalVolume = 0;
+  for (const m of months) {
+    totalSales += byMonth.get(m)!.sales;
+    totalVolume += byMonth.get(m)!.volume;
+  }
+  const avgPrice = totalVolume > 0 ? totalSales / totalVolume : 0;
+
+  const now = new Date();
+  const curMonth = now.getFullYear() * 100 + (now.getMonth() + 1);
+  let lastMonthIdx = months.length - 1;
+  if (months[lastMonthIdx] === curMonth) lastMonthIdx -= 1;
+  const prevMonthIdx = lastMonthIdx - 1;
+
+  let salesMom = 0;
+  let volumeMom = 0;
+  let priceMom = 0;
+  if (lastMonthIdx >= 1 && prevMonthIdx >= 0) {
+    const cur = byMonth.get(months[lastMonthIdx])!;
+    const prev = byMonth.get(months[prevMonthIdx])!;
+    salesMom = prev.sales > 0 ? +(((cur.sales - prev.sales) / prev.sales) * 100).toFixed(1) : 0;
+    volumeMom = prev.volume > 0 ? +(((cur.volume - prev.volume) / prev.volume) * 100).toFixed(1) : 0;
+    const curPrice = cur.volume > 0 ? cur.sales / cur.volume : 0;
+    const prevPrice = prev.volume > 0 ? prev.sales / prev.volume : 0;
+    priceMom = prevPrice > 0 ? +(((curPrice - prevPrice) / prevPrice) * 100).toFixed(1) : 0;
+  }
+
+  const formatSales = (v: number) => (v >= 1e8 ? `¥${(v / 1e8).toFixed(2)}亿` : `¥${(v / 1e4).toFixed(1)}万`);
+  const formatVolume = (v: number) => (v >= 1e4 ? `${(v / 1e4).toFixed(1)}万件` : `${v}件`);
+
   return [
-    { label: '总销售额', value: `¥${totalSales}万`, change: salesChange, icon: <DollarSign className="h-5 w-5" />, color: '#4158D0' },
-    { label: '总销量', value: `${totalVolume}万件`, change: volumeChange, icon: <Package className="h-5 w-5" />, color: '#C850C0' },
-    { label: '平均价格', value: `¥${avgPrice.toLocaleString()}`, change: priceChange, icon: <Tag className="h-5 w-5" />, color: '#10B981' },
-    { label: '品牌数', value: `${brandCount}个`, change: brandChange, icon: <Building2 className="h-5 w-5" />, color: '#F59E0B' },
+    { label: '总销售额', value: formatSales(totalSales), change: salesMom, icon: <DollarSign className="h-5 w-5" />, color: '#4158D0' },
+    { label: '总销量', value: formatVolume(totalVolume), change: volumeMom, icon: <Package className="h-5 w-5" />, color: '#C850C0' },
+    { label: '平均价格', value: `¥${Math.round(avgPrice).toLocaleString()}`, change: priceMom, icon: <Tag className="h-5 w-5" />, color: '#10B981' },
+    { label: '品牌数', value: realBrandCount > 0 ? `${realBrandCount}个` : '—', change: 0, icon: <Building2 className="h-5 w-5" />, color: '#F59E0B' },
   ];
+}
+
+function formatMonthLabel(yyyymm: number | string): string {
+  const s = String(yyyymm);
+  if (s.length !== 6) return s;
+  return `${parseInt(s.slice(4, 6), 10)}月`;
+}
+
+/** 表格内展示销售额：元 → 万 / 亿 */
+function formatSalesShort(v: number): string {
+  const n = Number(v) || 0;
+  if (n >= 1e8) return `${(n / 1e8).toFixed(2)}亿`;
+  if (n >= 1e4) return `${(n / 1e4).toFixed(1)}万`;
+  return n.toLocaleString();
+}
+
+/** 表格内展示销量：件 → 万件 */
+function formatVolumeShort(v: number): string {
+  const n = Number(v) || 0;
+  if (n >= 1e4) return `${(n / 1e4).toFixed(1)}万`;
+  return n.toLocaleString();
 }
 
 /* ========== KPI Card Component ========== */
@@ -315,8 +378,29 @@ function KpiCardComp({ label, value, change, icon, color }: KpiCard) {
 function TrendView({ loading, data }: { loading: boolean; data: any[] }) {
   const chartConfig = {
     sales: { label: '销售额(万)', color: '#4158D0' },
-    volume: { label: '销量(万)', color: '#C850C0' },
+    volume: { label: '销量(万件)', color: '#C850C0' },
   };
+
+  // 按月份聚合跨平台数据，并把元/件换算成万
+  const chartData = useMemo(() => {
+    const map = new Map<number, { sales: number; volume: number }>();
+    for (const r of data || []) {
+      const m = Number(r.date);
+      if (!m) continue;
+      const cur = map.get(m) || { sales: 0, volume: 0 };
+      cur.sales += Number(r.sales) || 0;
+      cur.volume += Number(r.volume) || 0;
+      map.set(m, cur);
+    }
+    return [...map.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([m, v]) => ({
+        month: m,
+        label: formatMonthLabel(m),
+        sales: +(v.sales / 1e4).toFixed(1),           // 万元
+        volume: +(v.volume / 1e4).toFixed(2),          // 万件
+      }));
+  }, [data]);
 
   if (loading) {
     return (
@@ -326,10 +410,18 @@ function TrendView({ loading, data }: { loading: boolean; data: any[] }) {
     );
   }
 
+  if (chartData.length === 0) {
+    return (
+      <div className="h-[400px] flex items-center justify-center text-sm text-muted-foreground">
+        当前筛选条件下暂无趋势数据
+      </div>
+    );
+  }
+
   return (
     <div className="h-[400px]">
       <ChartContainer config={chartConfig} className="h-full">
-        <AreaChart data={data}>
+        <AreaChart data={chartData}>
           <defs>
             <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#4158D0" stopOpacity={0.3} />
@@ -356,7 +448,7 @@ function TrendView({ loading, data }: { loading: boolean; data: any[] }) {
           <Area
             type="monotone"
             dataKey="volume"
-            name="销量(万)"
+            name="销量(万件)"
             stroke="#C850C0"
             fill="url(#volumeGradient)"
             strokeWidth={2}
@@ -452,27 +544,64 @@ function BrandRankingView({ loading, data }: { loading: boolean; data: any[] }) 
   );
 }
 
-function PriceVolumeView({ loading, data }: { loading: boolean; data: any[] }) {
+function PriceVolumeView({ loading, data, xKey = 'range' }: { loading: boolean; data: any[]; xKey?: 'range' | 'label' }) {
   const chartConfig = {
     sales: { label: '销售额(万)', color: '#4158D0' },
-    volume: { label: '销量', color: '#C850C0' },
+    volume: { label: '销量(万件)', color: '#C850C0' },
   };
+
+  const chartData = useMemo(() => {
+    if (!data || data.length === 0) return [];
+    // 价格区间：数据本身带 range
+    if (xKey === 'range' && data[0]?.range) {
+      return data.map((d) => ({
+        range: d.range,
+        sales: +((Number(d.sales) || 0) / 1e4).toFixed(1),
+        volume: +((Number(d.volume) || 0) / 1e4).toFixed(2),
+      }));
+    }
+    // 销售价量：按月聚合
+    const map = new Map<number, { sales: number; volume: number }>();
+    for (const r of data) {
+      const m = Number(r.date);
+      if (!m) continue;
+      const cur = map.get(m) || { sales: 0, volume: 0 };
+      cur.sales += Number(r.sales) || 0;
+      cur.volume += Number(r.volume) || 0;
+      map.set(m, cur);
+    }
+    return [...map.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([m, v]) => ({
+        label: formatMonthLabel(m),
+        sales: +(v.sales / 1e4).toFixed(1),
+        volume: +(v.volume / 1e4).toFixed(2),
+      }));
+  }, [data, xKey]);
 
   if (loading) {
     return <Skeleton className="h-[400px] w-full rounded-lg" />;
   }
 
+  if (chartData.length === 0) {
+    return (
+      <div className="h-[400px] flex items-center justify-center text-sm text-muted-foreground">
+        当前筛选条件下暂无数据
+      </div>
+    );
+  }
+
   return (
     <div className="h-[400px]">
       <ChartContainer config={chartConfig} className="h-full">
-        <BarChart data={data}>
+        <BarChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis dataKey="range" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+          <XAxis dataKey={xKey} stroke="hsl(var(--muted-foreground))" fontSize={12} />
           <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
           <ChartTooltip content={<ChartTooltipContent />} />
           <ChartLegend content={<ChartLegendContent />} />
           <Bar dataKey="sales" name="销售额(万)" fill="#4158D0" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="volume" name="销量" fill="#C850C0" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="volume" name="销量(万件)" fill="#C850C0" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ChartContainer>
     </div>
@@ -543,42 +672,46 @@ function HotwordsView({ loading, data }: { loading: boolean; data: any[] }) {
     );
   }
 
-  const maxCount = Math.max(...data.map((d) => d.count));
+  if (!data || data.length === 0) {
+    return (
+      <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground">
+        当前筛选条件下暂无热词数据
+      </div>
+    );
+  }
+
+  // 按频次排序取 top 24
+  const sorted = [...data].sort((a, b) => (Number(b.count) || 0) - (Number(a.count) || 0));
+  const topWords = sorted.slice(0, 24);
+  const maxCount = Math.max(...topWords.map((d) => Number(d.count) || 0), 1);
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {data.map((item, i) => {
-          const size = 12 + (item.count / maxCount) * 16;
-          const isUp = item.trend >= 0;
+        {topWords.map((item, i) => {
+          const c = Number(item.count) || 0;
+          const ratio = c / maxCount;
+          const size = 14 + ratio * 18;
           return (
             <Card
-              key={item.word}
-              className="bg-card border-border hover:border-primary/30 transition-colors cursor-pointer"
+              key={`${item.word}-${i}`}
+              className="bg-card border-border hover:border-primary/30 transition-colors"
             >
               <CardContent className="p-4 text-center">
                 <div
-                  className="font-bold mb-1"
+                  className="font-bold mb-1 truncate"
                   style={{
                     fontSize: `${size}px`,
                     background: 'linear-gradient(to right, #4158D0, #C850C0)',
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                   }}
+                  title={item.word}
                 >
                   {item.word}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {item.count.toLocaleString()} 次
-                </div>
-                <div
-                  className={cn(
-                    'text-[10px] mt-1 flex items-center justify-center gap-0.5',
-                    isUp ? 'text-emerald-400' : 'text-red-400',
-                  )}
-                >
-                  {isUp ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
-                  {isUp ? '+' : ''}{item.trend.toFixed(1)}%
+                  {c.toLocaleString()} 次
                 </div>
               </CardContent>
             </Card>
@@ -588,17 +721,15 @@ function HotwordsView({ loading, data }: { loading: boolean; data: any[] }) {
 
       <DataTableView
         loading={false}
-        data={data.map((d, i) => ({
+        data={sorted.slice(0, 50).map((d, i) => ({
           rank: i + 1,
           word: d.word,
-          count: d.count.toLocaleString(),
-          trend: `${d.trend >= 0 ? '+' : ''}${d.trend.toFixed(1)}%`,
+          count: (Number(d.count) || 0).toLocaleString(),
         }))}
         columns={[
           { key: 'rank', label: '排名' },
           { key: 'word', label: '热词' },
           { key: 'count', label: '搜索频次', align: 'right' },
-          { key: 'trend', label: '变化趋势', align: 'right' },
         ]}
       />
     </div>
@@ -606,26 +737,90 @@ function HotwordsView({ loading, data }: { loading: boolean; data: any[] }) {
 }
 
 function PriceCrossView({ loading, data }: { loading: boolean; data: any[] }) {
-  const chartConfig = {
-    online: { label: '线上', color: '#4158D0' },
-    offline: { label: '线下', color: '#C850C0' },
-  };
+  // 价格交叉原始字段示例：
+  // { 品牌, 品牌占比(%), <1849, "1849- 3379", " 3379- 5658", "> 5658", ... }
+  // 动态发现四个价格段字段（值为销售额）
+  const segmentDefs = useMemo(() => {
+    if (!data || data.length === 0) return [] as { key: string; label: string; color: string }[];
+    const sample = data[0];
+    const candidate = [
+      { match: /^\s*<\s*1849/, label: '<1849', color: '#4158D0' },
+      { match: /1849[\s\-]*3379/, label: '1849-3379', color: '#C850C0' },
+      { match: /3379[\s\-]*5658/, label: '3379-5658', color: '#FF9A3C' },
+      { match: />\s*5658/, label: '>5658', color: '#10B981' },
+    ];
+    const keys = Object.keys(sample);
+    return candidate
+      .map((c) => {
+        const k = keys.find((kk) => c.match.test(kk) && !/占比|市占率/.test(kk));
+        return k ? { key: k, label: c.label, color: c.color } : null;
+      })
+      .filter(Boolean) as { key: string; label: string; color: string }[];
+  }, [data]);
+
+  const chartData = useMemo(() => {
+    if (!data || segmentDefs.length === 0) return [];
+    const enriched = data.map((row) => {
+      let total = 0;
+      const segs: Record<string, number> = {};
+      for (const s of segmentDefs) {
+        const v = Number(row[s.key]) || 0;
+        segs[s.key] = +(v / 1e4).toFixed(1); // 万元
+        total += v;
+      }
+      return { brand: row['品牌'] || '-', total, segs };
+    });
+    return enriched
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10)
+      .map((r) => ({ brand: r.brand, ...r.segs }));
+  }, [data, segmentDefs]);
 
   if (loading) return <Skeleton className="h-[400px] w-full rounded-lg" />;
 
+  if (chartData.length === 0) {
+    return (
+      <div className="h-[400px] flex items-center justify-center text-sm text-muted-foreground">
+        当前筛选条件下暂无价格交叉数据
+      </div>
+    );
+  }
+
   return (
-    <div className="h-[400px]">
-      <ChartContainer config={chartConfig} className="h-full">
-        <BarChart data={data}>
+    <div className="h-[440px]">
+      <ChartContainer
+        config={segmentDefs.reduce((acc: Record<string, any>, s) => {
+          acc[s.key] = { label: s.label, color: s.color };
+          return acc;
+        }, {})}
+        className="h-full"
+      >
+        <BarChart data={chartData} layout="vertical" margin={{ left: 20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis dataKey="range" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-          <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+          <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+          <YAxis
+            type="category"
+            dataKey="brand"
+            stroke="hsl(var(--muted-foreground))"
+            fontSize={11}
+            width={110}
+          />
           <ChartTooltip content={<ChartTooltipContent />} />
           <ChartLegend content={<ChartLegendContent />} />
-          <Bar dataKey="online" name="线上(万)" fill="#4158D0" stackId="a" />
-          <Bar dataKey="offline" name="线下(万)" fill="#C850C0" stackId="a" />
+          {segmentDefs.map((s) => (
+            <Bar
+              key={s.key}
+              dataKey={s.key}
+              name={s.label}
+              stackId="a"
+              fill={s.color}
+            />
+          ))}
         </BarChart>
       </ChartContainer>
+      <p className="text-center text-[11px] text-muted-foreground mt-2">
+        单位：万元 · 按品牌总销售额排序取 Top 10 · 色块代表不同价格段销售额
+      </p>
     </div>
   );
 }
@@ -646,6 +841,9 @@ export default function EcommercePage() {
   });
   const [realBrands, setRealBrands] = useState<string[]>([]);
   const [brandsLoading, setBrandsLoading] = useState(false);
+  // 大盘趋势原始数据（用于 KPI 计算，单位：元/件）
+  const [trendRaw, setTrendRaw] = useState<any[]>([]);
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   // AbortController ref for cancelling stale requests
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -704,23 +902,11 @@ export default function EcommercePage() {
     return ['全部品牌', ...realBrands];
   }, [realBrands]);
 
-  /* ---------- 3. KPI cards (dynamic based on industry + category) ---------- */
-  const kpiCards: KpiCard[] = useMemo(() => {
-    if (!filters.industry || !filters.category) return [];
-    return calculateKpi(filters.industry, filters.category);
-  }, [filters.industry, filters.category]);
-
-  const displayKpiCards = useMemo(() => {
-    if (realBrands.length > 0) {
-      return kpiCards.map(card => {
-        if (card.label.includes('品牌') || card.label === '品牌数') {
-          return { ...card, value: `${realBrands.length}个` };
-        }
-        return card;
-      });
-    }
-    return kpiCards;
-  }, [kpiCards, realBrands]);
+  /* ---------- 3. KPI cards（基于大盘趋势真实数据计算） ---------- */
+  const kpiCards: KpiCard[] = useMemo(
+    () => buildKpiFromTrend(trendRaw, realBrands.length),
+    [trendRaw, realBrands.length],
+  );
 
   /* ---------- 3b. normalizeViewData: map Chinese field names to English ---------- */
   function normalizeViewData(viewKey: string, raw: any[]): any[] {
@@ -799,117 +985,106 @@ export default function EcommercePage() {
     }
   }
 
-  /* ---------- 4. fetchViewData with specific deps + AbortController ---------- */
-  const fetchViewData = useCallback(
-    async (viewKey: string, industry: string, category: string, subcategory: string, brand: string, timeRange: string) => {
-      // Cancel previous request
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
-
-      setLoading(true);
+  /* ---------- 4. fetchCrawlerView: 统一调用 crawler MCP ---------- */
+  const fetchCrawlerView = useCallback(
+    async (
+      categoryView: string,
+      categoryList: string[],
+      brand: string,
+      timeRange: string,
+      signal?: AbortSignal,
+    ): Promise<any[] | null> => {
       try {
-        // Build category_list: 3 levels [一级, 二级, 三级]
-        const categoryList = subcategory
-          ? [industry, category, subcategory]
-          : [industry, category];
-
-        // Map viewKey to the correct category_view format
-        const viewMap: Record<string, string> = {
-          '大盘趋势': '品类视角-大盘趋势',
-          '品牌排行': '品类视角-品牌列表',
-          '销售价量': '品类视角-销售价量',
-          '店铺列表': '品类视角-店铺列表',
-          '商品列表': '品类视角-商品列表',
-          '价格区间': '品类视角-价格区间',
-          '价格交叉': '品类视角-价格交叉',
-          '热词频次': '品类视角-热词频次',
-        };
-        const categoryView = viewMap[viewKey] || '品类视角-大盘趋势';
-
         const res = await fetch('/api/market-monitor/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            message: `查看${category}类目${viewKey}数据`,
+            message: `查看数据`,
             category: categoryList,
             brand: brand === '全部品牌' ? '' : brand,
             view: categoryView,
             timeRange,
           }),
-          signal: controller.signal,
+          signal,
         });
         const json = await res.json();
-
-        if (controller.signal.aborted) return;
-
-        // If API returns valid array data, use it; otherwise fall back to mock
-        if (json.success && json.data?.data && Array.isArray(json.data.data)) {
-          setViewData(normalizeViewData(viewKey, json.data.data));
-        } else {
-          // Generate mock data based on view type + industry + category
-          generateMockData(viewKey, industry, category);
+        if (json?.success && Array.isArray(json?.data?.data)) {
+          return json.data.data as any[];
         }
+        return null;
       } catch (err: any) {
-        if (err?.name === 'AbortError') return;
-        // Fallback to mock on error
-        generateMockData(viewKey, industry, category);
-      } finally {
-        if (!controller.signal.aborted) {
-          setTimeout(() => setLoading(false), 300);
-        }
+        if (err?.name === 'AbortError') return null;
+        console.error('[ecommerce] fetchCrawlerView error:', err);
+        return null;
       }
     },
-    [], // 无依赖，所有变量通过参数传入
+    [],
   );
 
-  // Helper: generate mock data (pure function, no closure dependency on filters)
-  const generateMockData = useCallback((viewKey: string, industry: string, category: string) => {
-    setTimeout(() => {
-      switch (viewKey) {
-        case '大盘趋势':
-          setViewData(generateTrendData(industry, category));
-          break;
-        case '品牌排行':
-          setViewData(generateBrandRanking(industry, category));
-          break;
-        case '销售价量':
-          setViewData(generatePriceVolumeData(industry, category));
-          break;
-        case '店铺列表':
-          setViewData(generateShopList(industry, category));
-          break;
-        case '商品列表':
-          setViewData(generateProductList(industry, category));
-          break;
-        case '价格区间':
-          setViewData(generatePriceVolumeData(industry, category));
-          break;
-        case '价格交叉':
-          setViewData(generatePriceCrossData(industry, category));
-          break;
-        case '热词频次':
-          setViewData(generateHotwords(industry, category));
-          break;
-        default:
-          setViewData([]);
-      }
-    }, 300);
-  }, []);
-
-  /* ---------- 5. Single useEffect for data fetching ---------- */
+  /* ---------- 5. 单次 effect：同时拉取大盘趋势（KPI用）+ 当前视图数据 ---------- */
   useEffect(() => {
     if (!filters.industry || !filters.category) return;
-    fetchViewData(activeView, filters.industry, filters.category, filters.subcategory, filters.brand, filters.timeRange);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    const categoryList = filters.subcategory
+      ? [filters.industry, filters.category, filters.subcategory]
+      : [filters.industry, filters.category];
+    const brand = filters.brand === '全部品牌' ? '' : filters.brand;
+
+    const viewMap: Record<string, string> = {
+      '大盘趋势': '品类视角-大盘趋势',
+      '品牌排行': '品类视角-品牌列表',
+      '销售价量': '品类视角-销售价量',
+      '店铺列表': '品类视角-店铺列表',
+      '商品列表': '品类视角-商品列表',
+      '价格区间': '品类视角-价格区间',
+      '价格交叉': '品类视角-价格交叉',
+      '热词频次': '品类视角-热词频次',
+    };
+    const targetView = viewMap[activeView] || '品类视角-大盘趋势';
+
+    setLoading(true);
+
+    // 大盘趋势每次都拉，KPI 依赖它
+    const trendP = fetchCrawlerView(
+      '品类视角-大盘趋势',
+      categoryList,
+      brand,
+      filters.timeRange,
+      controller.signal,
+    );
+
+    // 当前视图非大盘趋势时再并行拉一份；否则复用 trendP
+    const viewP =
+      targetView === '品类视角-大盘趋势'
+        ? trendP
+        : fetchCrawlerView(targetView, categoryList, brand, filters.timeRange, controller.signal);
+
+    (async () => {
+      const [trend, view] = await Promise.all([trendP, viewP]);
+      if (controller.signal.aborted) return;
+
+      if (Array.isArray(trend)) {
+        setTrendRaw(trend);
+      } else {
+        setTrendRaw([]);
+      }
+
+      if (Array.isArray(view)) {
+        setViewData(normalizeViewData(activeView, view));
+      } else {
+        setViewData([]);
+      }
+      setLoading(false);
+    })();
 
     return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+      controller.abort();
     };
-  }, [activeView, filters.industry, filters.category, filters.subcategory, filters.brand, filters.timeRange, fetchViewData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView, filters.industry, filters.category, filters.subcategory, filters.brand, filters.timeRange, refreshNonce]);
 
   /* ---------- 5b. Fetch real brands when category/subcategory changes ---------- */
   useEffect(() => {
@@ -979,9 +1154,7 @@ export default function EcommercePage() {
   };
 
   const handleRefresh = () => {
-    if (filters.industry && filters.category) {
-      fetchViewData(activeView, filters.industry, filters.category, filters.subcategory, filters.brand, filters.timeRange);
-    }
+    setRefreshNonce((n) => n + 1);
   };
 
   /* ---------- 7. View content renderer ---------- */
@@ -992,7 +1165,7 @@ export default function EcommercePage() {
       case '品牌排行':
         return <BrandRankingView loading={loading} data={viewData} />;
       case '销售价量':
-        return <PriceVolumeView loading={loading} data={viewData} />;
+        return <PriceVolumeView loading={loading} data={viewData} xKey="label" />;
       case '店铺列表':
         return (
           <DataTableView
@@ -1001,10 +1174,9 @@ export default function EcommercePage() {
               rank: d.id,
               name: d.name,
               platform: d.platform,
-              sales: d.sales.toLocaleString() + '万',
-              volume: d.volume.toLocaleString(),
-              avgPrice: '¥' + d.avgPrice.toLocaleString(),
-              rating: d.rating,
+              sales: formatSalesShort(d.sales),
+              volume: formatVolumeShort(d.volume),
+              avgPrice: d.avgPrice ? '¥' + Number(d.avgPrice).toLocaleString() : '-',
             }))}
             columns={[
               { key: 'rank', label: '排名' },
@@ -1013,7 +1185,6 @@ export default function EcommercePage() {
               { key: 'sales', label: '销售额', align: 'right' },
               { key: 'volume', label: '销量', align: 'right' },
               { key: 'avgPrice', label: '均价', align: 'right' },
-              { key: 'rating', label: '评分', align: 'right' },
             ]}
           />
         );
@@ -1025,9 +1196,9 @@ export default function EcommercePage() {
               rank: d.id,
               name: d.name,
               brand: d.brand,
-              price: '¥' + d.price.toLocaleString(),
-              sales: d.sales.toLocaleString() + '万',
-              volume: d.volume.toLocaleString(),
+              price: d.price ? '¥' + Number(d.price).toLocaleString() : '-',
+              sales: formatSalesShort(d.sales),
+              volume: formatVolumeShort(d.volume),
             }))}
             columns={[
               { key: 'rank', label: '排名' },
@@ -1040,7 +1211,7 @@ export default function EcommercePage() {
           />
         );
       case '价格区间':
-        return <PriceVolumeView loading={loading} data={viewData} />;
+        return <PriceVolumeView loading={loading} data={viewData} xKey="range" />;
       case '价格交叉':
         return <PriceCrossView loading={loading} data={viewData} />;
       case '热词频次':
@@ -1119,7 +1290,7 @@ export default function EcommercePage() {
                 onValueChange={(v) => setFilters(prev => ({ ...prev, subcategory: v, brand: '全部品牌' }))}
               >
                 <SelectTrigger size="sm" className="w-36">
-                  <SelectValue placeholder={brandsLoading ? '加载中...' : '全部品牌'} />
+                  <SelectValue placeholder="选择细分品类" />
                 </SelectTrigger>
                 <SelectContent>
                   {subCategories.map((sub) => (
@@ -1183,7 +1354,7 @@ export default function EcommercePage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {displayKpiCards.map((card, i) => (
+        {kpiCards.map((card, i) => (
           <KpiCardComp key={i} {...card} />
         ))}
       </div>
