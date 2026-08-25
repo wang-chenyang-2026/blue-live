@@ -130,6 +130,14 @@ async function mcpRequest(
   body: Record<string, unknown>,
   sessionId?: string,
 ): Promise<MCPResponse> {
+  // Proactively throttle to stay under MCP's ~2 requests/min per-key limit.
+  // Only count actual tools/call (data queries); initialize/notifications/tools-list
+  // are handshake and may not count, but we throttle all POSTs to be safe.
+  const method = (body as { method?: string }).method;
+  if (method === 'tools/call') {
+    await respectRateBudget();
+  }
+
   const url = `${MCP_BASE}/${serverName}`;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -199,6 +207,35 @@ const sessions = new Map<string, MCPSession>();
 // Per-server request queue to prevent concurrency-triggered rate limits
 const queueTail = new Map<string, Promise<unknown>>();
 
+// Global MCP rate-limit cooldown: when KEY_RPM_EXCEEDED fires, block further
+// calls for a full 60s window instead of repeatedly hitting the wall.
+let rateLimitUntil = 0;
+
+// Proactive sliding-window rate limiter. MCP allows ~2 requests/min per key.
+// We track timestamps of the last N calls and wait if we'd exceed the budget,
+// so we never trigger KEY_RPM_EXCEEDED in the first place.
+const MAX_CALLS_PER_WINDOW = 2;
+const WINDOW_MS = 62_000; // slightly over 60s for safety
+const callTimestamps: number[] = [];
+
+async function respectRateBudget(): Promise<void> {
+  const now = Date.now();
+  // First, wait out any active server-side cooldown
+  await waitForRateLimitWindow();
+  // Prune timestamps outside the window
+  while (callTimestamps.length > 0 && callTimestamps[0] < now - WINDOW_MS) {
+    callTimestamps.shift();
+  }
+  if (callTimestamps.length >= MAX_CALLS_PER_WINDOW) {
+    const oldest = callTimestamps[0];
+    const wait = oldest + WINDOW_MS - now + 500;
+    if (wait > 0) {
+      await sleep(wait);
+    }
+  }
+  callTimestamps.push(Date.now());
+}
+
 async function withQueue<T>(serverName: string, fn: () => Promise<T>): Promise<T> {
   const prev = queueTail.get(serverName) || Promise.resolve();
   let release!: () => void;
@@ -222,6 +259,16 @@ function isRateLimitError(msg: string): boolean {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Wait out the active rate-limit cooldown if one is set.
+ */
+async function waitForRateLimitWindow(): Promise<void> {
+  const remaining = rateLimitUntil - Date.now();
+  if (remaining > 0) {
+    await sleep(remaining + 500); // small buffer past the window
+  }
 }
 
 async function initializeServerInternal(serverName: string): Promise<MCPSession> {
@@ -315,9 +362,16 @@ async function callToolInternal(
     throw new Error(`Session ID missing for ${serverName}`);
   }
 
-  // Retry up to 4 times with exponential backoff for rate limits
+  // Retry with adaptive waits for rate limits.
+  // MCP enforces ~2 requests/min per key; when KEY_RPM_EXCEEDED fires we
+  // must wait out a full 60s window before retrying.
+  const retryWaits = [3000, 15000, 45000]; // 3s, 15s, 45s — total ~63s covers one RPM window
   let lastErr: unknown;
-  for (let attempt = 0; attempt < 4; attempt++) {
+
+  for (let attempt = 0; attempt <= retryWaits.length; attempt++) {
+    // If a cooldown is active from a previous rate-limit hit, wait it out first
+    await waitForRateLimitWindow();
+
     try {
       const callBody = {
         jsonrpc: '2.0',
@@ -337,11 +391,13 @@ async function callToolInternal(
 
       if (!result) {
         const errMsg = envelope?.error?.message || 'MCP callTool returned no result';
-        // Rate limit → retry after backoff
         if (isRateLimitError(errMsg)) {
           lastErr = new Error(errMsg);
-          await sleep(800 * Math.pow(2, attempt));
-          continue;
+          rateLimitUntil = Date.now() + 60000;
+          if (attempt < retryWaits.length) {
+            await sleep(retryWaits[attempt]);
+            continue;
+          }
         }
         throw new Error(`MCP ${toolName} error: ${errMsg}`);
       }
@@ -350,8 +406,11 @@ async function callToolInternal(
         const errorText = result.content?.[0]?.text || 'Unknown MCP error';
         if (isRateLimitError(errorText)) {
           lastErr = new Error(errorText);
-          await sleep(800 * Math.pow(2, attempt));
-          continue;
+          rateLimitUntil = Date.now() + 60000;
+          if (attempt < retryWaits.length) {
+            await sleep(retryWaits[attempt]);
+            continue;
+          }
         }
         throw new Error(`MCP tool error: ${errorText}`);
       }
@@ -365,8 +424,11 @@ async function callToolInternal(
       }
       if (isRateLimitError(msg)) {
         lastErr = err;
-        await sleep(800 * Math.pow(2, attempt));
-        continue;
+        rateLimitUntil = Date.now() + 60000;
+        if (attempt < retryWaits.length) {
+          await sleep(retryWaits[attempt]);
+          continue;
+        }
       }
       throw err;
     }
