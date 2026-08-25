@@ -847,6 +847,21 @@ export default function EcommercePage() {
 
   // AbortController ref for cancelling stale requests
   const abortControllerRef = useRef<AbortController | null>(null);
+  // Tracks whether data has ever been loaded; controls skeleton vs keep-old-data
+  const hasDataRef = useRef(false);
+  // Debounce filter changes to avoid flooding MCP when user rapidly switches filters
+  const [debouncedFilters, setDebouncedFilters] = useState(filters);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      setDebouncedFilters(filters);
+    }, 250);
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, [filters]);
 
   /* ---------- 1. Load category tree on mount ---------- */
   useEffect(() => {
@@ -1023,15 +1038,15 @@ export default function EcommercePage() {
 
   /* ---------- 5. 单次 effect：同时拉取大盘趋势（KPI用）+ 当前视图数据 ---------- */
   useEffect(() => {
-    if (!filters.industry || !filters.category) return;
+    if (!debouncedFilters.industry || !debouncedFilters.category) return;
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    const categoryList = filters.subcategory
-      ? [filters.industry, filters.category, filters.subcategory]
-      : [filters.industry, filters.category];
-    const brand = filters.brand === '全部品牌' ? '' : filters.brand;
+    const categoryList = debouncedFilters.subcategory
+      ? [debouncedFilters.industry, debouncedFilters.category, debouncedFilters.subcategory]
+      : [debouncedFilters.industry, debouncedFilters.category];
+    const brand = debouncedFilters.brand === '全部品牌' ? '' : debouncedFilters.brand;
 
     const viewMap: Record<string, string> = {
       '大盘趋势': '品类视角-大盘趋势',
@@ -1045,14 +1060,15 @@ export default function EcommercePage() {
     };
     const targetView = viewMap[activeView] || '品类视角-大盘趋势';
 
-    setLoading(true);
+    // Keep old data visible during filter switches; only show skeleton before first successful load
+    setLoading(!hasDataRef.current);
 
     // 大盘趋势每次都拉，KPI 依赖它
     const trendP = fetchCrawlerView(
       '品类视角-大盘趋势',
       categoryList,
       brand,
-      filters.timeRange,
+      debouncedFilters.timeRange,
       controller.signal,
     );
 
@@ -1060,23 +1076,27 @@ export default function EcommercePage() {
     const viewP =
       targetView === '品类视角-大盘趋势'
         ? trendP
-        : fetchCrawlerView(targetView, categoryList, brand, filters.timeRange, controller.signal);
+        : fetchCrawlerView(targetView, categoryList, brand, debouncedFilters.timeRange, controller.signal);
 
     (async () => {
       const [trend, view] = await Promise.all([trendP, viewP]);
       if (controller.signal.aborted) return;
 
+      let gotData = false;
+      // 仅在成功拿到数据时更新；失败（null）保留旧数据，避免筛选切换时清空
       if (Array.isArray(trend)) {
         setTrendRaw(trend);
-      } else {
-        setTrendRaw([]);
+        if (trend.length > 0) gotData = true;
       }
+      // trend === null 表示请求失败，保留旧数据
 
       if (Array.isArray(view)) {
         setViewData(normalizeViewData(activeView, view));
-      } else {
-        setViewData([]);
+        if (view.length > 0) gotData = true;
       }
+      // view === null 表示请求失败，保留旧数据
+
+      if (gotData) hasDataRef.current = true;
       setLoading(false);
     })();
 
@@ -1084,21 +1104,22 @@ export default function EcommercePage() {
       controller.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeView, filters.industry, filters.category, filters.subcategory, filters.brand, filters.timeRange, refreshNonce]);
+  }, [activeView, debouncedFilters, refreshNonce]);
 
   /* ---------- 5b. Fetch real brands when category/subcategory changes ---------- */
+  /* 品牌列表不依赖时间范围，仅在品类路径变化时重新拉取，避免切换时间范围触发多余MCP请求 */
   useEffect(() => {
-    if (!filters.industry || !filters.category) return;
-    const categoryList = filters.subcategory
-      ? [filters.industry, filters.category, filters.subcategory]
-      : [filters.industry, filters.category];
+    if (!debouncedFilters.industry || !debouncedFilters.category) return;
+    const categoryList = debouncedFilters.subcategory
+      ? [debouncedFilters.industry, debouncedFilters.category, debouncedFilters.subcategory]
+      : [debouncedFilters.industry, debouncedFilters.category];
 
     let cancelled = false;
     async function loadBrands() {
       setBrandsLoading(true);
       try {
         const res = await fetch(
-          `/api/market-monitor/brands?category=${encodeURIComponent(JSON.stringify(categoryList))}&timeRange=${encodeURIComponent(filters.timeRange)}`
+          `/api/market-monitor/brands?category=${encodeURIComponent(JSON.stringify(categoryList))}`
         );
         const json = await res.json();
         if (!cancelled && json.success && json.data?.brands) {
@@ -1106,14 +1127,15 @@ export default function EcommercePage() {
           setRealBrands(brandNames);
         }
       } catch {
-        // Silently fail, brand list will be empty
+        // Keep existing brands on failure
       } finally {
         if (!cancelled) setBrandsLoading(false);
       }
     }
     loadBrands();
     return () => { cancelled = true; };
-  }, [filters.industry, filters.category, filters.subcategory, filters.timeRange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedFilters.industry, debouncedFilters.category, debouncedFilters.subcategory]);
 
   /* ---------- 6. Event handlers (functional updates) ---------- */
   const handleIndustryChange = useCallback((v: string) => {

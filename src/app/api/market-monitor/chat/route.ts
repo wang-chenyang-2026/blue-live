@@ -4,8 +4,8 @@ import {
   initializeServer,
   parseIntent,
   type ParsedIntent,
-  type ServerName,
 } from '@/lib/mcp-client';
+import { buildCacheKey, getCached, setCached, TTL } from '@/lib/mcp-cache';
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -84,6 +84,17 @@ async function handleCrawlerQuery(
 
   const { startMonth, endMonth } = calcDateRange(timeRange || '近90天');
 
+  // Check cache first to avoid MCP rate limits
+  const cacheKey = buildCacheKey(['crawler', view, category, brand || '', startMonth, endMonth]);
+  const cached = getCached<unknown>(cacheKey);
+  if (cached) {
+    return {
+      reply: `已获取「${category.join(' > ')}」类目${view}数据（缓存）`,
+      data: cached,
+      dataType: view,
+    };
+  }
+
   try {
     const { sessionId } = await initializeServer('crawler-server');
     const result = await callTool(
@@ -115,6 +126,11 @@ async function handleCrawlerQuery(
       }
     } catch {
       parsedData = textContent;
+    }
+
+    // Cache successful array responses only (not error objects)
+    if (Array.isArray(parsedData) && parsedData.length > 0) {
+      setCached(cacheKey, parsedData, TTL.DEFAULT);
     }
 
     const catLabel = category.join(' > ');

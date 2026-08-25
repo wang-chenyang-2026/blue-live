@@ -196,11 +196,35 @@ async function mcpRequest(
  */
 const sessions = new Map<string, MCPSession>();
 
-export async function initializeServer(serverName: string): Promise<MCPSession> {
-  if (sessions.has(serverName)) {
-    return sessions.get(serverName)!;
-  }
+// Per-server request queue to prevent concurrency-triggered rate limits
+const queueTail = new Map<string, Promise<unknown>>();
 
+async function withQueue<T>(serverName: string, fn: () => Promise<T>): Promise<T> {
+  const prev = queueTail.get(serverName) || Promise.resolve();
+  let release!: () => void;
+  const next = new Promise<void>((resolve) => { release = resolve; });
+  queueTail.set(serverName, prev.then(() => next));
+  try {
+    await prev;
+    return await fn();
+  } finally {
+    release();
+    // Clean up if this is still the tail
+    if (queueTail.get(serverName) === next) {
+      queueTail.delete(serverName);
+    }
+  }
+}
+
+function isRateLimitError(msg: string): boolean {
+  return /RPM|CONCURRENCY|KEY_RPM|rate.?limit|429/i.test(msg);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function initializeServerInternal(serverName: string): Promise<MCPSession> {
   const initRes = await mcpRequest(serverName, {
     jsonrpc: '2.0',
     method: 'initialize',
@@ -248,8 +272,21 @@ export async function initializeServer(serverName: string): Promise<MCPSession> 
   return session;
 }
 
+export async function initializeServer(
+  serverName: string,
+  forceNew = false,
+): Promise<MCPSession> {
+  return withQueue(serverName, async () => {
+    if (!forceNew && sessions.has(serverName)) {
+      return sessions.get(serverName)!;
+    }
+    if (forceNew) sessions.delete(serverName);
+    return initializeServerInternal(serverName);
+  });
+}
+
 /**
- * Call MCP tool
+ * Call MCP tool with retry on rate limit / session expiry
  */
 export async function callTool(
   serverName: string,
@@ -257,8 +294,20 @@ export async function callTool(
   args: Record<string, unknown>,
   sessionId?: string,
 ): Promise<MCPToolResult> {
-  if (!sessionId) {
-    const session = await initializeServer(serverName);
+  return withQueue(serverName, () =>
+    callToolInternal(serverName, toolName, args, sessionId, false),
+  );
+}
+
+async function callToolInternal(
+  serverName: string,
+  toolName: string,
+  args: Record<string, unknown>,
+  sessionId?: string,
+  forceNewSession = false,
+): Promise<MCPToolResult> {
+  if (!sessionId || forceNewSession) {
+    const session = await initializeServer(serverName, forceNewSession);
     sessionId = session.sessionId;
   }
 
@@ -266,32 +315,66 @@ export async function callTool(
     throw new Error(`Session ID missing for ${serverName}`);
   }
 
-  const callBody = {
-    jsonrpc: '2.0',
-    method: 'tools/call',
-    params: {
-      name: toolName,
-      arguments: args,
-    },
-    id: Date.now(),
-  };
+  // Retry up to 4 times with exponential backoff for rate limits
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const callBody = {
+        jsonrpc: '2.0',
+        method: 'tools/call',
+        params: {
+          name: toolName,
+          arguments: args,
+        },
+        id: Date.now() + attempt,
+      };
 
-  const res = await mcpRequest(serverName, callBody, sessionId);
-  // res.result is JSON-RPC envelope {jsonrpc, id, result: MCPToolResult}
-  const envelope = res.result as { result?: MCPToolResult; error?: { message?: string } } | undefined;
-  const result = envelope?.result;
+      const res = await mcpRequest(serverName, callBody, sessionId);
+      const envelope = res.result as
+        | { result?: MCPToolResult; error?: { message?: string } }
+        | undefined;
+      const result = envelope?.result;
 
-  if (!result) {
-    const errMsg = envelope?.error?.message || 'MCP callTool returned no result';
-    throw new Error(`MCP ${toolName} error: ${errMsg}`);
+      if (!result) {
+        const errMsg = envelope?.error?.message || 'MCP callTool returned no result';
+        // Rate limit → retry after backoff
+        if (isRateLimitError(errMsg)) {
+          lastErr = new Error(errMsg);
+          await sleep(800 * Math.pow(2, attempt));
+          continue;
+        }
+        throw new Error(`MCP ${toolName} error: ${errMsg}`);
+      }
+
+      if (result.isError) {
+        const errorText = result.content?.[0]?.text || 'Unknown MCP error';
+        if (isRateLimitError(errorText)) {
+          lastErr = new Error(errorText);
+          await sleep(800 * Math.pow(2, attempt));
+          continue;
+        }
+        throw new Error(`MCP tool error: ${errorText}`);
+      }
+
+      return result;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Session expired / not found → force reinit once
+      if (!forceNewSession && /session|not found|invalid/i.test(msg)) {
+        return callToolInternal(serverName, toolName, args, undefined, true);
+      }
+      if (isRateLimitError(msg)) {
+        lastErr = err;
+        await sleep(800 * Math.pow(2, attempt));
+        continue;
+      }
+      throw err;
+    }
   }
 
-  if (result.isError) {
-    const errorText = result.content?.[0]?.text || 'Unknown MCP error';
-    throw new Error(`MCP tool error: ${errorText}`);
-  }
-
-  return result;
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error(`MCP ${toolName} failed after retries`);
 }
 
 /**

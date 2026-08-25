@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { callTool, initializeServer } from '@/lib/mcp-client';
+import { buildCacheKey, getCached, setCached, TTL } from '@/lib/mcp-cache';
 
 /**
  * Calculate start_date and end_date from timeRange string
@@ -50,6 +51,13 @@ export async function GET(req: Request) {
 
   const { startMonth, endMonth } = calcDateRange(timeRange);
 
+  // Cache brand list for 30 min (brand composition changes slowly)
+  const cacheKey = buildCacheKey(['brands', category, startMonth, endMonth]);
+  const cached = getCached<{ brands: { name: string; sales: number }[]; total: number; dateRange: { start: string; end: string } }>(cacheKey);
+  if (cached) {
+    return NextResponse.json({ success: true, data: cached, cached: true });
+  }
+
   try {
     const { sessionId } = await initializeServer('crawler-server');
     const result = await callTool(
@@ -94,13 +102,18 @@ export async function GET(req: Request) {
       .sort((a, b) => b[1] - a[1])
       .map(([name, sales]) => ({ name, sales }));
 
+    const responseData = {
+      brands,
+      total: brands.length,
+      dateRange: { start: startMonth, end: endMonth },
+    };
+
+    // Cache for 30 minutes
+    setCached(cacheKey, responseData, TTL.BRAND);
+
     return NextResponse.json({
       success: true,
-      data: {
-        brands,
-        total: brands.length,
-        dateRange: { start: startMonth, end: endMonth },
-      },
+      data: responseData,
     });
   } catch (err) {
     return NextResponse.json(
