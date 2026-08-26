@@ -299,8 +299,18 @@ function generatePriceCrossData(industry: string, category: string) {
 /**
  * 基于大盘趋势原始数据计算 KPI，按 timeRange 过滤月份
  */
-function buildKpiFromTrend(raw: any[], realBrandCount: number, timeRange: string): KpiCard[] {
-  const filtered = filterRawByTimeRange(raw, timeRange);
+function buildKpiFromTrend(raw: any[], realBrandCount: number, timeRange: string, brand?: string): KpiCard[] {
+  // First apply brand filter if a specific brand is selected and data has brand fields
+  let brandFiltered = raw;
+  if (brand && brand !== '全部品牌' && Array.isArray(raw)) {
+    const withBrand = raw.filter((r) => r['品牌']);
+    // Only apply brand filter if data actually contains per-brand records;
+    // aggregate views have empty 品牌 field and should not be filtered
+    if (withBrand.length > 0) {
+      brandFiltered = raw.filter((r) => r['品牌'] === brand);
+    }
+  }
+  const filtered = filterRawByTimeRange(brandFiltered, timeRange);
   if (!Array.isArray(filtered) || filtered.length === 0) {
     return [
       { label: '总销售额', value: '—', change: 0, icon: <DollarSign className="h-5 w-5" />, color: '#4158D0' },
@@ -872,6 +882,7 @@ export default function EcommercePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewData, setViewData] = useState<any[]>([]);
+  const [viewLoading, setViewLoading] = useState(false);
   const [categoryTree, setCategoryTree] = useState<CategoryTree>({});
   const [treeLoading, setTreeLoading] = useState(true);
   const [filters, setFilters] = useState<FilterState>({
@@ -892,6 +903,13 @@ export default function EcommercePage() {
   const viewAbortRef = useRef<AbortController | null>(null);
   // Tracks whether data has ever been loaded; controls skeleton vs keep-old-data
   const hasDataRef = useRef(false);
+  // Monotonic request token: incremented on every new trend fetch. Only the response
+  // matching the latest token is allowed to update state, preventing stale responses
+  // from a slow MCP queue from overwriting newer data (race condition fix).
+  const trendReqToken = useRef(0);
+  const viewReqToken = useRef(0);
+  // Track previous category path to detect category-level changes vs brand-only changes
+  const prevCategoryKey = useRef('');
   // Debounce filter changes to avoid flooding MCP when user rapidly switches filters
   const [debouncedFilters, setDebouncedFilters] = useState(filters);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -962,8 +980,8 @@ export default function EcommercePage() {
 
   /* ---------- 3. KPI cards（基于大盘趋势真实数据计算，按时间范围过滤） ---------- */
   const kpiCards: KpiCard[] = useMemo(
-    () => buildKpiFromTrend(trendRaw, realBrands.length, debouncedFilters.timeRange),
-    [trendRaw, realBrands.length, debouncedFilters.timeRange],
+    () => buildKpiFromTrend(trendRaw, realBrands.length, debouncedFilters.timeRange, debouncedFilters.brand),
+    [trendRaw, realBrands.length, debouncedFilters.timeRange, debouncedFilters.brand],
   );
 
   /* ---------- 3b. normalizeViewData: map Chinese field names to English ---------- */
@@ -1091,9 +1109,24 @@ export default function EcommercePage() {
       debouncedFilters.subcategory || '全部',
     ];
     const brand = debouncedFilters.brand === '全部品牌' ? '' : debouncedFilters.brand;
+    const categoryKey = categoryList.join('>');
+
+    // Determine if this is a category-level change (vs brand-only or refresh)
+    const isCategoryChange = prevCategoryKey.current !== '' && prevCategoryKey.current !== categoryKey;
+    prevCategoryKey.current = categoryKey;
+
+    // Issue a new request token — any response with an older token will be ignored
+    const myToken = ++trendReqToken.current;
 
     setError(null);
-    if (!hasDataRef.current) setLoading(true);
+    setLoading(true);
+
+    // On category change, clear old data immediately so stale KPI/chart is not shown
+    if (isCategoryChange) {
+      setTrendRaw([]);
+      setViewData([]);
+      hasDataRef.current = false;
+    }
 
     (async () => {
       const trend = await fetchCrawlerView(
@@ -1102,7 +1135,9 @@ export default function EcommercePage() {
         brand,
         controller.signal,
       );
-      if (controller.signal.aborted) return;
+
+      // Ignore response if a newer request has been issued or this was aborted
+      if (controller.signal.aborted || myToken !== trendReqToken.current) return;
 
       if (Array.isArray(trend)) {
         setTrendRaw(trend);
@@ -1151,10 +1186,13 @@ export default function EcommercePage() {
 
     // For 大盘趋势 tab, view data is derived from trendRaw (already fetched by effect 5a)
     if (targetView === '品类视角-大盘趋势') {
+      setViewLoading(false);
       return;
     }
 
-    if (!hasDataRef.current) setLoading(true);
+    // Race-condition guard for view fetches
+    const myViewToken = ++viewReqToken.current;
+    setViewLoading(true);
 
     (async () => {
       const view = await fetchCrawlerView(
@@ -1163,15 +1201,15 @@ export default function EcommercePage() {
         brand,
         controller.signal,
       );
-      if (controller.signal.aborted) return;
+
+      if (controller.signal.aborted || myViewToken !== viewReqToken.current) return;
 
       if (Array.isArray(view)) {
         setViewData(normalizeViewData(activeView, view));
-        if (view.length > 0) hasDataRef.current = true;
       } else if (view === null) {
         setError('视图数据加载失败，请稍后重试或切换其他视图');
       }
-      setLoading(false);
+      setViewLoading(false);
     })();
 
     return () => { controller.abort(); };
@@ -1278,13 +1316,13 @@ export default function EcommercePage() {
       case '大盘趋势':
         return <TrendView loading={loading} data={filteredViewData} />;
       case '品牌排行':
-        return <BrandRankingView loading={loading} data={filteredViewData} />;
+        return <BrandRankingView loading={viewLoading} data={filteredViewData} />;
       case '销售价量':
-        return <PriceVolumeView loading={loading} data={filteredViewData} xKey="label" />;
+        return <PriceVolumeView loading={viewLoading} data={filteredViewData} xKey="label" />;
       case '店铺列表':
         return (
           <DataTableView
-            loading={loading}
+            loading={viewLoading}
             data={filteredViewData.map((d) => ({
               rank: d.id,
               name: d.name,
@@ -1306,7 +1344,7 @@ export default function EcommercePage() {
       case '商品列表':
         return (
           <DataTableView
-            loading={loading}
+            loading={viewLoading}
             data={filteredViewData.map((d) => ({
               rank: d.id,
               name: d.name,
@@ -1326,11 +1364,11 @@ export default function EcommercePage() {
           />
         );
       case '价格区间':
-        return <PriceVolumeView loading={loading} data={filteredViewData} xKey="range" />;
+        return <PriceVolumeView loading={viewLoading} data={filteredViewData} xKey="range" />;
       case '价格交叉':
-        return <PriceCrossView loading={loading} data={filteredViewData} />;
+        return <PriceCrossView loading={viewLoading} data={filteredViewData} />;
       case '热词频次':
-        return <HotwordsView loading={loading} data={filteredViewData} />;
+        return <HotwordsView loading={viewLoading} data={filteredViewData} />;
       default:
         return <div className="text-center py-12 text-muted-foreground">暂无数据</div>;
     }
@@ -1460,8 +1498,8 @@ export default function EcommercePage() {
 
             <div className="flex-1" />
 
-            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={loading}>
-              <RefreshCw className={cn('h-4 w-4 mr-1', loading && 'animate-spin')} />
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={loading || viewLoading}>
+              <RefreshCw className={cn('h-4 w-4 mr-1', (loading || viewLoading) && 'animate-spin')} />
               刷新数据
             </Button>
           </div>
@@ -1470,9 +1508,13 @@ export default function EcommercePage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpiCards.map((card, i) => (
-          <KpiCardComp key={i} {...card} />
-        ))}
+        {loading && trendRaw.length === 0
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-28 rounded-lg" />
+            ))
+          : kpiCards.map((card, i) => (
+              <KpiCardComp key={i} {...card} />
+            ))}
       </div>
 
       {/* Error banner with retry */}
@@ -1530,7 +1572,7 @@ export default function EcommercePage() {
 
           {/* View Content */}
           <div className="relative">
-            {loading && hasDataRef.current && (
+            {(loading || viewLoading) && (
               <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/60 backdrop-blur-[1px]">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <RefreshCw className="h-4 w-4 animate-spin" />
