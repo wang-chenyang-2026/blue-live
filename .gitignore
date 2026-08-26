@@ -160,3 +160,7 @@ Desktop.ini
 # Misc
 .coze-logs
 .codegraph
+# Runtime task stores
+.kol-tasks.json
+.brand-voice-tasks.json
+.social-tasks.json

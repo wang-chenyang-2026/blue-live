@@ -14,7 +14,30 @@ if [ "$LOCAL" = "$REMOTE" ]; then
 fi
 echo "========================================" >> "$LOG_FILE"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] 发现新代码，开始自动部署..." >> "$LOG_FILE"
+
+# 备份运行时任务数据
+for f in .kol-tasks.json .brand-voice-tasks.json .social-tasks.json; do
+  [ -f "$f" ] && cp "$f" "$f.bak"
+done
+
+# 丢弃本地修改的跟踪文件（运行时数据已在上方备份），避免pull冲突
+git checkout -- . 2>> "$LOG_FILE"
 git pull origin main >> "$LOG_FILE" 2>&1
+PULL_EXIT=$?
+if [ $PULL_EXIT -ne 0 ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] git pull失败(exit $PULL_EXIT)，尝试reset --hard..." >> "$LOG_FILE"
+    git reset --hard origin/main >> "$LOG_FILE" 2>&1
+    if [ $? -ne 0 ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] git reset也失败，跳过本次部署" >> "$LOG_FILE"
+        exit 1
+    fi
+fi
+
+# 恢复运行时任务数据
+for f in .kol-tasks.json .brand-voice-tasks.json .social-tasks.json; do
+  [ -f "$f.bak" ] && cp "$f.bak" "$f"
+done
+
 pnpm install --frozen-lockfile >> "$LOG_FILE" 2>&1 || pnpm install >> "$LOG_FILE" 2>&1
 pnpm build >> "$LOG_FILE" 2>&1
 if [ $? -eq 0 ]; then
