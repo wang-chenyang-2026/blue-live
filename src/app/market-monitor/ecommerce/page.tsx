@@ -73,6 +73,11 @@ interface FilterState {
   timeRange: string;
 }
 
+// Radix Select does not accept empty-string as an <Item value>, so we use a
+// sentinel value in the UI and convert it to '' when calling MCP.
+const ALL_SUBCATEGORY = '__all__';
+const subcategoryForApi = (v: string) => (v === ALL_SUBCATEGORY || !v ? '' : v);
+
 interface KpiCard {
   label: string;
   value: string;
@@ -947,7 +952,7 @@ export default function EcommercePage() {
   const [filters, setFilters] = useState<FilterState>({
     industry: '',
     category: '',
-    subcategory: '',
+    subcategory: ALL_SUBCATEGORY,
     brand: '',
     timeRange: '近90天',
   });
@@ -999,7 +1004,7 @@ export default function EcommercePage() {
           const firstCategory = firstIndustry && tree[firstIndustry]
             ? Object.keys(tree[firstIndustry])[0] || ''
             : '';
-          const firstSubcategory = '';  // Default to "全部" (empty string)
+          const firstSubcategory = ALL_SUBCATEGORY;  // Default to "全部"
           const firstBrand = '全部品牌';
           setFilters({
             industry: firstIndustry,
@@ -1170,7 +1175,7 @@ export default function EcommercePage() {
     const categoryList = [
       debouncedFilters.industry,
       debouncedFilters.category,
-      debouncedFilters.subcategory || '',
+      subcategoryForApi(debouncedFilters.subcategory),
     ];
     const brand = debouncedFilters.brand === '全部品牌' ? '' : debouncedFilters.brand;
     const categoryKey = categoryList.join('>');
@@ -1244,7 +1249,7 @@ export default function EcommercePage() {
     const categoryList = [
       debouncedFilters.industry,
       debouncedFilters.category,
-      debouncedFilters.subcategory || '',
+      subcategoryForApi(debouncedFilters.subcategory),
     ];
     const brand = debouncedFilters.brand === '全部品牌' ? '' : debouncedFilters.brand;
 
@@ -1308,7 +1313,7 @@ export default function EcommercePage() {
     const categoryList = [
       debouncedFilters.industry,
       debouncedFilters.category,
-      debouncedFilters.subcategory || '',
+      subcategoryForApi(debouncedFilters.subcategory),
     ];
 
     let cancelled = false;
@@ -1340,7 +1345,7 @@ export default function EcommercePage() {
       const cats = categoryTree[v] ? Object.keys(categoryTree[v]) : [];
       const firstCat = cats[0] || '';
       const subs = firstCat && categoryTree[v]?.[firstCat] ? categoryTree[v][firstCat] : [];
-      const firstSub = subs[0] || '';
+      const firstSub = subs[0] || ALL_SUBCATEGORY;
       return {
         ...prev,
         industry: v,
@@ -1353,7 +1358,7 @@ export default function EcommercePage() {
 
   const handleCategoryChange = useCallback((v: string) => {
     setFilters((prev) => {
-      return { ...prev, category: v, subcategory: '', brand: '全部品牌' };
+      return { ...prev, category: v, subcategory: ALL_SUBCATEGORY, brand: '全部品牌' };
     });
   }, []);
 
@@ -1520,7 +1525,7 @@ export default function EcommercePage() {
                   <SelectValue placeholder="选择细分品类" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">全部</SelectItem>
+                  <SelectItem value={ALL_SUBCATEGORY}>全部</SelectItem>
                   {subCategories.map((sub) => (
                     <SelectItem key={sub} value={sub}>
                       {sub}
