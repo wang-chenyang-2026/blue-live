@@ -94,7 +94,47 @@ const VIEWS: EcommerceView[] = [
   { key: '热词频次', label: '热词频次', message: '查看热词频次数据' },
 ];
 
-const TIME_RANGES = ['近30天', '近90天', '近半年', '近一年', '本年度'];
+const TIME_RANGES = ['近30天', '近90天', '近半年', '近一年', '全部'];
+
+/**
+ * MCP returns months 2-14 from current month (fixed 13-month window).
+ * "近30天" maps to 1 latest month, "近90天" to 3, "近半年" to 6, "近一年" to 12.
+ * "全部" shows all available months.
+ * Current month and last month are not available (data settlement delay ~2 months).
+ */
+function getMonthCount(timeRange: string): number {
+  switch (timeRange) {
+    case '近30天': return 1;
+    case '近90天': return 3;
+    case '近半年': return 6;
+    case '近一年': return 12;
+    case '全部': return 13;
+    default: return 3;
+  }
+}
+
+/** Filter raw MCP records (with numeric 日期 field YYYYMM) to the selected time range. */
+function filterRawByTimeRange(raw: any[], timeRange: string): any[] {
+  if (!Array.isArray(raw) || raw.length === 0) return raw;
+  if (timeRange === '全部') return raw;
+  const count = getMonthCount(timeRange);
+  const months = [...new Set(raw.map((r) => Number(r['日期'])).filter(Boolean))].sort((a, b) => b - a);
+  const allowed = new Set(months.slice(0, count));
+  return raw.filter((r) => allowed.has(Number(r['日期'])));
+}
+
+/** Filter normalized view data (with date string field) by time range. Only for date-based views. */
+function filterViewByTimeRange(data: any[], timeRange: string): any[] {
+  if (!Array.isArray(data) || data.length === 0) return data;
+  if (timeRange === '全部') return data;
+  // Only filter if data has date-like field
+  const hasDate = data.some((d) => d.date && /^\d{6}$/.test(String(d.date)));
+  if (!hasDate) return data;
+  const count = getMonthCount(timeRange);
+  const months = [...new Set(data.map((d) => Number(d.date)).filter(Boolean))].sort((a, b) => b - a);
+  const allowed = new Set(months.slice(0, count));
+  return data.filter((d) => allowed.has(Number(d.date)));
+}
 
 /* ========== Mock Data for Fallback ========== */
 const MOCK_BRANDS = ['品牌A', '品牌B', '品牌C', '品牌D', '品牌E', '品牌F', '品牌G', '品牌H'];
@@ -257,10 +297,11 @@ function generatePriceCrossData(industry: string, category: string) {
 
 /* ========== KPI Calculation ========== */
 /**
- * 基于大盘趋势原始数据计算 KPI
+ * 基于大盘趋势原始数据计算 KPI，按 timeRange 过滤月份
  */
-function buildKpiFromTrend(raw: any[], realBrandCount: number): KpiCard[] {
-  if (!Array.isArray(raw) || raw.length === 0) {
+function buildKpiFromTrend(raw: any[], realBrandCount: number, timeRange: string): KpiCard[] {
+  const filtered = filterRawByTimeRange(raw, timeRange);
+  if (!Array.isArray(filtered) || filtered.length === 0) {
     return [
       { label: '总销售额', value: '—', change: 0, icon: <DollarSign className="h-5 w-5" />, color: '#4158D0' },
       { label: '总销量', value: '—', change: 0, icon: <Package className="h-5 w-5" />, color: '#C850C0' },
@@ -270,7 +311,7 @@ function buildKpiFromTrend(raw: any[], realBrandCount: number): KpiCard[] {
   }
 
   const byMonth = new Map<number, { sales: number; volume: number }>();
-  for (const r of raw) {
+  for (const r of filtered) {
     const m = Number(r['日期']);
     if (!m) continue;
     const cur = byMonth.get(m) || { sales: 0, volume: 0 };
@@ -829,6 +870,7 @@ function PriceCrossView({ loading, data }: { loading: boolean; data: any[] }) {
 export default function EcommercePage() {
   const [activeView, setActiveView] = useState('大盘趋势');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [viewData, setViewData] = useState<any[]>([]);
   const [categoryTree, setCategoryTree] = useState<CategoryTree>({});
   const [treeLoading, setTreeLoading] = useState(true);
@@ -841,12 +883,13 @@ export default function EcommercePage() {
   });
   const [realBrands, setRealBrands] = useState<string[]>([]);
   const [brandsLoading, setBrandsLoading] = useState(false);
-  // 大盘趋势原始数据（用于 KPI 计算，单位：元/件）
+  // 大盘趋势原始数据（用于 KPI 计算，单位：元/件）——只在品类/品牌变化时拉取，切tab不重新拉
   const [trendRaw, setTrendRaw] = useState<any[]>([]);
   const [refreshNonce, setRefreshNonce] = useState(0);
 
   // AbortController ref for cancelling stale requests
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const trendAbortRef = useRef<AbortController | null>(null);
+  const viewAbortRef = useRef<AbortController | null>(null);
   // Tracks whether data has ever been loaded; controls skeleton vs keep-old-data
   const hasDataRef = useRef(false);
   // Debounce filter changes to avoid flooding MCP when user rapidly switches filters
@@ -917,10 +960,10 @@ export default function EcommercePage() {
     return ['全部品牌', ...realBrands];
   }, [realBrands]);
 
-  /* ---------- 3. KPI cards（基于大盘趋势真实数据计算） ---------- */
+  /* ---------- 3. KPI cards（基于大盘趋势真实数据计算，按时间范围过滤） ---------- */
   const kpiCards: KpiCard[] = useMemo(
-    () => buildKpiFromTrend(trendRaw, realBrands.length),
-    [trendRaw, realBrands.length],
+    () => buildKpiFromTrend(trendRaw, realBrands.length, debouncedFilters.timeRange),
+    [trendRaw, realBrands.length, debouncedFilters.timeRange],
   );
 
   /* ---------- 3b. normalizeViewData: map Chinese field names to English ---------- */
@@ -1006,7 +1049,6 @@ export default function EcommercePage() {
       categoryView: string,
       categoryList: string[],
       brand: string,
-      timeRange: string,
       signal?: AbortSignal,
     ): Promise<any[] | null> => {
       try {
@@ -1018,7 +1060,6 @@ export default function EcommercePage() {
             category: categoryList,
             brand: brand === '全部品牌' ? '' : brand,
             view: categoryView,
-            timeRange,
           }),
           signal,
         });
@@ -1036,16 +1077,64 @@ export default function EcommercePage() {
     [],
   );
 
-  /* ---------- 5. 单次 effect：同时拉取大盘趋势（KPI用）+ 当前视图数据 ---------- */
+  /* ---------- 5a. Fetch trend data (for KPI) — only when category/brand changes, NOT on tab switch ---------- */
   useEffect(() => {
     if (!debouncedFilters.industry || !debouncedFilters.category) return;
 
     const controller = new AbortController();
-    abortControllerRef.current = controller;
+    trendAbortRef.current = controller;
 
-    const categoryList = debouncedFilters.subcategory
-      ? [debouncedFilters.industry, debouncedFilters.category, debouncedFilters.subcategory]
-      : [debouncedFilters.industry, debouncedFilters.category];
+    // category_list must have exactly 3 elements per MCP spec
+    const categoryList = [
+      debouncedFilters.industry,
+      debouncedFilters.category,
+      debouncedFilters.subcategory || '全部',
+    ];
+    const brand = debouncedFilters.brand === '全部品牌' ? '' : debouncedFilters.brand;
+
+    setError(null);
+    if (!hasDataRef.current) setLoading(true);
+
+    (async () => {
+      const trend = await fetchCrawlerView(
+        '品类视角-大盘趋势',
+        categoryList,
+        brand,
+        controller.signal,
+      );
+      if (controller.signal.aborted) return;
+
+      if (Array.isArray(trend)) {
+        setTrendRaw(trend);
+        if (trend.length > 0) hasDataRef.current = true;
+      } else if (trend === null) {
+        setError('数据加载失败，MCP服务可能正忙，请稍后重试');
+      }
+      setLoading(false);
+    })();
+
+    return () => { controller.abort(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    debouncedFilters.industry,
+    debouncedFilters.category,
+    debouncedFilters.subcategory,
+    debouncedFilters.brand,
+    refreshNonce,
+  ]);
+
+  /* ---------- 5b. Fetch view-specific data — refetches on tab switch AND filter change ---------- */
+  useEffect(() => {
+    if (!debouncedFilters.industry || !debouncedFilters.category) return;
+
+    const controller = new AbortController();
+    viewAbortRef.current = controller;
+
+    const categoryList = [
+      debouncedFilters.industry,
+      debouncedFilters.category,
+      debouncedFilters.subcategory || '全部',
+    ];
     const brand = debouncedFilters.brand === '全部品牌' ? '' : debouncedFilters.brand;
 
     const viewMap: Record<string, string> = {
@@ -1060,59 +1149,52 @@ export default function EcommercePage() {
     };
     const targetView = viewMap[activeView] || '品类视角-大盘趋势';
 
-    // Keep old data visible during filter switches; only show skeleton before first successful load
-    setLoading(!hasDataRef.current);
+    // For 大盘趋势 tab, view data is derived from trendRaw (already fetched by effect 5a)
+    if (targetView === '品类视角-大盘趋势') {
+      return;
+    }
 
-    // 大盘趋势每次都拉，KPI 依赖它
-    const trendP = fetchCrawlerView(
-      '品类视角-大盘趋势',
-      categoryList,
-      brand,
-      debouncedFilters.timeRange,
-      controller.signal,
-    );
-
-    // 当前视图非大盘趋势时再并行拉一份；否则复用 trendP
-    const viewP =
-      targetView === '品类视角-大盘趋势'
-        ? trendP
-        : fetchCrawlerView(targetView, categoryList, brand, debouncedFilters.timeRange, controller.signal);
+    if (!hasDataRef.current) setLoading(true);
 
     (async () => {
-      const [trend, view] = await Promise.all([trendP, viewP]);
+      const view = await fetchCrawlerView(
+        targetView,
+        categoryList,
+        brand,
+        controller.signal,
+      );
       if (controller.signal.aborted) return;
-
-      let gotData = false;
-      // 仅在成功拿到数据时更新；失败（null）保留旧数据，避免筛选切换时清空
-      if (Array.isArray(trend)) {
-        setTrendRaw(trend);
-        if (trend.length > 0) gotData = true;
-      }
-      // trend === null 表示请求失败，保留旧数据
 
       if (Array.isArray(view)) {
         setViewData(normalizeViewData(activeView, view));
-        if (view.length > 0) gotData = true;
+        if (view.length > 0) hasDataRef.current = true;
+      } else if (view === null) {
+        setError('视图数据加载失败，请稍后重试或切换其他视图');
       }
-      // view === null 表示请求失败，保留旧数据
-
-      if (gotData) hasDataRef.current = true;
       setLoading(false);
     })();
 
-    return () => {
-      controller.abort();
-    };
+    return () => { controller.abort(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeView, debouncedFilters, refreshNonce]);
+  }, [
+    activeView,
+    debouncedFilters.industry,
+    debouncedFilters.category,
+    debouncedFilters.subcategory,
+    debouncedFilters.brand,
+    refreshNonce,
+    // NOTE: timeRange intentionally excluded — MCP always returns 13 months,
+    // time filtering is done client-side. No need to refetch.
+  ]);
 
-  /* ---------- 5b. Fetch real brands when category/subcategory changes ---------- */
-  /* 品牌列表不依赖时间范围，仅在品类路径变化时重新拉取，避免切换时间范围触发多余MCP请求 */
+  /* ---------- 5c. Fetch real brands when category/subcategory changes ---------- */
   useEffect(() => {
     if (!debouncedFilters.industry || !debouncedFilters.category) return;
-    const categoryList = debouncedFilters.subcategory
-      ? [debouncedFilters.industry, debouncedFilters.category, debouncedFilters.subcategory]
-      : [debouncedFilters.industry, debouncedFilters.category];
+    const categoryList = [
+      debouncedFilters.industry,
+      debouncedFilters.category,
+      debouncedFilters.subcategory || '全部',
+    ];
 
     let cancelled = false;
     async function loadBrands() {
@@ -1181,18 +1263,29 @@ export default function EcommercePage() {
 
   /* ---------- 7. View content renderer ---------- */
   const renderViewContent = () => {
+    // For 大盘趋势 tab, derive view data directly from trendRaw (no separate fetch)
+    const activeViewData = activeView === '大盘趋势'
+      ? normalizeViewData('大盘趋势', trendRaw)
+      : viewData;
+
+    // Apply time-range filter for date-based views
+    const dateViews = ['大盘趋势', '销售价量'];
+    const filteredViewData = dateViews.includes(activeView)
+      ? filterViewByTimeRange(activeViewData, debouncedFilters.timeRange)
+      : activeViewData;
+
     switch (activeView) {
       case '大盘趋势':
-        return <TrendView loading={loading} data={viewData} />;
+        return <TrendView loading={loading} data={filteredViewData} />;
       case '品牌排行':
-        return <BrandRankingView loading={loading} data={viewData} />;
+        return <BrandRankingView loading={loading} data={filteredViewData} />;
       case '销售价量':
-        return <PriceVolumeView loading={loading} data={viewData} xKey="label" />;
+        return <PriceVolumeView loading={loading} data={filteredViewData} xKey="label" />;
       case '店铺列表':
         return (
           <DataTableView
             loading={loading}
-            data={viewData.map((d) => ({
+            data={filteredViewData.map((d) => ({
               rank: d.id,
               name: d.name,
               platform: d.platform,
@@ -1214,7 +1307,7 @@ export default function EcommercePage() {
         return (
           <DataTableView
             loading={loading}
-            data={viewData.map((d) => ({
+            data={filteredViewData.map((d) => ({
               rank: d.id,
               name: d.name,
               brand: d.brand,
@@ -1233,11 +1326,11 @@ export default function EcommercePage() {
           />
         );
       case '价格区间':
-        return <PriceVolumeView loading={loading} data={viewData} xKey="range" />;
+        return <PriceVolumeView loading={loading} data={filteredViewData} xKey="range" />;
       case '价格交叉':
-        return <PriceCrossView loading={loading} data={viewData} />;
+        return <PriceCrossView loading={loading} data={filteredViewData} />;
       case '热词频次':
-        return <HotwordsView loading={loading} data={viewData} />;
+        return <HotwordsView loading={loading} data={filteredViewData} />;
       default:
         return <div className="text-center py-12 text-muted-foreground">暂无数据</div>;
     }
@@ -1330,9 +1423,10 @@ export default function EcommercePage() {
               <Select
                 value={filters.brand}
                 onValueChange={handleBrandChange}
+                disabled={brandsLoading}
               >
                 <SelectTrigger size="sm" className="w-36">
-                  <SelectValue />
+                  <SelectValue placeholder={brandsLoading ? '加载中…' : '全部品牌'} />
                 </SelectTrigger>
                 <SelectContent>
                   {brands.map((b) => (
@@ -1381,6 +1475,30 @@ export default function EcommercePage() {
         ))}
       </div>
 
+      {/* Error banner with retry */}
+      {error && (
+        <div className="flex items-center justify-between rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
+          <div className="flex items-center gap-2 text-sm text-red-400">
+            <span>⚠️</span>
+            <span>{error}</span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+          >
+            <RefreshCw className="h-3.5 w-3.5 mr-1" />
+            重试
+          </Button>
+        </div>
+      )}
+
+      {/* Data cutoff notice */}
+      <div className="text-xs text-muted-foreground -mt-2">
+        数据来源：久谦中台 · 数据截止至2个月前，每月更新一次
+      </div>
+
       {/* Data Views */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-0">
@@ -1411,7 +1529,17 @@ export default function EcommercePage() {
           </div>
 
           {/* View Content */}
-          {renderViewContent()}
+          <div className="relative">
+            {loading && hasDataRef.current && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/60 backdrop-blur-[1px]">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  数据加载中…
+                </div>
+              </div>
+            )}
+            {renderViewContent()}
+          </div>
         </CardContent>
       </Card>
     </div>

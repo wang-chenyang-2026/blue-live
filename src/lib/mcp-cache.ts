@@ -1,7 +1,9 @@
 /**
- * Simple TTL cache for MCP crawler query results.
- * Prevents hitting BlueAI MCP rate limits when users rapidly switch filters.
- * Cache key is built from category_view + category_list + brand + date range.
+ * TTL cache for MCP crawler query results.
+ *
+ * MCP download_data always returns the full 13-month window (month-2 to month-14),
+ * regardless of any start/end parameters. So the data only changes when a new month
+ * becomes available (roughly monthly). We can safely cache for hours.
  */
 
 interface CacheEntry {
@@ -9,22 +11,23 @@ interface CacheEntry {
   expires: number;
 }
 
-// Default TTL: 10 minutes for crawler data (it's aggregated monthly, doesn't change rapidly)
-const DEFAULT_TTL_MS = 10 * 60 * 1000;
+// Crawler data is 13-month aggregated monthly data with 2-month delay.
+// It changes at most once per month. Cache for 6 hours.
+const DEFAULT_TTL_MS = 6 * 60 * 60 * 1000;
 
-// Longer TTL for brand list (brand composition rarely changes within a category)
-const BRAND_TTL_MS = 30 * 60 * 1000;
+// Brand list changes even less frequently. Cache for 24 hours.
+const BRAND_TTL_MS = 24 * 60 * 60 * 1000;
 
 const store = new Map<string, CacheEntry>();
 
-// Periodic cleanup to avoid memory leaks
+// Periodic cleanup
 if (typeof setInterval !== 'undefined') {
   setInterval(() => {
     const now = Date.now();
     for (const [key, entry] of store) {
       if (entry.expires < now) store.delete(key);
     }
-  }, 5 * 60 * 1000).unref?.();
+  }, 30 * 60 * 1000).unref?.();
 }
 
 export function buildCacheKey(parts: (string | string[] | undefined | null)[]): string {

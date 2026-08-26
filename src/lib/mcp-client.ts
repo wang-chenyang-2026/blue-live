@@ -211,18 +211,25 @@ const queueTail = new Map<string, Promise<unknown>>();
 // calls for a full 60s window instead of repeatedly hitting the wall.
 let rateLimitUntil = 0;
 
-// Proactive sliding-window rate limiter. MCP allows ~2 requests/min per key.
-// We track timestamps of the last N calls and wait if we'd exceed the budget,
-// so we never trigger KEY_RPM_EXCEEDED in the first place.
-const MAX_CALLS_PER_WINDOW = 2;
-const WINDOW_MS = 62_000; // slightly over 60s for safety
+// In-flight request deduplication: identical concurrent tools/call share one Promise.
+// Solves React StrictMode double-execution and multi-tab duplicate requests.
+const inFlight = new Map<string, Promise<MCPToolResult>>();
+
+function dedupeKey(serverName: string, toolName: string, args: Record<string, unknown>): string {
+  return `${serverName}:${toolName}:${JSON.stringify(args)}`;
+}
+
+// Proactive sliding-window rate limiter.
+// MCP docs: download_data = 10 req/min, concurrency 1. We use 9 to leave 1 req headroom.
+// category = 10 req/min, concurrency 2. Most other tools = 10 req/min.
+// We use a single global budget of 9/min since all tools share the same API key.
+const MAX_CALLS_PER_WINDOW = 9;
+const WINDOW_MS = 60_000;
 const callTimestamps: number[] = [];
 
 async function respectRateBudget(): Promise<void> {
   const now = Date.now();
-  // First, wait out any active server-side cooldown
   await waitForRateLimitWindow();
-  // Prune timestamps outside the window
   while (callTimestamps.length > 0 && callTimestamps[0] < now - WINDOW_MS) {
     callTimestamps.shift();
   }
@@ -254,7 +261,11 @@ async function withQueue<T>(serverName: string, fn: () => Promise<T>): Promise<T
 }
 
 function isRateLimitError(msg: string): boolean {
-  return /RPM|CONCURRENCY|KEY_RPM|rate.?limit|429/i.test(msg);
+  return /RPM|KEY_RPM|rate.?limit|429/i.test(msg);
+}
+
+function isConcurrencyError(msg: string): boolean {
+  return /CONCURRENCY|503|并发/i.test(msg);
 }
 
 function sleep(ms: number): Promise<void> {
@@ -333,7 +344,8 @@ export async function initializeServer(
 }
 
 /**
- * Call MCP tool with retry on rate limit / session expiry
+ * Call MCP tool with retry on rate limit / session expiry.
+ * Includes in-flight deduplication: identical concurrent calls share one Promise.
  */
 export async function callTool(
   serverName: string,
@@ -341,9 +353,18 @@ export async function callTool(
   args: Record<string, unknown>,
   sessionId?: string,
 ): Promise<MCPToolResult> {
-  return withQueue(serverName, () =>
+  const dKey = dedupeKey(serverName, toolName, args);
+  const existing = inFlight.get(dKey);
+  if (existing) return existing;
+
+  const promise = withQueue(serverName, () =>
     callToolInternal(serverName, toolName, args, sessionId, false),
-  );
+  ).finally(() => {
+    inFlight.delete(dKey);
+  });
+
+  inFlight.set(dKey, promise);
+  return promise;
 }
 
 async function callToolInternal(
@@ -362,14 +383,15 @@ async function callToolInternal(
     throw new Error(`Session ID missing for ${serverName}`);
   }
 
-  // Retry with adaptive waits for rate limits.
-  // MCP enforces ~2 requests/min per key; when KEY_RPM_EXCEEDED fires we
-  // must wait out a full 60s window before retrying.
-  const retryWaits = [3000, 15000, 45000]; // 3s, 15s, 45s — total ~63s covers one RPM window
+  // Retry logic:
+  // - 429 (RPM exceeded): wait full 60s window, then retry
+  // - 503 (concurrency exceeded): short wait 2-5s, retry quickly
+  // - session expired: force reinit once
+  const rateLimitWaits = [5000, 30000, 60000];
+  const concurrencyWaits = [2000, 5000];
   let lastErr: unknown;
 
-  for (let attempt = 0; attempt <= retryWaits.length; attempt++) {
-    // If a cooldown is active from a previous rate-limit hit, wait it out first
+  for (let attempt = 0; attempt < 4; attempt++) {
     await waitForRateLimitWindow();
 
     try {
@@ -394,8 +416,14 @@ async function callToolInternal(
         if (isRateLimitError(errMsg)) {
           lastErr = new Error(errMsg);
           rateLimitUntil = Date.now() + 60000;
-          if (attempt < retryWaits.length) {
-            await sleep(retryWaits[attempt]);
+          if (attempt < rateLimitWaits.length) {
+            await sleep(rateLimitWaits[attempt]);
+            continue;
+          }
+        } else if (isConcurrencyError(errMsg)) {
+          lastErr = new Error(errMsg);
+          if (attempt < concurrencyWaits.length) {
+            await sleep(concurrencyWaits[attempt]);
             continue;
           }
         }
@@ -407,8 +435,14 @@ async function callToolInternal(
         if (isRateLimitError(errorText)) {
           lastErr = new Error(errorText);
           rateLimitUntil = Date.now() + 60000;
-          if (attempt < retryWaits.length) {
-            await sleep(retryWaits[attempt]);
+          if (attempt < rateLimitWaits.length) {
+            await sleep(rateLimitWaits[attempt]);
+            continue;
+          }
+        } else if (isConcurrencyError(errorText)) {
+          lastErr = new Error(errorText);
+          if (attempt < concurrencyWaits.length) {
+            await sleep(concurrencyWaits[attempt]);
             continue;
           }
         }
@@ -425,8 +459,15 @@ async function callToolInternal(
       if (isRateLimitError(msg)) {
         lastErr = err;
         rateLimitUntil = Date.now() + 60000;
-        if (attempt < retryWaits.length) {
-          await sleep(retryWaits[attempt]);
+        if (attempt < rateLimitWaits.length) {
+          await sleep(rateLimitWaits[attempt]);
+          continue;
+        }
+      }
+      if (isConcurrencyError(msg)) {
+        lastErr = err;
+        if (attempt < concurrencyWaits.length) {
+          await sleep(concurrencyWaits[attempt]);
           continue;
         }
       }

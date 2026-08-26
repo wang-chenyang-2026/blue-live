@@ -35,44 +35,19 @@ interface ChatResponse {
 }
 
 /**
- * Calculate start_date and end_date from timeRange string
- */
-function calcDateRange(timeRange: string): { startMonth: string; endMonth: string } {
-  const now = new Date();
-  const endMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const startDate = new Date(now);
-
-  const monthMap: Record<string, number> = {
-    '近30天': 1,
-    '近90天': 3,
-    '近半年': 6,
-    '近一年': 12,
-    '本年度': 0,
-  };
-
-  if (timeRange === '本年度') {
-    startDate.setMonth(0);
-  } else {
-    const months = monthMap[timeRange] ?? 3;
-    startDate.setMonth(startDate.getMonth() - months);
-  }
-
-  const startMonth = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}`;
-  return { startMonth, endMonth };
-}
-
-/**
- * Handle ecommerce data queries via crawler-server
+ * Handle ecommerce data queries via crawler-server.
+ *
+ * MCP download_data always returns the full 13-month window (month-2 to month-14),
+ * regardless of any start_date/end_date parameters. We do NOT pass them.
+ * Time-range filtering is done on the frontend.
  */
 async function handleCrawlerQuery(
   intent: ParsedIntent,
   category?: string[],
   brand?: string,
   viewOverride?: string,
-  timeRange?: string,
+  signal?: AbortSignal,
 ): Promise<{ reply: string; data?: unknown; dataType?: string }> {
-  // Use viewOverride if provided (already in correct format like "品类视角-大盘趋势")
-  // Otherwise fall back to intent.view from parseIntent
   const view = viewOverride || intent.view || '品类视角-大盘趋势';
 
   if (!category || category.length === 0) {
@@ -82,10 +57,8 @@ async function handleCrawlerQuery(
     };
   }
 
-  const { startMonth, endMonth } = calcDateRange(timeRange || '近90天');
-
-  // Check cache first to avoid MCP rate limits
-  const cacheKey = buildCacheKey(['crawler', view, category, brand || '', startMonth, endMonth]);
+  // Cache key: only view + category + brand. No timeRange (MCP always returns 13 months).
+  const cacheKey = buildCacheKey(['crawler', view, category, brand || '']);
   const cached = getCached<unknown>(cacheKey);
   if (cached) {
     return {
@@ -95,26 +68,40 @@ async function handleCrawlerQuery(
     };
   }
 
+  // Check if client already disconnected before making expensive MCP call
+  if (signal?.aborted) {
+    return { reply: '请求已取消', dataType: 'cancelled' };
+  }
+
   try {
     const { sessionId } = await initializeServer('crawler-server');
+
+    // Check abort again after session init (which may take time)
+    if (signal?.aborted) {
+      return { reply: '请求已取消', dataType: 'cancelled' };
+    }
+
     const result = await callTool(
       'crawler-server',
       'download_data',
       {
         category_list: category,
         category_view: view,
-        start_date: startMonth,
-        end_date: endMonth,
-        brand: brand || '',
+        // MCP download_data does not accept start_date/end_date;
+        // it always returns months 2-14 from current month.
+        // jqec_cp defaults to bowen.cui@bluefocus.com on the server side.
       },
       sessionId,
     );
+
+    if (signal?.aborted) {
+      return { reply: '请求已取消', dataType: 'cancelled' };
+    }
 
     const textContent = result.content?.[0]?.text || '';
     let parsedData: unknown = null;
     try {
       const parsed = JSON.parse(textContent);
-      // MCP返回格式: {code:200, data:[...]}
       if (parsed && typeof parsed === 'object' && 'code' in parsed) {
         if (parsed.code === 200 && Array.isArray(parsed.data)) {
           parsedData = parsed.data;
@@ -128,20 +115,20 @@ async function handleCrawlerQuery(
       parsedData = textContent;
     }
 
-    // Cache successful array responses only (not error objects)
+    // Cache successful array responses only
     if (Array.isArray(parsedData) && parsedData.length > 0) {
       setCached(cacheKey, parsedData, TTL.DEFAULT);
     }
 
     const catLabel = category.join(' > ');
     return {
-      reply: `已获取「${catLabel}」类目${view}数据（${startMonth} ~ ${endMonth}）`,
+      reply: `已获取「${catLabel}」类目${view}数据`,
       data: parsedData,
       dataType: view,
     };
   } catch (err) {
     return {
-      reply: `获取数据失败：${err instanceof Error ? err.message : '未知错误'}。请检查品类路径是否正确。`,
+      reply: `获取数据失败：${err instanceof Error ? err.message : '未知错误'}。请稍后重试。`,
       dataType: 'error',
     };
   }
@@ -280,7 +267,6 @@ export async function POST(req: Request): Promise<NextResponse<ChatResponse>> {
 
     const intent = parseIntent(message || '');
 
-    // If view is provided directly, use it (already in correct format)
     if (view) {
       intent.view = view;
       intent.service = 'crawler-server';
@@ -303,7 +289,7 @@ export async function POST(req: Request): Promise<NextResponse<ChatResponse>> {
         break;
       case 'crawler-server':
       default:
-        result = await handleCrawlerQuery(intent, category, brand, view, timeRange);
+        result = await handleCrawlerQuery(intent, category, brand, view, req.signal);
         break;
     }
 

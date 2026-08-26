@@ -2,37 +2,9 @@ import { NextResponse } from 'next/server';
 import { callTool, initializeServer } from '@/lib/mcp-client';
 import { buildCacheKey, getCached, setCached, TTL } from '@/lib/mcp-cache';
 
-/**
- * Calculate start_date and end_date from timeRange string
- */
-function calcDateRange(timeRange: string): { startMonth: string; endMonth: string } {
-  const now = new Date();
-  const endMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const startDate = new Date(now);
-
-  const monthMap: Record<string, number> = {
-    '近30天': 1,
-    '近90天': 3,
-    '近半年': 6,
-    '近一年': 12,
-    '本年度': 0,
-  };
-
-  if (timeRange === '本年度') {
-    startDate.setMonth(0);
-  } else {
-    const months = monthMap[timeRange] ?? 3;
-    startDate.setMonth(startDate.getMonth() - months);
-  }
-
-  const startMonth = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}`;
-  return { startMonth, endMonth };
-}
-
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const categoryStr = searchParams.get('category');
-  const timeRange = searchParams.get('timeRange') || '近90天';
 
   if (!categoryStr) {
     return NextResponse.json({ success: false, error: '缺少category参数' }, { status: 400 });
@@ -49,26 +21,35 @@ export async function GET(req: Request) {
     return NextResponse.json({ success: false, error: 'category必须是数组' }, { status: 400 });
   }
 
-  const { startMonth, endMonth } = calcDateRange(timeRange);
-
-  // Cache brand list for 30 min (brand composition changes slowly)
-  const cacheKey = buildCacheKey(['brands', category, startMonth, endMonth]);
-  const cached = getCached<{ brands: { name: string; sales: number }[]; total: number; dateRange: { start: string; end: string } }>(cacheKey);
+  // Cache key: only category. No timeRange (MCP always returns 13 months, brand list is stable).
+  const cacheKey = buildCacheKey(['brands', category]);
+  const cached = getCached<{
+    brands: { name: string; sales: number }[];
+    total: number;
+  }>(cacheKey);
   if (cached) {
     return NextResponse.json({ success: true, data: cached, cached: true });
   }
 
+  // Don't make MCP call if client already disconnected
+  if (req.signal.aborted) {
+    return NextResponse.json({ success: false, error: '请求已取消' }, { status: 499 });
+  }
+
   try {
     const { sessionId } = await initializeServer('crawler-server');
+
+    if (req.signal.aborted) {
+      return NextResponse.json({ success: false, error: '请求已取消' }, { status: 499 });
+    }
+
     const result = await callTool(
       'crawler-server',
       'download_data',
       {
         category_list: category,
         category_view: '品类视角-品牌列表',
-        start_date: startMonth,
-        end_date: endMonth,
-        brand: '',
+        // No start_date/end_date — MCP always returns months 2-14
       },
       sessionId,
     );
@@ -92,7 +73,7 @@ export async function GET(req: Request) {
     const brandMap = new Map<string, number>();
     for (const row of parsed.data) {
       const brandName = String(row['品牌'] || '').trim();
-      const sales = Number(row['销售额(元)'] || 0);
+      const sales = Number(row['销售额(元)']) || 0;
       if (brandName) {
         brandMap.set(brandName, (brandMap.get(brandName) || 0) + sales);
       }
@@ -105,10 +86,8 @@ export async function GET(req: Request) {
     const responseData = {
       brands,
       total: brands.length,
-      dateRange: { start: startMonth, end: endMonth },
     };
 
-    // Cache for 30 minutes
     setCached(cacheKey, responseData, TTL.BRAND);
 
     return NextResponse.json({
