@@ -426,14 +426,60 @@ function KpiCardComp({ label, value, change, icon, color }: KpiCard) {
 }
 
 /* ========== View Components ========== */
-function TrendView({ loading, data }: { loading: boolean; data: any[] }) {
-  const chartConfig = {
-    sales: { label: '销售额(万)', color: '#4158D0' },
-    volume: { label: '销量(万件)', color: '#C850C0' },
-  };
+// Platform metadata for channel split
+const PLATFORM_META: Record<string, { label: string; color: string }> = {
+  jd: { label: '京东', color: '#E1251B' },
+  tmall: { label: '天猫', color: '#FF5000' },
+  douyin: { label: '抖音', color: '#000000' },
+};
 
-  // 按月份聚合跨平台数据，并把元/件换算成万
+function TrendView({ loading, data }: { loading: boolean; data: any[] }) {
+  // Check if data has platform field for channel split
+  const hasPlatformData = useMemo(() => {
+    return data?.some((r) => r.platform && r.platform !== '-' && PLATFORM_META[r.platform]) ?? false;
+  }, [data]);
+
+  const chartConfig = useMemo((): Record<string, { label: string; color: string }> => {
+    if (hasPlatformData) {
+      return {
+        jd: { label: '京东(亿)', color: PLATFORM_META.jd.color },
+        tmall: { label: '天猫(亿)', color: PLATFORM_META.tmall.color },
+        douyin: { label: '抖音(亿)', color: PLATFORM_META.douyin.color },
+      };
+    }
+    return {
+      sales: { label: '销售额(万)', color: '#4158D0' },
+      volume: { label: '销量(万件)', color: '#C850C0' },
+    };
+  }, [hasPlatformData]);
+
+  // Chart data: by platform if available, otherwise aggregated
   const chartData = useMemo(() => {
+    if (hasPlatformData) {
+      // Group by month and platform, convert to 亿
+      const map = new Map<number, { jd: number; tmall: number; douyin: number }>();
+      for (const r of data || []) {
+        const m = Number(r.date);
+        if (!m) continue;
+        const cur = map.get(m) || { jd: 0, tmall: 0, douyin: 0 };
+        const platform = r.platform?.toLowerCase();
+        const sales = (Number(r.sales) || 0) / 1e8; // Convert to 亿
+        if (platform === 'jd') cur.jd += sales;
+        else if (platform === 'tmall') cur.tmall += sales;
+        else if (platform === 'douyin') cur.douyin += sales;
+        map.set(m, cur);
+      }
+      return [...map.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([m, v]) => ({
+          month: m,
+          label: formatMonthLabel(m),
+          jd: +v.jd.toFixed(2),
+          tmall: +v.tmall.toFixed(2),
+          douyin: +v.douyin.toFixed(2),
+        }));
+    }
+    // Fallback: aggregated data
     const map = new Map<number, { sales: number; volume: number }>();
     for (const r of data || []) {
       const m = Number(r.date);
@@ -448,10 +494,10 @@ function TrendView({ loading, data }: { loading: boolean; data: any[] }) {
       .map(([m, v]) => ({
         month: m,
         label: formatMonthLabel(m),
-        sales: +(v.sales / 1e4).toFixed(1),           // 万元
-        volume: +(v.volume / 1e4).toFixed(2),          // 万件
+        sales: +(v.sales / 1e4).toFixed(1),
+        volume: +(v.volume / 1e4).toFixed(2),
       }));
-  }, [data]);
+  }, [data, hasPlatformData]);
 
   if (loading) {
     return (
@@ -472,39 +518,52 @@ function TrendView({ loading, data }: { loading: boolean; data: any[] }) {
   return (
     <div className="h-[400px]">
       <ChartContainer config={chartConfig} className="h-full">
-        <AreaChart data={chartData}>
-          <defs>
-            <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#4158D0" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#4158D0" stopOpacity={0} />
-            </linearGradient>
-            <linearGradient id="volumeGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#C850C0" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#C850C0" stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-          <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-          <ChartTooltip content={<ChartTooltipContent />} />
-          <ChartLegend content={<ChartLegendContent />} />
-          <Area
-            type="monotone"
-            dataKey="sales"
-            name="销售额(万)"
-            stroke="#4158D0"
-            fill="url(#salesGradient)"
-            strokeWidth={2}
-          />
-          <Area
-            type="monotone"
-            dataKey="volume"
-            name="销量(万件)"
-            stroke="#C850C0"
-            fill="url(#volumeGradient)"
-            strokeWidth={2}
-          />
-        </AreaChart>
+        {hasPlatformData ? (
+          <BarChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+            <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} label={{ value: '亿元', angle: -90, position: 'insideLeft', fontSize: 12 }} />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Bar dataKey="jd" name="京东" fill={PLATFORM_META.jd.color} stackId="stack" />
+            <Bar dataKey="tmall" name="天猫" fill={PLATFORM_META.tmall.color} stackId="stack" />
+            <Bar dataKey="douyin" name="抖音" fill={PLATFORM_META.douyin.color} stackId="stack" />
+          </BarChart>
+        ) : (
+          <AreaChart data={chartData}>
+            <defs>
+              <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#4158D0" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#4158D0" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="volumeGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#C850C0" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#C850C0" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+            <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Area
+              type="monotone"
+              dataKey="sales"
+              name="销售额(万)"
+              stroke="#4158D0"
+              fill="url(#salesGradient)"
+              strokeWidth={2}
+            />
+            <Area
+              type="monotone"
+              dataKey="volume"
+              name="销量(万件)"
+              stroke="#C850C0"
+              fill="url(#volumeGradient)"
+              strokeWidth={2}
+            />
+          </AreaChart>
+        )}
       </ChartContainer>
     </div>
   );
@@ -896,6 +955,7 @@ export default function EcommercePage() {
   const [brandsLoading, setBrandsLoading] = useState(false);
   // 大盘趋势原始数据（用于 KPI 计算，单位：元/件）——只在品类/品牌变化时拉取，切tab不重新拉
   const [trendRaw, setTrendRaw] = useState<any[]>([]);
+  const [brandListRaw, setBrandListRaw] = useState<any[]>([]);
   const [refreshNonce, setRefreshNonce] = useState(0);
 
   // AbortController ref for cancelling stale requests
@@ -939,9 +999,7 @@ export default function EcommercePage() {
           const firstCategory = firstIndustry && tree[firstIndustry]
             ? Object.keys(tree[firstIndustry])[0] || ''
             : '';
-          const firstSubcategory = firstIndustry && firstCategory && tree[firstIndustry]?.[firstCategory]
-            ? tree[firstIndustry][firstCategory][0] || ''
-            : '';
+          const firstSubcategory = '';  // Default to "全部" (empty string)
           const firstBrand = '全部品牌';
           setFilters({
             industry: firstIndustry,
@@ -980,8 +1038,14 @@ export default function EcommercePage() {
 
   /* ---------- 3. KPI cards（基于大盘趋势真实数据计算，按时间范围过滤） ---------- */
   const kpiCards: KpiCard[] = useMemo(
-    () => buildKpiFromTrend(trendRaw, realBrands.length, debouncedFilters.timeRange, debouncedFilters.brand),
-    [trendRaw, realBrands.length, debouncedFilters.timeRange, debouncedFilters.brand],
+    () => {
+      // When a specific brand is selected, use brandListRaw for KPI (has brand field)
+      // Otherwise use trendRaw (aggregate data)
+      const isSpecificBrand = debouncedFilters.brand && debouncedFilters.brand !== '全部品牌';
+      const kpiSource = isSpecificBrand && brandListRaw.length > 0 ? brandListRaw : trendRaw;
+      return buildKpiFromTrend(kpiSource, realBrands.length, debouncedFilters.timeRange, debouncedFilters.brand);
+    },
+    [trendRaw, brandListRaw, realBrands.length, debouncedFilters.timeRange, debouncedFilters.brand],
   );
 
   /* ---------- 3b. normalizeViewData: map Chinese field names to English ---------- */
@@ -1106,7 +1170,7 @@ export default function EcommercePage() {
     const categoryList = [
       debouncedFilters.industry,
       debouncedFilters.category,
-      debouncedFilters.subcategory || '全部',
+      debouncedFilters.subcategory || '',
     ];
     const brand = debouncedFilters.brand === '全部品牌' ? '' : debouncedFilters.brand;
     const categoryKey = categoryList.join('>');
@@ -1119,22 +1183,22 @@ export default function EcommercePage() {
     const myToken = ++trendReqToken.current;
 
     setError(null);
-    setLoading(true);
+    setLoading(false);
 
     // On category change, clear old data immediately so stale KPI/chart is not shown
     if (isCategoryChange) {
       setTrendRaw([]);
       setViewData([]);
+      setBrandListRaw([]);
       hasDataRef.current = false;
     }
 
     (async () => {
-      const trend = await fetchCrawlerView(
-        '品类视角-大盘趋势',
-        categoryList,
-        brand,
-        controller.signal,
-      );
+      // Fetch trend and brand list in parallel
+      const [trend, brandList] = await Promise.all([
+        fetchCrawlerView('品类视角-大盘趋势', categoryList, brand, controller.signal),
+        fetchCrawlerView('品类视角-品牌列表', categoryList, brand, controller.signal).catch(() => null),
+      ]);
 
       // Ignore response if a newer request has been issued or this was aborted
       if (controller.signal.aborted || myToken !== trendReqToken.current) return;
@@ -1143,8 +1207,20 @@ export default function EcommercePage() {
         setTrendRaw(trend);
         if (trend.length > 0) hasDataRef.current = true;
       } else if (trend === null) {
+        setTrendRaw([]);
+        setViewData([]);
+        setBrandListRaw([]);
+        hasDataRef.current = false;
         setError('数据加载失败，MCP服务可能正忙，请稍后重试');
       }
+
+      // Brand list for KPI calculation (failure doesn't block main flow)
+      if (Array.isArray(brandList)) {
+        setBrandListRaw(brandList);
+      } else {
+        setBrandListRaw([]);
+      }
+
       setLoading(false);
     })();
 
@@ -1168,7 +1244,7 @@ export default function EcommercePage() {
     const categoryList = [
       debouncedFilters.industry,
       debouncedFilters.category,
-      debouncedFilters.subcategory || '全部',
+      debouncedFilters.subcategory || '',
     ];
     const brand = debouncedFilters.brand === '全部品牌' ? '' : debouncedFilters.brand;
 
@@ -1207,6 +1283,7 @@ export default function EcommercePage() {
       if (Array.isArray(view)) {
         setViewData(normalizeViewData(activeView, view));
       } else if (view === null) {
+        setViewData([]);
         setError('视图数据加载失败，请稍后重试或切换其他视图');
       }
       setViewLoading(false);
@@ -1231,7 +1308,7 @@ export default function EcommercePage() {
     const categoryList = [
       debouncedFilters.industry,
       debouncedFilters.category,
-      debouncedFilters.subcategory || '全部',
+      debouncedFilters.subcategory || '',
     ];
 
     let cancelled = false;
@@ -1276,12 +1353,9 @@ export default function EcommercePage() {
 
   const handleCategoryChange = useCallback((v: string) => {
     setFilters((prev) => {
-      const subs = prev.industry && v && categoryTree[prev.industry]?.[v]
-        ? categoryTree[prev.industry][v]
-        : [];
-      return { ...prev, category: v, subcategory: subs[0] || '' };
+      return { ...prev, category: v, subcategory: '', brand: '全部品牌' };
     });
-  }, [categoryTree]);
+  }, []);
 
   const handleBrandChange = useCallback((v: string) => {
     setFilters((prev) => ({ ...prev, brand: v }));
@@ -1446,6 +1520,7 @@ export default function EcommercePage() {
                   <SelectValue placeholder="选择细分品类" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="">全部</SelectItem>
                   {subCategories.map((sub) => (
                     <SelectItem key={sub} value={sub}>
                       {sub}

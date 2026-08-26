@@ -2859,6 +2859,24 @@
       "mcp_status_desc": "已完成",
       "created_at": "2026-08-21T07:13:12.964Z",
       "created_by": "anonymous"
+    },
+    {
+      "id": "573fd2a8-522e-43df-83f5-5c80dd3c5a7a",
+      "project_id": 2019,
+      "task_name": "URL上传测试",
+      "product_name": "",
+      "brand": null,
+      "brief_summary": "URL批量上传：1个链接",
+      "keyword_groups": [],
+      "metrics": {},
+      "status": "running",
+      "result_data": null,
+      "file_url": null,
+      "kol_list": null,
+      "mcp_status": 0,
+      "mcp_status_desc": "执行中",
+      "created_at": "2026-08-26T09:05:53.277Z",
+      "created_by": "anonymous"
     }
   ]
 }
