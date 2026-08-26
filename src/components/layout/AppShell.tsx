@@ -55,8 +55,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <footer className="border-t border-border bg-card px-6 py-3 text-center text-xs text-muted-foreground">
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
             <span>COPYRIGHT©BLUEXH.COM 蓝色星合传媒科技（北京）有限公司</span>
-            <a href="https://beian.mps.gov.cn/#/query/webSearch?code=110105020495597" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">
-              京公网安备 110105020495597号
+            <a href="https://beian.mps.gov.cn/#/query/webSearch?code=11010502049597" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">
+              京公网安备 11010502049597号
             </a>
             <a href="https://beian.miit.gov.cn/" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">
               京ICP备2022012255号-2
