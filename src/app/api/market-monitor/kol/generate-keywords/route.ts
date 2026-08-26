@@ -128,10 +128,13 @@ export async function POST(req: NextRequest) {
       .filter(Boolean)
       .join('\n');
 
+    // full_context 不能为空字符串，兜底用 compressedBrief
+    const finalFullContext = fullContext || compressedBrief.slice(0, 500);
+
     const result = await kolGenerateKeywords({
       compressed_brief: compressedBrief.slice(0, 500),
       entity_report: entityReport,
-      full_context: fullContext,
+      full_context: finalFullContext,
     });
 
     return NextResponse.json({

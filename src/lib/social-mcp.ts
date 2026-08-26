@@ -174,7 +174,7 @@ export interface CreateMonitorTaskArgs {
   periodDuration?: string; // P7D / P15D / P30D / PT0S
   frequency?: number; // 7/15/30 旧字段
   urlList?: string[];
-  request?: Record<string, unknown>;
+  projectId?: number;
 }
 
 export interface CreateMonitorTaskResult {
@@ -199,13 +199,20 @@ export async function nmmCreateTask(
   args: CreateMonitorTaskArgs,
 ): Promise<CreateMonitorTaskResult> {
   const sid = await initSession(NMM_SERVER);
+  // MCP 要求参数包裹在 request 对象中
+  const request: Record<string, unknown> = { projectName: args.projectName };
+  if (args.periodDuration !== undefined) request.periodDuration = args.periodDuration;
+  if (args.frequency !== undefined) request.frequency = args.frequency;
+  if (args.urlList !== undefined) request.urlList = args.urlList;
+  if (args.projectId !== undefined) request.projectId = args.projectId;
+
   const { data } = await mcpPost<unknown>(
     NMM_SERVER,
     {
       jsonrpc: '2.0',
       id: 2,
       method: 'tools/call',
-      params: { name: 'create_monitor_task', arguments: args },
+      params: { name: 'create_monitor_task', arguments: { request } },
     },
     sid,
   );

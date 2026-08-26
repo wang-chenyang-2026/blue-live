@@ -1015,6 +1015,55 @@ export default function KolPage() {
   const [filters, setFilters] = useState<FilterForm>(DEFAULT_FILTERS);
   const [tasksRefreshKey, setTasksRefreshKey] = useState(0);
 
+  // URL上传达人状态
+  const [urlUploadOpen, setUrlUploadOpen] = useState(false);
+  const [urlUploadText, setUrlUploadText] = useState('');
+  const [urlUploadProductName, setUrlUploadProductName] = useState('');
+  const [urlUploadProjectName, setUrlUploadProjectName] = useState('');
+  const [urlUploading, setUrlUploading] = useState(false);
+  const [urlUploadError, setUrlUploadError] = useState<string | null>(null);
+  const [urlUploadSuccess, setUrlUploadSuccess] = useState<{ projectId: number } | null>(null);
+
+  const handleUrlUpload = async () => {
+    const urls = urlUploadText
+      .split('\n')
+      .map((s) => s.trim())
+      .filter((s) => s.startsWith('http://') || s.startsWith('https://'));
+
+    if (urls.length === 0) {
+      setUrlUploadError('请输入至少一个有效的达人主页链接（http/https开头）');
+      return;
+    }
+
+    setUrlUploading(true);
+    setUrlUploadError(null);
+    setUrlUploadSuccess(null);
+
+    try {
+      const res = await fetch('/api/market-monitor/kol/create-route-task', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productName: urlUploadProductName || undefined,
+          projectName: urlUploadProjectName || undefined,
+          kolUrls: urls,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'URL上传任务创建失败');
+      }
+      setUrlUploadSuccess({ projectId: json.data.projectId });
+      setUrlUploadText('');
+      setUrlUploadProductName('');
+      setUrlUploadProjectName('');
+    } catch (err) {
+      setUrlUploadError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setUrlUploading(false);
+    }
+  };
+
   const currentIndex = STEPS.findIndex((s) => s.key === currentStep);
 
   const canProceed = () => {
@@ -1224,6 +1273,87 @@ export default function KolPage() {
 
         <TabsContent value="new" className="mt-6">
           <div className="max-w-4xl mx-auto">
+            {/* URL上传达人入口 */}
+            <Card className="bg-card border-border mb-6">
+              <div
+                className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-muted/30 transition-colors"
+                onClick={() => setUrlUploadOpen(!urlUploadOpen)}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10">
+                    <ExternalLink className="h-4 w-4 text-violet-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">上传达人链接</p>
+                    <p className="text-xs text-muted-foreground">
+                      直接粘贴抖音达人主页链接，批量创建选号任务
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight
+                  className={cn(
+                    'h-4 w-4 text-muted-foreground transition-transform',
+                    urlUploadOpen && 'rotate-90',
+                  )}
+                />
+              </div>
+
+              {urlUploadOpen && (
+                <div className="border-t border-border px-6 py-4 space-y-4">
+                  {urlUploadError && (
+                    <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600">
+                      {urlUploadError}
+                    </div>
+                  )}
+                  {urlUploadSuccess && (
+                    <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-600">
+                      URL上传任务已创建（任务号：{urlUploadSuccess.projectId}），请在「我的任务」中查看进度。
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <Label>产品名称（选填）</Label>
+                    <Input
+                      placeholder="如：vivo X200"
+                      value={urlUploadProductName}
+                      onChange={(e) => setUrlUploadProductName(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>任务名称（选填）</Label>
+                    <Input
+                      placeholder="如：618种草达人筛选"
+                      value={urlUploadProjectName}
+                      onChange={(e) => setUrlUploadProjectName(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>达人主页链接（每行一个）</Label>
+                    <textarea
+                      className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      placeholder={"https://www.douyin.com/user/xxx\nhttps://www.douyin.com/user/yyy"}
+                      value={urlUploadText}
+                      onChange={(e) => setUrlUploadText(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    onClick={handleUrlUpload}
+                    disabled={urlUploading || !urlUploadText.trim()}
+                    className="w-full"
+                  >
+                    {urlUploading ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> 提交中...
+                      </>
+                    ) : (
+                      <>
+                        <PlusCircle className="h-4 w-4 mr-2" /> 创建URL上传任务
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </Card>
+
             <StepIndicator currentStep={currentStep} />
 
             <Card className="bg-card border-border">

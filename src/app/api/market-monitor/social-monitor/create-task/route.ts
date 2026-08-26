@@ -5,7 +5,7 @@ import { createTask, resolveUserId } from '@/lib/social-task-store';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { taskName, projectName, periodDuration, frequency, urlList, request } = body;
+    const { taskName, projectName, periodDuration, frequency, urlList } = body;
 
     if (!taskName) {
       return NextResponse.json({ success: false, error: '任务名称不能为空' }, { status: 400 });
@@ -18,7 +18,6 @@ export async function POST(req: NextRequest) {
     if (periodDuration) args.periodDuration = periodDuration;
     if (frequency) args.frequency = Number(frequency);
     if (urlList && Array.isArray(urlList) && urlList.length > 0) args.urlList = urlList;
-    if (request && typeof request === 'object') args.request = request;
 
     const result = await nmmCreateTask(args as unknown as Parameters<typeof nmmCreateTask>[0]);
 

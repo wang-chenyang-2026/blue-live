@@ -27,7 +27,7 @@ export interface KolMcpMetrics {
   priceUpper20?: number;
   priceLower60?: number;
   priceUpper60?: number;
-  interactionRateAvgLower?: number;
+  interactionRateAvgLower?: string;
   playAvgLower?: number;
   [key: string]: unknown;
 }
@@ -228,7 +228,7 @@ function unwrap<T>(payload: unknown): T {
 export async function kolGenerateKeywords(args: {
   compressed_brief: string;
   entity_report: Record<string, unknown>;
-  full_context?: string;
+  full_context: string;
 }): Promise<GenerateKeywordsResult> {
   const sid = await initKolSession();
   const { data } = await mcpPost<unknown>(
@@ -263,6 +263,30 @@ export async function kolCreateProjectByKeywords(args: {
       id: 3,
       method: 'tools/call',
       params: { name: 'create_project_by_keywords', arguments: args },
+    },
+    sid,
+  );
+  return unwrap<CreateTaskResult>(data);
+}
+
+/**
+ * 调用 create_route_task（URL上传达人）
+ */
+export async function kolCreateRouteTask(args: {
+  creatType: number;
+  kolUrls: string[];
+  productName?: string;
+  projectName?: string;
+  groupId?: string;
+  conversationId?: string;
+}): Promise<CreateTaskResult> {
+  const sid = await initKolSession();
+  const { data } = await mcpPost<unknown>(
+    {
+      jsonrpc: '2.0',
+      id: 4,
+      method: 'tools/call',
+      params: { name: 'create_route_task', arguments: args },
     },
     sid,
   );
