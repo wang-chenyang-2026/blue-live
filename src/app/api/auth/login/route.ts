@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { hashPassword, verifyPassword } from '@/lib/password';
+import { signToken, AUTH_COOKIE_NAME } from '@/lib/auth-token';
 
 const ADMIN_PHONE = '18333685049';
 const ADMIN_PASSWORD = 'wcy861937877';
@@ -55,7 +56,21 @@ export async function POST(request: NextRequest) {
           remark: newUser.remark || '',
           createdAt: (newUser.created_at || '').slice(0, 10),
         };
-        return NextResponse.json({ success: true, user: safeUser });
+        const token = signToken({
+          userId: newUser.id,
+          phone: newUser.phone,
+          role: newUser.role,
+          name: newUser.name,
+        });
+        const resp = NextResponse.json({ success: true, user: safeUser });
+        resp.cookies.set(AUTH_COOKIE_NAME, token, {
+          httpOnly: true,
+          secure: true,
+          sameSite: 'lax',
+          path: '/',
+          maxAge: 7 * 24 * 60 * 60,
+        });
+        return resp;
       }
       return NextResponse.json({ error: '手机号或密码错误' }, { status: 401 });
     }
@@ -91,7 +106,21 @@ export async function POST(request: NextRequest) {
       remark: u.remark || '',
       createdAt: (u.created_at || '').slice(0, 10),
     };
-    return NextResponse.json({ success: true, user: safeUser });
+    const token = signToken({
+      userId: u.id,
+      phone: u.phone,
+      role: u.role,
+      name: u.name,
+    });
+    const resp = NextResponse.json({ success: true, user: safeUser });
+    resp.cookies.set(AUTH_COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60,
+    });
+    return resp;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });

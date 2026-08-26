@@ -146,6 +146,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const handleLogout = useCallback(() => {
+    // 通知服务端清除 httpOnly cookie（fire-and-forget）
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     storeLogout();
     setCurrentUser(null);
     setIsAuthenticated(false);
