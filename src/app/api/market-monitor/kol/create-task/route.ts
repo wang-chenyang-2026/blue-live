@@ -79,8 +79,9 @@ export async function POST(req: NextRequest) {
       ...m,
     };
 
-    // 字符串数字转换
+    // 字符串数字转换（interactionRateAvgLower 保留 string 类型）
     for (const [k, v] of Object.entries(safeMetrics)) {
+      if (k === 'interactionRateAvgLower') continue; // MCP 要求 string
       if (typeof v === 'string' && v.trim() !== '' && !Number.isNaN(Number(v))) {
         safeMetrics[k] = Number(v);
       }

@@ -29,6 +29,8 @@ import {
   Check,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
+  ChevronUp,
   Sparkles,
   Users,
   Target,
@@ -83,6 +85,18 @@ interface FilterForm {
   minEngagement: number; // 百分比
   minPlayAvg: number;
   kolNumLower: number;
+  // 高级筛选（选填）
+  cpmUpper: number | null;
+  cpeUpper: number | null;
+  noteCountLower: number | null;
+  likeRate1000Lower: number | null;   // 百分比，如3表示3%
+  likeRate10000Lower: number | null;  // 百分比
+  completionRateLower: number | null; // 百分比
+  dataStabilityIndexLower: number | null;
+  interactionFansRateLower: number | null; // 百分比
+  fansGrowthRateLower: number | null;     // 百分比
+  fansGender: string;        // '' | '男' | '女'
+  fansCityLevel: string;     // '' | '一线' | '新一线' | '二线' | '三线' | '四线及以下'
 }
 
 interface TaskItem {
@@ -156,6 +170,17 @@ const DEFAULT_FILTERS: FilterForm = {
   minEngagement: 1,
   minPlayAvg: 3000,
   kolNumLower: 50,
+  cpmUpper: null,
+  cpeUpper: null,
+  noteCountLower: null,
+  likeRate1000Lower: null,
+  likeRate10000Lower: null,
+  completionRateLower: null,
+  dataStabilityIndexLower: null,
+  interactionFansRateLower: null,
+  fansGrowthRateLower: null,
+  fansGender: '',
+  fansCityLevel: '',
 };
 
 /* ========== Helpers ========== */
@@ -479,10 +504,14 @@ function FiltersStep({
   filters,
   setFilters,
   recommendedMetrics,
+  showAdvanced,
+  setShowAdvanced,
 }: {
   filters: FilterForm;
   setFilters: (f: FilterForm) => void;
   recommendedMetrics: Record<string, number> | null;
+  showAdvanced: boolean;
+  setShowAdvanced: (v: boolean) => void;
 }) {
   return (
     <div className="space-y-8">
@@ -562,6 +591,83 @@ function FiltersStep({
           step={10}
           className="py-2"
         />
+      </div>
+
+      {/* 高级筛选折叠区 */}
+      <div className="rounded-lg border border-border/50">
+        <button
+          type="button"
+          className="flex items-center justify-between w-full p-3 text-left hover:bg-secondary/30 transition-colors rounded-lg"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+        >
+          <span className="text-sm font-medium text-foreground">高级筛选（选填）</span>
+          {showAdvanced ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        </button>
+        {showAdvanced && (
+          <div className="p-4 pt-0 grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">CPM上限(元)</Label>
+              <Input type="number" min={0} placeholder="不限" value={filters.cpmUpper ?? ''} onChange={(e) => setFilters({ ...filters, cpmUpper: e.target.value === '' ? null : Number(e.target.value) })} className="h-8 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">CPE上限(元)</Label>
+              <Input type="number" min={0} placeholder="不限" value={filters.cpeUpper ?? ''} onChange={(e) => setFilters({ ...filters, cpeUpper: e.target.value === '' ? null : Number(e.target.value) })} className="h-8 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">笔记数下限(篇)</Label>
+              <Input type="number" min={0} placeholder="不限" value={filters.noteCountLower ?? ''} onChange={(e) => setFilters({ ...filters, noteCountLower: e.target.value === '' ? null : Number(e.target.value) })} className="h-8 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">千赞率下限(%)</Label>
+              <Input type="number" min={0} step={0.1} placeholder="不限" value={filters.likeRate1000Lower ?? ''} onChange={(e) => setFilters({ ...filters, likeRate1000Lower: e.target.value === '' ? null : Number(e.target.value) })} className="h-8 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">万赞率下限(%)</Label>
+              <Input type="number" min={0} step={0.1} placeholder="不限" value={filters.likeRate10000Lower ?? ''} onChange={(e) => setFilters({ ...filters, likeRate10000Lower: e.target.value === '' ? null : Number(e.target.value) })} className="h-8 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">完播率下限(%)</Label>
+              <Input type="number" min={0} step={0.1} placeholder="不限" value={filters.completionRateLower ?? ''} onChange={(e) => setFilters({ ...filters, completionRateLower: e.target.value === '' ? null : Number(e.target.value) })} className="h-8 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">数据稳定指数下限</Label>
+              <Input type="number" min={0} step={0.1} placeholder="不限" value={filters.dataStabilityIndexLower ?? ''} onChange={(e) => setFilters({ ...filters, dataStabilityIndexLower: e.target.value === '' ? null : Number(e.target.value) })} className="h-8 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">互动粉丝率下限(%)</Label>
+              <Input type="number" min={0} step={0.1} placeholder="不限" value={filters.interactionFansRateLower ?? ''} onChange={(e) => setFilters({ ...filters, interactionFansRateLower: e.target.value === '' ? null : Number(e.target.value) })} className="h-8 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">粉丝增长率下限(%)</Label>
+              <Input type="number" min={0} step={0.1} placeholder="不限" value={filters.fansGrowthRateLower ?? ''} onChange={(e) => setFilters({ ...filters, fansGrowthRateLower: e.target.value === '' ? null : Number(e.target.value) })} className="h-8 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">粉丝性别</Label>
+              <Select value={filters.fansGender || '_all'} onValueChange={(v) => setFilters({ ...filters, fansGender: v === '_all' ? '' : v })}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="不限" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_all">不限</SelectItem>
+                  <SelectItem value="男">男</SelectItem>
+                  <SelectItem value="女">女</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">粉丝城市等级</Label>
+              <Select value={filters.fansCityLevel || '_all'} onValueChange={(v) => setFilters({ ...filters, fansCityLevel: v === '_all' ? '' : v })}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="不限" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_all">不限</SelectItem>
+                  <SelectItem value="一线">一线</SelectItem>
+                  <SelectItem value="新一线">新一线</SelectItem>
+                  <SelectItem value="二线">二线</SelectItem>
+                  <SelectItem value="三线">三线</SelectItem>
+                  <SelectItem value="四线及以下">四线及以下</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-secondary/30">
@@ -1013,6 +1119,7 @@ export default function KolPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<{ projectId: number } | null>(null);
   const [filters, setFilters] = useState<FilterForm>(DEFAULT_FILTERS);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [tasksRefreshKey, setTasksRefreshKey] = useState(0);
 
   // URL上传达人状态
@@ -1162,7 +1269,7 @@ export default function KolPage() {
     setSubmitError(null);
     try {
       const selectedGroups = keywordGroups.filter((g) => g.selected);
-      const metrics: Record<string, number> = {
+      const metrics: Record<string, number | string> = {
         ...(recommendedMetrics || {}),
         kolFansRangeLower: filters.minFollowers * 10000,
         kolFansRangeUpper: filters.maxFollowers * 10000,
@@ -1174,12 +1281,23 @@ export default function KolPage() {
         priceLower60: briefForm.priceRanges.lower60,
         priceUpper60: briefForm.priceRanges.upper60,
       };
-      if (filters.minEngagement > 0) {
-        metrics.interactionRateAvgLower = filters.minEngagement / 100;
-      }
+      // interactionRateAvgLower 必须是 string 类型
+      metrics.interactionRateAvgLower = String(filters.minEngagement / 100);
       if (filters.minPlayAvg > 0) {
         metrics.playAvgLower = filters.minPlayAvg;
       }
+      // 高级筛选指标
+      if (filters.cpmUpper != null && filters.cpmUpper >= 0) metrics.cpmUpper = filters.cpmUpper;
+      if (filters.cpeUpper != null && filters.cpeUpper >= 0) metrics.cpeUpper = filters.cpeUpper;
+      if (filters.noteCountLower != null && filters.noteCountLower >= 0) metrics.noteCountLower = filters.noteCountLower;
+      if (filters.likeRate1000Lower != null && filters.likeRate1000Lower >= 0) metrics.likeRate1000Lower = filters.likeRate1000Lower / 100;
+      if (filters.likeRate10000Lower != null && filters.likeRate10000Lower >= 0) metrics.likeRate10000Lower = filters.likeRate10000Lower / 100;
+      if (filters.completionRateLower != null && filters.completionRateLower >= 0) metrics.completionRateLower = filters.completionRateLower / 100;
+      if (filters.dataStabilityIndexLower != null && filters.dataStabilityIndexLower >= 0) metrics.dataStabilityIndexLower = filters.dataStabilityIndexLower;
+      if (filters.interactionFansRateLower != null && filters.interactionFansRateLower >= 0) metrics.interactionFansRateLower = filters.interactionFansRateLower / 100;
+      if (filters.fansGrowthRateLower != null && filters.fansGrowthRateLower >= 0) metrics.fansGrowthRateLower = filters.fansGrowthRateLower / 100;
+      if (filters.fansGender) metrics.fansGender = filters.fansGender;
+      if (filters.fansCityLevel) metrics.fansCityLevel = filters.fansCityLevel;
 
       const res = await fetch('/api/market-monitor/kol/create-task', {
         method: 'POST',
@@ -1426,6 +1544,8 @@ export default function KolPage() {
                     filters={filters}
                     setFilters={setFilters}
                     recommendedMetrics={recommendedMetrics}
+                    showAdvanced={showAdvanced}
+                    setShowAdvanced={setShowAdvanced}
                   />
                 )}
               </CardContent>
