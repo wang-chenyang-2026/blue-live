@@ -68,6 +68,7 @@ export const POSITION_OPTIONS: { value: RoleKey; label: string }[] = [
   { value: '运营', label: '运营' },
   { value: '中控', label: '中控' },
   { value: '主播', label: '主播' },
+  { value: '外部合作', label: '外部合作' },
 ];
 
 // ==================== 注册页面项目选项（平级） ====================
@@ -77,6 +78,7 @@ export const REGISTER_PROJECT_OPTIONS: { value: string; label: string }[] = [
   { value: 'iqoo-douyin', label: 'iQOO抖音' },
   { value: 'iqoo-kuaishou', label: 'iQOO快手' },
   { value: 'iot', label: 'IOT' },
+  { value: 'public', label: '公共功能' },
 ];
 
 // ==================== 角色与权限 ====================
@@ -119,25 +121,62 @@ export const ROLES: Role[] = [
   {
     key: '运营',
     label: '运营',
-    modules: ['dashboard', 'schedule', 'data-overview', 'market-monitor', 'cost', 'visual', 'sop', 'workstation', 'problem-feedback'],
-    brandScopedModules: ['dashboard', 'schedule', 'data-overview', 'cost', 'workstation'],
-    // visual、sop、problem-feedback 可看全部品牌
+    modules: ['dashboard', 'schedule', 'data-overview', 'market-monitor', 'visual', 'sop', 'workstation', 'problem-feedback'],
+    brandScopedModules: ['dashboard', 'schedule', 'data-overview', 'workstation'],
+    // 无成本核算、注册人员管理、用户审批
   },
   {
     key: '中控',
     label: '中控',
-    modules: ['schedule', 'data-overview', 'visual', 'sop', 'problem-feedback'],
+    modules: ['data-overview', 'schedule', 'market-monitor', 'visual', 'sop', 'workstation', 'problem-feedback'],
     brandScopedModules: ['schedule', 'data-overview'],
-    // visual、sop、problem-feedback 可看全部品牌
+    // 无首页概览、成本核算、注册人员管理、用户审批
   },
   {
     key: '主播',
     label: '主播',
-    modules: ['schedule', 'visual', 'sop', 'workstation', 'problem-feedback'],
+    modules: ['schedule', 'market-monitor', 'visual', 'sop', 'workstation', 'problem-feedback'],
     brandScopedModules: ['schedule'],
-    // visual、sop、workstation、problem-feedback 可看全部品牌
+    // 无首页概览、成本核算、数据概览、注册人员管理、用户审批
+  },
+  {
+    key: '外部合作',
+    label: '外部合作',
+    modules: ['market-monitor', 'problem-feedback'],
+    brandScopedModules: [],
+    // 仅有市场监测、问题反馈；项目固定为"公共功能"
   },
 ];
+
+/** 路径到模块的映射，用于路由级权限守卫 */
+export const PATH_TO_MODULE: Record<string, ModuleKey> = {
+  '/': 'dashboard',
+  '/schedule': 'schedule',
+  '/data-overview': 'data-overview',
+  '/market-monitor': 'market-monitor',
+  '/cost': 'cost',
+  '/visual': 'visual',
+  '/sop': 'sop',
+  '/workstation': 'workstation',
+  '/feedback': 'problem-feedback',
+  '/admin/user-management': 'personnel',
+  '/approval': 'approval',
+};
+
+/** 模块到路径的反向映射 */
+export const MODULE_PATHS: Record<ModuleKey, string> = {
+  dashboard: '/',
+  schedule: '/schedule',
+  'data-overview': '/data-overview',
+  'market-monitor': '/market-monitor',
+  cost: '/cost',
+  visual: '/visual',
+  sop: '/sop',
+  workstation: '/workstation',
+  'problem-feedback': '/feedback',
+  personnel: '/admin/user-management',
+  approval: '/approval',
+};
 
 // ==================== 直播类型 & 小时费标准 ====================
 export const HOURLY_RATES: Record<string, number> = {

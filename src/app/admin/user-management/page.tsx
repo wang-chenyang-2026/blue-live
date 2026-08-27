@@ -35,7 +35,7 @@ const PROJECT_FILTERS: { key: string; label: string; match: string[] | null }[] 
   { key: 'iot', label: 'IOT', match: ['iot'] },
 ];
 
-const ROLE_OPTIONS = ['PM', '运营', '中控', '主播'];
+const ROLE_OPTIONS = ['PM', '运营', '中控', '主播', '外部合作'];
 
 const STATUS_OPTIONS: { value: UserRow['status']; label: string }[] = [
   { value: 'approved', label: '已通过' },
@@ -50,6 +50,7 @@ const PROJECT_OPTIONS = [
   { value: 'iqoo_douyin', label: 'iQOO抖音' },
   { value: 'iqoo_kuaishou', label: 'iQOO快手' },
   { value: 'iot', label: 'IOT' },
+  { value: 'public', label: '公共功能' },
 ];
 
 function statusBadge(status: UserRow['status']) {
@@ -68,6 +69,7 @@ function statusBadge(status: UserRow['status']) {
 function projectLabel(brand: string | null): string {
   if (!brand) return '未指定';
   if (brand.toLowerCase() === 'all') return '全部项目';
+  if (brand.toLowerCase() === 'public') return '公共功能';
   // 支持逗号分隔的多品牌
   const parts = brand.split(',').map(s => s.trim()).filter(Boolean);
   if (parts.length === 0) return '未指定';

@@ -32,6 +32,12 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // 外部合作岗位固定使用"公共功能"项目
+  const isExternal = position === '外部合作';
+  const visibleProjectOptions = isExternal
+    ? REGISTER_PROJECT_OPTIONS.filter((o) => o.value === 'public')
+    : REGISTER_PROJECT_OPTIONS.filter((o) => o.value !== 'public');
+
   useEffect(() => {
     if (isClient && isAuthenticated) {
       router.replace('/');
@@ -46,7 +52,10 @@ export default function RegisterPage() {
     if (!phone.trim() || phone.length !== 11) { setError('请输入11位手机号'); return; }
     if (!password || password.length < 8) { setError('密码不少于8位字符'); return; }
     if (password !== confirmPassword) { setError('两次输入密码不一致'); return; }
-    if (projects.length === 0) { setError('请至少选择一个项目'); return; }
+
+    // 外部合作固定项目为"公共功能"，其他岗位需手动选择
+    const finalProjects = isExternal ? ['public'] : projects;
+    if (finalProjects.length === 0) { setError('请至少选择一个项目'); return; }
     if (!position) { setError('请选择岗位'); return; }
 
     setLoading(true);
@@ -58,7 +67,7 @@ export default function RegisterPage() {
           name: name.trim(),
           phone: phone.trim(),
           password,
-          projectScope: projects.join(','),
+          projectScope: finalProjects.join(','),
           role: position as RoleKey,
         }),
       });
@@ -186,13 +195,17 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm text-muted-foreground">项目（可多选）</Label>
+              <Label className="text-sm text-muted-foreground">
+                项目{isExternal ? '' : '（可多选）'}
+              </Label>
               <div className="flex flex-wrap gap-3 rounded-lg border border-border bg-card p-3">
-                {REGISTER_PROJECT_OPTIONS.map((opt) => (
+                {visibleProjectOptions.map((opt) => (
                   <label key={opt.value} className="flex items-center gap-2 cursor-pointer text-sm">
                     <Checkbox
-                      checked={projects.includes(opt.value)}
+                      checked={isExternal ? true : projects.includes(opt.value)}
+                      disabled={isExternal}
                       onCheckedChange={(checked) => {
+                        if (isExternal) return;
                         setError('');
                         if (checked) {
                           setProjects((prev) => [...prev, opt.value]);
@@ -201,10 +214,13 @@ export default function RegisterPage() {
                         }
                       }}
                     />
-                    <span className="text-foreground">{opt.label}</span>
+                    <span className={isExternal ? 'text-foreground' : 'text-foreground'}>{opt.label}</span>
                   </label>
                 ))}
               </div>
+              {isExternal && (
+                <p className="text-xs text-muted-foreground">外部合作岗位固定使用公共功能项目</p>
+              )}
             </div>
 
             <div className="space-y-2">

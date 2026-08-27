@@ -37,7 +37,7 @@ export interface User {
 
 /** 将 projectScope 字符串解析为品牌ID数组 */
 export function parseBrands(projectScope: string): string[] {
-  if (!projectScope || projectScope === 'all') return ['all'];
+  if (!projectScope || projectScope === 'all' || projectScope === 'public') return ['all'];
   return projectScope.split(',').map(s => s.trim()).filter(Boolean);
 }
 
@@ -55,7 +55,7 @@ export interface Staff {
 }
 
 // ==================== 角色 & 权限 ====================
-export type RoleKey = 'PM' | '运营' | '中控' | '主播';
+export type RoleKey = 'PM' | '运营' | '中控' | '主播' | '外部合作';
 
 export interface Role {
   key: RoleKey;
