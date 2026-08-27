@@ -23,14 +23,23 @@ interface ProfitCardData {
   kpiDeducted: boolean;
   isSummary?: boolean;
   totalHours?: number;
+  scheduleHours?: number;
   partTimeAnchor?: number;
   partTimeControl?: number;
+  crossCheck?: CrossCheck;
 }
 
+interface CrossCheck {
+  severity: 'ok' | 'warn' | 'error';
+  ratio: number | null;
+  messages: string[];
+}
 interface BrandStats {
   totalHours: number;
+  scheduleHours?: number;
   partTimeAnchor: number;
   partTimeControl: number;
+  crossCheck?: CrossCheck;
 }
 
 function getToday(): string {
@@ -86,11 +95,23 @@ export default function DashboardPage() {
     return startDate ? startDate.slice(0, 7) : currentMonth;
   }, [startDate, currentMonth]);
 
-  // 拉取品牌排班统计（总时长 + 兼职人数）
+  // 日期范围真正生效：传给后端用于过滤直播时长 & 排班
+  const statsQuery = useMemo(() => {
+    if (!selectedMonth || !startDate || !endDate) return '';
+    const params = new URLSearchParams({
+      month: selectedMonth,
+      start: startDate,
+      end: endDate,
+      _t: String(refreshTick),
+    });
+    return params.toString();
+  }, [selectedMonth, startDate, endDate, refreshTick]);
+
+  // 拉取品牌统计（实际直播时长 + 兼职人数 + 交叉校验）
   useEffect(() => {
-    if (!selectedMonth) return;
+    if (!statsQuery) return;
     let cancelled = false;
-    fetch(`/api/brand-schedule-stats?month=${selectedMonth}`)
+    fetch(`/api/brand-schedule-stats?${statsQuery}`)
       .then((r) => r.json())
       .then((res) => {
         if (cancelled) return;
@@ -106,7 +127,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedMonth, refreshTick]);
+  }, [statsQuery]);
 
   // 拉取各品牌成本（来自成本核算API/飞书数据）
   useEffect(() => {
@@ -166,8 +187,10 @@ export default function DashboardPage() {
         profitRate,
         kpiDeducted: localData.kpiDeducted,
         totalHours: stats?.totalHours ?? 0,
+        scheduleHours: stats?.scheduleHours ?? 0,
         partTimeAnchor: stats?.partTimeAnchor ?? 0,
         partTimeControl: stats?.partTimeControl ?? 0,
+        crossCheck: stats?.crossCheck,
       });
     });
 
@@ -326,7 +349,7 @@ function ProfitCard({ data, costLoading, costError }: { data: ProfitCardData; co
             </p>
           </div>
           <div className="rounded-md bg-secondary p-2">
-            <p className="text-muted-foreground">总时长</p>
+            <p className="text-muted-foreground">直播时长</p>
             <p className="font-medium text-foreground font-mono">
               {(data.totalHours ?? 0).toLocaleString()} h
             </p>
@@ -338,6 +361,21 @@ function ProfitCard({ data, costLoading, costError }: { data: ProfitCardData; co
             </p>
           </div>
         </div>
+
+        {data.crossCheck && data.crossCheck.severity !== 'ok' && data.crossCheck.messages.length > 0 && (
+          <div
+            className={cn(
+              'mt-2 rounded-md border px-2 py-1.5 text-[11px] leading-relaxed',
+              data.crossCheck.severity === 'error'
+                ? 'border-destructive/40 bg-destructive/10 text-destructive'
+                : 'border-amber-500/40 bg-amber-500/10 text-amber-500'
+            )}
+            title={data.crossCheck.messages.join('\n')}
+          >
+            ⚠ {data.crossCheck.messages[0]}
+            {data.crossCheck.messages.length > 1 && ` 等${data.crossCheck.messages.length}条`}
+          </div>
+        )}
       </div>
     </div>
   );
