@@ -42,11 +42,11 @@ export function middleware(request: NextRequest) {
   }
 
   // 将用户信息注入请求头，供下游 API 路由使用
-  // 注意：HTTP header 只支持 ASCII，不要注入中文（如 name）
+  // 注意：HTTP header 只支持 ASCII，中文需要 URL 编码
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-user-id', payload.userId);
   requestHeaders.set('x-user-phone', payload.phone);
-  requestHeaders.set('x-user-role', payload.role);
+  requestHeaders.set('x-user-role', encodeURIComponent(payload.role));
 
   return NextResponse.next({
     request: { headers: requestHeaders },
