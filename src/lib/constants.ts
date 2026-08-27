@@ -128,8 +128,8 @@ export const ROLES: Role[] = [
   {
     key: '中控',
     label: '中控',
-    modules: ['data-overview', 'schedule', 'market-monitor', 'visual', 'sop', 'workstation', 'problem-feedback'],
-    brandScopedModules: ['schedule', 'data-overview'],
+    modules: ['schedule', 'market-monitor', 'visual', 'sop', 'workstation', 'problem-feedback'],
+    brandScopedModules: ['schedule'],
     // 无首页概览、成本核算、注册人员管理、用户审批
   },
   {
