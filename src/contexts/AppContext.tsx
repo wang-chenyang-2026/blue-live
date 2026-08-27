@@ -5,6 +5,12 @@ import type { RoleKey, User, ModuleKey } from '@/lib/types';
 import { parseBrands } from '@/lib/types';
 import { BRANDS, ROLES } from '@/lib/constants';
 import { getCurrentUser, logout as storeLogout, setCurrentUser as persistCurrentUser } from '@/lib/store';
+import { installApiInterceptor } from '@/lib/api-client';
+
+// 安装全局 401 拦截：cookie 失效时自动跳登录
+if (typeof window !== 'undefined') {
+  installApiInterceptor();
+}
 
 interface AppState {
   currentBrand: string;      // 'all' | brandId
@@ -39,41 +45,66 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setIsClient(true);
-    try {
-      // 恢复认证状态
-      const user = getCurrentUser();
-      if (user) {
-        setCurrentUser(user);
-        setUserBrands(parseBrands(user.projectScope || ''));
-        // 始终以数据库中用户真实角色为准，不用 localStorage 缓存的角色
-        const userRole = user.role as RoleKey;
-        const validRole = ROLES.find((r) => r.key === userRole);
-        setCurrentRole(validRole ? userRole : 'PM');
-        setIsAuthenticated(true);
-      }
 
-      // 恢复 UI 偏好（仅恢复品牌和账号，角色以用户数据库记录为准）
-      const saved = localStorage.getItem('lm_app_state');
-      if (saved) {
-        const parsed = JSON.parse(saved) as {
-          brand?: string;
-          account?: string;
-        };
-        if (parsed.brand) setCurrentBrand(parsed.brand);
-        if (parsed.account) setCurrentAccount(parsed.account);
-        // 不再从 localStorage 恢复 role，避免角色残留
+    // 校验服务端 httpOnly JWT 是否有效；无效则清掉本地登录态，AuthGuard 会自动跳转 /login
+    const verifyAuth = async () => {
+      try {
+        const res = await fetch('/api/auth/me', { cache: 'no-store' });
+        if (res.status === 401) {
+          storeLogout();
+          setCurrentUser(null);
+          setIsAuthenticated(false);
+          setCurrentRole('PM');
+          setUserBrands(['all']);
+          return false;
+        }
+        if (!res.ok) return true; // 网络/服务异常不强制登出，避免误杀
+        return true;
+      } catch {
+        return true;
       }
+    };
 
-      // 待审核数量
-      fetch('/api/users/pending', { cache: 'no-store' })
-        .then((r) => r.json())
-        .then((d) => {
-          if (d?.success) setPendingCount((d.users || []).length);
-        })
-        .catch(() => {});
-    } catch {
-      // ignore
-    }
+    (async () => {
+      const ok = await verifyAuth();
+      if (!ok) return;
+
+      try {
+        // 恢复认证状态
+        const user = getCurrentUser();
+        if (user) {
+          setCurrentUser(user);
+          setUserBrands(parseBrands(user.projectScope || ''));
+          // 始终以数据库中用户真实角色为准，不用 localStorage 缓存的角色
+          const userRole = user.role as RoleKey;
+          const validRole = ROLES.find((r) => r.key === userRole);
+          setCurrentRole(validRole ? userRole : 'PM');
+          setIsAuthenticated(true);
+        }
+
+        // 恢复 UI 偏好（仅恢复品牌和账号，角色以用户数据库记录为准）
+        const saved = localStorage.getItem('lm_app_state');
+        if (saved) {
+          const parsed = JSON.parse(saved) as {
+            brand?: string;
+            account?: string;
+          };
+          if (parsed.brand) setCurrentBrand(parsed.brand);
+          if (parsed.account) setCurrentAccount(parsed.account);
+          // 不再从 localStorage 恢复 role，避免角色残留
+        }
+
+        // 待审核数量
+        fetch('/api/users/pending', { cache: 'no-store' })
+          .then((r) => r.json())
+          .then((d) => {
+            if (d?.success) setPendingCount((d.users || []).length);
+          })
+          .catch(() => {});
+      } catch {
+        // ignore
+      }
+    })();
   }, []);
 
   const handleSetBrand = useCallback((brandId: string) => {
