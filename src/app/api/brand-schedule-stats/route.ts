@@ -80,7 +80,7 @@ function parseChineseDate(raw: unknown, fallbackYear: number): { y: number; m: n
 }
 
 function dateInRange(d: { y: number; m: number; d: number }, start: Date, end: Date): boolean {
-  const dt = new Date(d.y, d.m - 1, d.d);
+  const dt = new Date(Date.UTC(d.y, d.m - 1, d.d));
   const t = dt.getTime();
   return t >= start.getTime() && t <= end.getTime();
 }
@@ -382,13 +382,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Invalid month" }, { status: 400 });
   }
 
-  // 默认日期范围：当月1日 ~ 今天（不能超过当月最后一天）
-  const monthStart = new Date(year, monthNum - 1, 1);
-  const monthEnd = new Date(year, monthNum, 0);
-  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const defaultEnd = todayMidnight < monthEnd ? todayMidnight : monthEnd;
-  const start = startStr ? new Date(startStr + "T00:00:00") : monthStart;
-  const end = endStr ? new Date(endStr + "T00:00:00") : defaultEnd;
+  // 默认日期范围：当月1日 ~ 今天（不能超过当月最后一天）。用 UTC 构造避免时区偏移。
+  const monthStart = new Date(Date.UTC(year, monthNum - 1, 1));
+  const monthEnd = new Date(Date.UTC(year, monthNum, 0));
+  const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+  const defaultEnd = todayUTC < monthEnd ? todayUTC : monthEnd;
+  const parseUTC = (s: string) => {
+    const [y, m, d] = s.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d));
+  };
+  const start = startStr ? parseUTC(startStr) : monthStart;
+  const end = endStr ? parseUTC(endStr) : defaultEnd;
   if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) {
     return NextResponse.json({ success: false, error: "Invalid date range" }, { status: 400 });
   }
@@ -413,6 +417,7 @@ export async function GET(request: NextRequest) {
       month,
       start: start.toISOString().slice(0, 10),
       end: end.toISOString().slice(0, 10),
+      // 备注：日期均按 UTC 构造，等价于北京时间自然日
       brands: {
         vivo: {
           totalHours: vivo.liveHours,
