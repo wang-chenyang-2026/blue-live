@@ -267,7 +267,7 @@ export default function DashboardPage() {
       </div>
 
       {/* 利润率卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {profitCards.map((card) => (
           <ProfitCard key={card.id} data={card} costLoading={costLoading} costError={costError} />
         ))}
