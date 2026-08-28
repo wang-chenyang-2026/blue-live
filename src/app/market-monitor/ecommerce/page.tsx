@@ -432,10 +432,12 @@ function KpiCardComp({ label, value, change, icon, color }: KpiCard) {
 
 /* ========== View Components ========== */
 // Platform metadata for channel split
+// 配色在深色背景下需高饱和、高对比、彼此可区分：
+// 京东-红、天猫-橙、抖音-品牌霓虹青
 const PLATFORM_META: Record<string, { label: string; color: string }> = {
-  jd: { label: '京东', color: '#E1251B' },
-  tmall: { label: '天猫', color: '#FF5000' },
-  douyin: { label: '抖音', color: '#000000' },
+  jd: { label: '京东', color: '#FF3B30' },
+  tmall: { label: '天猫', color: '#FF9500' },
+  douyin: { label: '抖音', color: '#25F4EE' },
 };
 
 function TrendView({ loading, data }: { loading: boolean; data: any[] }) {
@@ -521,18 +523,18 @@ function TrendView({ loading, data }: { loading: boolean; data: any[] }) {
   }
 
   return (
-    <div className="h-[400px]">
-      <ChartContainer config={chartConfig} className="h-full">
+    <div className="h-[400px] w-full">
+      <ChartContainer config={chartConfig} className="!aspect-auto h-full w-full">
         {hasPlatformData ? (
-          <BarChart data={chartData}>
+          <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={12} />
             <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} label={{ value: '亿元', angle: -90, position: 'insideLeft', fontSize: 12 }} />
             <ChartTooltip content={<ChartTooltipContent />} />
             <ChartLegend content={<ChartLegendContent />} />
-            <Bar dataKey="jd" name="京东" fill={PLATFORM_META.jd.color} stackId="stack" />
+            <Bar dataKey="jd" name="京东" fill={PLATFORM_META.jd.color} stackId="stack" radius={[0, 0, 0, 0]} />
             <Bar dataKey="tmall" name="天猫" fill={PLATFORM_META.tmall.color} stackId="stack" />
-            <Bar dataKey="douyin" name="抖音" fill={PLATFORM_META.douyin.color} stackId="stack" />
+            <Bar dataKey="douyin" name="抖音" fill={PLATFORM_META.douyin.color} stackId="stack" radius={[4, 4, 0, 0]} />
           </BarChart>
         ) : (
           <AreaChart data={chartData}>
