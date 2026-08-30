@@ -1,12 +1,16 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requireSuperAdmin } from '@/lib/api-permission';
 
 /**
  * GET /api/users/pending
  * 查询所有待审核用户（status='pending'）
  * 别名路由，等价于 GET /api/users?status=pending
+ * 仅超级管理员可访问
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const forbidden = requireSuperAdmin(request);
+  if (forbidden) return forbidden;
   try {
     const client = getSupabaseClient();
     const { data, error } = await client

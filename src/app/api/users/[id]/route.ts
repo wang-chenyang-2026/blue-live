@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requireSuperAdmin } from '@/lib/api-permission';
 
 interface UpdateBody {
   status?: 'pending' | 'approved' | 'rejected' | 'terminated';
@@ -24,6 +25,13 @@ export async function PUT(
     if (!id) return NextResponse.json({ error: '缺少用户ID' }, { status: 400 });
 
     const body = (await request.json()) as UpdateBody;
+
+    // 审批状态变更（通过/拒绝/待审）仅超级管理员可操作
+    if (body.status && ['pending', 'approved', 'rejected'].includes(body.status)) {
+      const forbidden = requireSuperAdmin(request);
+      if (forbidden) return forbidden;
+    }
+
     const updates: Record<string, string> = {};
 
     if (body.status) {
@@ -91,10 +99,13 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const forbidden = requireSuperAdmin(request);
+    if (forbidden) return forbidden;
+
     const { id } = await params;
     if (!id) return NextResponse.json({ error: '缺少用户ID' }, { status: 400 });
 

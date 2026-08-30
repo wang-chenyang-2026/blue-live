@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/contexts/AppContext';
-import { ROLES } from '@/lib/constants';
+import { getAccessibleModules } from '@/lib/constants';
 import type { ModuleKey } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,9 +66,9 @@ export default function LoginPage() {
       }
       setUser(data.user);
       refreshPendingCount();
-      // 跳转到该角色允许的第一个模块，而非固定跳首页
-      const roleConfig = ROLES.find((r) => r.key === data.user.role);
-      const firstModule = roleConfig?.modules?.[0] || 'dashboard';
+      // 跳转到该角色允许的第一个模块，而非固定跳首页（超级管理员专属模块会被过滤）
+      const allowedModules = getAccessibleModules(data.user.role, data.user.phone);
+      const firstModule = allowedModules[0] || 'dashboard';
       const targetPath = MODULE_PATHS[firstModule as ModuleKey] || '/';
       router.push(targetPath);
     } catch (err) {

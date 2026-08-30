@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useApp } from '@/contexts/AppContext';
 import { AppShell } from '@/components/layout/AppShell';
-import { ROLES, PATH_TO_MODULE, MODULE_PATHS } from '@/lib/constants';
+import { getAccessibleModules, PATH_TO_MODULE, MODULE_PATHS } from '@/lib/constants';
 import { useEffect } from 'react';
 
 const PUBLIC_PATHS = ['/login', '/register'];
@@ -14,8 +14,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isClient, isAuthenticated, currentRole, currentUser } = useApp();
 
   const resolvedRole = currentRole || currentUser?.role;
-  const roleConfig = ROLES.find((r) => r.key === resolvedRole);
-  const allowedModules = roleConfig?.modules ?? [];
+  const allowedModules = getAccessibleModules(resolvedRole, currentUser?.phone);
 
   // 路径匹配：先精确匹配，再前缀匹配（处理子路由如 /market-monitor/ecommerce）
   const getModuleForPath = (path: string) => {

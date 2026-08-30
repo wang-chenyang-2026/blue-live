@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useApp } from '@/contexts/AppContext';
-import { ROLES, MODULE_LABELS, BRANDS, REGISTER_PROJECT_OPTIONS } from '@/lib/constants';
+import { ROLES, MODULE_LABELS, BRANDS, REGISTER_PROJECT_OPTIONS, getAccessibleModules } from '@/lib/constants';
 import type { ModuleKey, RoleKey } from '@/lib/types';
 import {
   LayoutDashboard,
@@ -75,7 +75,7 @@ export function AppSidebar() {
   const roleConfig = ROLES.find((r) => r.key === resolvedRole);
 
   // 防御：如果角色配置找不到，显示提示而非错误模块
-  const allowedModules: ModuleKey[] = roleConfig?.modules ?? [];
+  const allowedModules: ModuleKey[] = getAccessibleModules(resolvedRole, currentUser?.phone);
   const visibleModules = SIDEBAR_ORDER.filter((m) => allowedModules.includes(m));
 
   return (

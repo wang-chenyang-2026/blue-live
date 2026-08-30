@@ -62,6 +62,30 @@ export const DEFAULT_ADMIN: User = {
   createdAt: '2025-01-01',
 };
 
+/** 超级管理员手机号：仅该用户可见「用户审批」模块，其他项目负责人不可见 */
+export const SUPER_ADMIN_PHONE = '18333685049';
+
+/** 仅超级管理员可用的模块 */
+const SUPER_ADMIN_ONLY_MODULES: ModuleKey[] = ['approval'];
+
+/** 判断用户是否为超级管理员 */
+export function isSuperAdmin(phone?: string | null): boolean {
+  return phone === SUPER_ADMIN_PHONE;
+}
+
+/**
+ * 根据角色 + 用户手机号计算实际可访问模块。
+ * 超级管理员专属模块（用户审批）对其他同角色用户隐藏。
+ */
+export function getAccessibleModules(roleKey: RoleKey | undefined | null, phone?: string | null): ModuleKey[] {
+  const roleConfig = ROLES.find((r) => r.key === roleKey);
+  const modules = roleConfig?.modules ? [...roleConfig.modules] : [];
+  if (!isSuperAdmin(phone)) {
+    return modules.filter((m) => !SUPER_ADMIN_ONLY_MODULES.includes(m));
+  }
+  return modules;
+}
+
 // ==================== 岗位选项 ====================
 export const POSITION_OPTIONS: { value: RoleKey; label: string }[] = [
   { value: 'PM', label: '项目负责人' },
