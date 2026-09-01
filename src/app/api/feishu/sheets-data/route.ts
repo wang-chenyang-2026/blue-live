@@ -259,6 +259,32 @@ type KpiItem = {
   isLow: boolean;
 };
 
+// Parse a Feishu cell into a number. For percentage-formatted cells the API
+// returns strings like "2.20%" (value already in percentage points); bare
+// small decimals (e.g. 0.0065 stored as a ratio) are converted to points.
+function cellNumber(v: unknown, asPercent: boolean): number | null {
+  const raw = String(v ?? '').trim();
+  if (!raw) return null;
+  const isPct = raw.includes('%');
+  const n = parseFloat(raw.replace(/[%,]/g, ''));
+  if (isNaN(n)) return null;
+  if (asPercent) {
+    if (isPct) return n;            // "2.20%" -> 2.2 percentage points
+    if (n !== 0 && Math.abs(n) < 1) return n * 100; // 0.0065 ratio -> 0.65 points
+    return n;                        // already points (e.g. 1)
+  }
+  return n;
+}
+
+function averageDaily(dailyRow: unknown[], asPercent: boolean): number {
+  const nums: number[] = [];
+  for (const c of dailyRow) {
+    const n = cellNumber(c, asPercent);
+    if (n !== null) nums.push(n);
+  }
+  return nums.length === 0 ? 0 : nums.reduce((s, v) => s + v, 0) / nums.length;
+}
+
 function parseKpiBlock(
   mainRaw: string[][],
   dailyRaw: string[][],
@@ -276,14 +302,19 @@ function parseKpiBlock(
     const dimension = (row[2] || '').trim();
     if (!dimension) continue;
 
-    const targetVal = parseFloat(row[targetIdx]);
-    if (isNaN(targetVal) && targetVal !== 0) continue;
+    const isPctDim = dimension.includes('率') || dimension.includes('转粉') || dimension.includes('观看');
+    const isGpm = dimension.includes('GPM');
+    const isDuration = dimension.includes('停留');
+    const isViolation = dimension.includes('违规') || dimension.includes('失误');
+
+    const targetVal = cellNumber(row[targetIdx], isPctDim);
+    if (targetVal === null) continue;
 
     const dailyRow = dailyRaw[i] || [];
-    const achievedVal = calcAverageFromDaily(dailyRow);
+    const achievedVal = averageDaily(dailyRow, isPctDim);
 
     let rateVal: number;
-    if (dimension.includes('违规') || dimension.includes('失误')) {
+    if (isViolation) {
       rateVal = achievedVal === 0 ? 1 : 0;
     } else if (targetVal === 0) {
       rateVal = achievedVal === 0 ? 1 : 0;
@@ -294,18 +325,19 @@ function parseKpiBlock(
     let targetDisplay: string;
     let achievedDisplay: string;
 
-    if (dimension.includes('率') || dimension.includes('转粉') || dimension.includes('观看')) {
-      targetDisplay = `${(targetVal * 100).toFixed(0)}%`;
-      achievedDisplay = `${(achievedVal * 100).toFixed(2)}%`;
-    } else if (dimension.includes('GPM')) {
+    if (isPctDim) {
+      // Values are already in percentage points (2.2 means 2.2%)
+      targetDisplay = `${targetVal}%`;
+      achievedDisplay = `${achievedVal.toFixed(2)}%`;
+    } else if (isGpm) {
       targetDisplay = formatNumber(targetVal);
       achievedDisplay = formatNumber(Math.round(achievedVal));
-    } else if (dimension.includes('停留')) {
+    } else if (isDuration) {
       targetDisplay = `${targetVal}秒`;
       achievedDisplay = `${achievedVal.toFixed(1)}秒`;
     } else {
       targetDisplay = `${targetVal}次`;
-      achievedDisplay = `${achievedVal}次`;
+      achievedDisplay = `${achievedVal.toFixed(2)}次`;
     }
 
     items.push({
