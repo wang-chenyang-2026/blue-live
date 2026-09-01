@@ -527,6 +527,73 @@ function parsePriceBuckets(result: CrawlerResult | undefined): PriceBucket[] {
     .filter((p): p is PriceBucket => p !== null);
 }
 
+/**
+ * 月份标签格式化：202606 / "2026-06" / "2026/6" → "2026-06"
+ */
+function formatPeriodLabel(raw: string): string {
+  const m = String(raw).trim().match(/(\d{4})[-/]?(\d{1,2})/);
+  if (m) return `${m[1]}-${m[2].padStart(2, '0')}`;
+  return String(raw).trim();
+}
+
+/**
+ * 大盘趋势聚合：原始为「月份 × 平台(jd/tmall/douyin)」明细，
+ * 需按月份合并三平台销售额/销量，形成按月走势（否则同月3条且不聚合）。
+ */
+function aggregateTrendPoints(points: TrendPoint[]): TrendPoint[] {
+  const map = new Map<string, { sales: number; volume: number }>();
+  for (const p of points) {
+    const period = formatPeriodLabel(p.period);
+    const cur = map.get(period) || { sales: 0, volume: 0 };
+    if (p.sales != null) cur.sales += p.sales;
+    if (p.volume != null) cur.volume += p.volume;
+    map.set(period, cur);
+  }
+  return Array.from(map.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([period, v]) => ({
+      period,
+      sales: v.sales || null,
+      volume: v.volume || null,
+    }));
+}
+
+/** 价格档排序键：取区间内首个数字作为下限；"<xxx" 用 -1 排最前，">xxx" 用上界值 */
+function priceRangeSortKey(range: string): number {
+  const r = String(range).trim();
+  const nums = (r.match(/\d+(?:\.\d+)?/g) || []).map(Number);
+  if (r.startsWith('<')) return -Infinity;
+  if (r.startsWith('>')) return nums[0] != null ? nums[0] + 0.001 : Infinity;
+  if (nums.length >= 2) return Math.min(nums[0], nums[1]);
+  if (nums.length === 1) return nums[0];
+  return Number.MAX_SAFE_INTEGER;
+}
+
+/**
+ * 价格区间聚合：原始为「月份 × 价格档」明细，
+ * 需按价格档合并13个月销售额/销量，并按价格从低到高排序（否则X轴乱序重复）。
+ */
+function aggregatePriceBuckets(buckets: PriceBucket[]): PriceBucket[] {
+  const map = new Map<string, { sales: number; volume: number }>();
+  let totalSales = 0;
+  for (const b of buckets) {
+    const range = String(b.range).trim();
+    if (!range) continue;
+    const cur = map.get(range) || { sales: 0, volume: 0 };
+    if (b.sales != null) { cur.sales += b.sales; totalSales += b.sales; }
+    if (b.volume != null) cur.volume += b.volume;
+    map.set(range, cur);
+  }
+  return Array.from(map.entries())
+    .map(([range, v]) => ({
+      range,
+      sales: v.sales || null,
+      volume: v.volume || null,
+      ratio: totalSales > 0 && v.sales ? (v.sales / totalSales) * 100 : null,
+    }))
+    .sort((a, b) => priceRangeSortKey(a.range) - priceRangeSortKey(b.range));
+}
+
 /* ---- 电商主面板 ---- */
 
 function EcommercePanel() {
@@ -603,8 +670,8 @@ function EcommercePanel() {
   const brandRowsRaw = useMemo(() => parseBrandRows(brandResult), [brandResult]);
   // 排行/KPI 用：按品牌聚合为单条（修复同品牌按月重复出现的问题）
   const brandRows = useMemo(() => aggregateBrandRows(brandRowsRaw), [brandRowsRaw]);
-  const trendPoints = useMemo(() => parseTrend(trendResult), [trendResult]);
-  const priceBuckets = useMemo(() => parsePriceBuckets(priceResult), [priceResult]);
+  const trendPoints = useMemo(() => aggregateTrendPoints(parseTrend(trendResult)), [trendResult]);
+  const priceBuckets = useMemo(() => aggregatePriceBuckets(parsePriceBuckets(priceResult)), [priceResult]);
 
   // 品牌下拉来源：品牌列表
   const brandOptions = useMemo(() => {
@@ -668,12 +735,34 @@ function EcommercePanel() {
       setLoadingTrend(true);
       setLoadingPrice(true);
 
+      // 带重试的请求：上游 MCP 偶发限流/超时会导致某个视角(尤其大盘趋势)整段空白，
+      // 非 abort 失败时退避重试 2 次
+      const fetchWithRetry = async (
+        url: string,
+        retries = 2,
+      ): Promise<CrawlerResponse> => {
+        let lastErr: unknown = null;
+        for (let attempt = 0; attempt <= retries; attempt++) {
+          try {
+            const r = await fetch(url, { signal: controller.signal });
+            const j = (await r.json()) as CrawlerResponse;
+            if (j.success) return j;
+            lastErr = new Error(j.error || '数据加载失败');
+          } catch (e) {
+            if ((e as { name?: string })?.name === 'AbortError') throw e;
+            lastErr = e;
+          }
+          if (attempt < retries && !controller.signal.aborted) {
+            await new Promise((res) => setTimeout(res, 2000 * (attempt + 1)));
+          }
+        }
+        throw lastErr instanceof Error ? lastErr : new Error('数据加载失败');
+      };
+
       const tasks: Promise<void>[] = [
-        fetch(
+        fetchWithRetry(
           `${baseUrl}?${params.toString()}&view=${encodeURIComponent('品牌列表')}`,
-          { signal: controller.signal },
         )
-          .then((r) => r.json() as Promise<CrawlerResponse>)
           .then((j) => {
             if (isStale()) return;
             if (j.success) setBrandResult(j.data);
@@ -690,11 +779,9 @@ function EcommercePanel() {
             if (!isStale()) setLoadingBrand(false);
           }),
 
-        fetch(
+        fetchWithRetry(
           `${baseUrl}?${params.toString()}&view=${encodeURIComponent('品类视角-大盘趋势')}`,
-          { signal: controller.signal },
         )
-          .then((r) => r.json() as Promise<CrawlerResponse>)
           .then((j) => {
             if (isStale()) return;
             if (j.success) setTrendResult(j.data);
@@ -712,11 +799,9 @@ function EcommercePanel() {
             if (!isStale()) setLoadingTrend(false);
           }),
 
-        fetch(
+        fetchWithRetry(
           `${baseUrl}?${params.toString()}&view=${encodeURIComponent('价格区间')}`,
-          { signal: controller.signal },
         )
-          .then((r) => r.json() as Promise<CrawlerResponse>)
           .then((j) => {
             if (isStale()) return;
             if (j.success) setPriceResult(j.data);
