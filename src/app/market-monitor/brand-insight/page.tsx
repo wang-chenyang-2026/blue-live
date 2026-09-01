@@ -413,6 +413,70 @@ function parseBrandRows(result: CrawlerResult | undefined): BrandRow[] {
     .filter((r): r is BrandRow => r !== null);
 }
 
+/**
+ * 品牌聚合：原始数据为「品牌 × 月份」月度明细（近13个月），
+ * 品牌排行/KPI 需按品牌合并为一条，否则同一品牌会按月份重复出现多行。
+ * - 销售额/销量：13个月求和
+ * - 均价：总销售额 ÷ 总销量（按销量加权）
+ * - 市场份额：null，由渲染层用聚合后总量统一计算
+ * - 同比：由各月 yoy 反推上年基数（sales/(1+yoy/100)）后求和计算，
+ *   等价于按上年销售额加权的同比，避免简单平均带来的偏差
+ */
+function aggregateBrandRows(rows: BrandRow[]): BrandRow[] {
+  const SKIP = new Set(['合计', '总计', '其他', '其它']);
+  const groups = new Map<string, BrandRow[]>();
+  for (const r of rows) {
+    const name = r.name?.trim();
+    if (!name || SKIP.has(name)) continue;
+    const list = groups.get(name);
+    if (list) list.push(r);
+    else groups.set(name, [r]);
+  }
+
+  const result: BrandRow[] = [];
+  for (const [name, list] of groups) {
+    let sales = 0;
+    let volume = 0;
+    let hasSales = false;
+    let hasVolume = false;
+    let salesBase = 0; // 上年同期销售额基数
+    let volumeBase = 0; // 上年同期销量基数
+    let hasSalesBase = false;
+    let hasVolumeBase = false;
+
+    for (const r of list) {
+      if (r.sales != null) {
+        sales += r.sales;
+        hasSales = true;
+        if (r.salesYoy != null && 1 + r.salesYoy / 100 > 0.01) {
+          salesBase += r.sales / (1 + r.salesYoy / 100);
+          hasSalesBase = true;
+        }
+      }
+      if (r.volume != null) {
+        volume += r.volume;
+        hasVolume = true;
+        if (r.volumeYoy != null && 1 + r.volumeYoy / 100 > 0.01) {
+          volumeBase += r.volume / (1 + r.volumeYoy / 100);
+          hasVolumeBase = true;
+        }
+      }
+    }
+
+    result.push({
+      name,
+      sales: hasSales ? sales : null,
+      volume: hasVolume ? volume : null,
+      salesYoy: hasSalesBase && salesBase > 0 ? (sales / salesBase - 1) * 100 : null,
+      volumeYoy: hasVolumeBase && volumeBase > 0 ? (volume / volumeBase - 1) * 100 : null,
+      share: null, // 由 BrandRankingView 按聚合后总量统一计算
+      avgPrice: hasSales && hasVolume && volume > 0 ? sales / volume : null,
+      raw: list[0].raw,
+    });
+  }
+  return result;
+}
+
 /** 从大盘趋势结果中抽取 13 个月序列 */
 function parseTrend(result: CrawlerResult | undefined): TrendPoint[] {
   if (!result?.rows?.length) return [];
@@ -532,7 +596,10 @@ function EcommercePanel() {
     [tree, filters.industry, filters.l2],
   );
 
-  const brandRows = useMemo(() => parseBrandRows(brandResult), [brandResult]);
+  // 原始明细（品牌 × 月份），趋势/明细场景可用
+  const brandRowsRaw = useMemo(() => parseBrandRows(brandResult), [brandResult]);
+  // 排行/KPI 用：按品牌聚合为单条（修复同品牌按月重复出现的问题）
+  const brandRows = useMemo(() => aggregateBrandRows(brandRowsRaw), [brandRowsRaw]);
   const trendPoints = useMemo(() => parseTrend(trendResult), [trendResult]);
   const priceBuckets = useMemo(() => parsePriceBuckets(priceResult), [priceResult]);
 
