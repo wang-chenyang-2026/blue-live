@@ -202,10 +202,10 @@ function toNum(v: unknown): number | null {
   return isPercent ? n : n * multi;
 }
 
-/** 带单位显示 */
+/** 带单位显示。亿级固定保留2位小数（避免 1.06亿 与 1.42亿 都被截成"1亿"）；万级及以下按 digits */
 function formatNum(n: number | null | undefined, digits = 2): string {
   if (n == null || !Number.isFinite(n)) return '—';
-  if (Math.abs(n) >= 100000000) return (n / 100000000).toFixed(digits) + '亿';
+  if (Math.abs(n) >= 100000000) return (n / 100000000).toFixed(2) + '亿';
   if (Math.abs(n) >= 10000) return (n / 10000).toFixed(digits) + '万';
   return n.toLocaleString('zh-CN', { maximumFractionDigits: digits });
 }
@@ -876,8 +876,8 @@ function EcommercePanel() {
           accent="from-[#4158D0] to-[#4361EE]"
         />
         <KpiCard
-          label="总销量"
-          value={formatNum(kpis.totalVolume, 0)}
+          label="总销量（件）"
+          value={formatNum(kpis.totalVolume, 0) + '件'}
           icon={<Package className="h-4 w-4" />}
           loading={loadingBrand}
           accent="from-[#FF6B35] to-[#FF8F5E]"
