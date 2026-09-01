@@ -37,10 +37,16 @@ interface KpiRow {
   isLow: boolean;
 }
 
+interface KpiMonthlyData {
+  items: KpiRow[];
+  overallRate: number | null;
+}
+
 interface KpiTab {
   label: string;
   items: KpiRow[];
   overallRate: number | null;
+  monthly?: Record<string, KpiMonthlyData>;
 }
 
 interface BrandData {
@@ -334,11 +340,25 @@ export default function DataOverviewPage() {
     };
   }, [currentBrandData, dateRange]);
 
-  // Current KPI tab data
+  // KPI table header month label, e.g. "8月" — follows the selected compare month
+  const kpiMonthLabel = useMemo(() => {
+    if (!compareMonth) return '';
+    const [, m] = compareMonth.split('-');
+    return `${parseInt(m, 10)}月`;
+  }, [compareMonth]);
+
+  // Current KPI tab data — KPI follows the selected compare month (YYYY-MM).
+  // Backend returns all monthly blocks in tab.monthly; fall back to tab.items (latest month).
   const currentKpiTab = useMemo((): KpiTab | null => {
     if (!currentBrandData?.kpiTabs) return null;
-    return currentBrandData.kpiTabs[kpiTabIndex] || null;
-  }, [currentBrandData, kpiTabIndex]);
+    const tab = currentBrandData.kpiTabs[kpiTabIndex];
+    if (!tab) return null;
+    const monthData = compareMonth ? tab.monthly?.[compareMonth] : undefined;
+    if (monthData) {
+      return { ...tab, items: monthData.items, overallRate: monthData.overallRate };
+    }
+    return { ...tab, items: [], overallRate: null };
+  }, [currentBrandData, kpiTabIndex, compareMonth]);
 
   // Overall KPI rate from current tab (use server-provided value)
   const overallKpiRate = useMemo(() => {
@@ -363,24 +383,23 @@ export default function DataOverviewPage() {
     const mainTab = currentBrandData.kpiTabs[0];
     const mainAccount = currentBrandData.accounts?.[0] || '';
 
+    const rateForTab = (tab: KpiTab): number => {
+      const md = compareMonth ? tab.monthly?.[compareMonth] : undefined;
+      if (md) return md.overallRate ?? 0;
+      if (tab.overallRate !== null) return tab.overallRate;
+      return tab.items.length > 0
+        ? tab.items.filter((k) => k.rawRate >= 1).length / tab.items.length
+        : 0;
+    };
     if (mainTab && mainAccount) {
-      const mainRate = mainTab.overallRate !== null
-        ? mainTab.overallRate
-        : (mainTab.items.length > 0
-          ? mainTab.items.filter((k) => k.rawRate >= 1).length / mainTab.items.length
-          : 0);
-      rates[mainAccount] = mainRate;
+      rates[mainAccount] = rateForTab(mainTab);
     }
 
     // Sub-account KPI tabs (index 1+)
     const subAccounts = currentBrandData.accounts?.slice(1) || [];
     for (let i = 1; i < currentBrandData.kpiTabs.length; i++) {
       const tab = currentBrandData.kpiTabs[i];
-      const tabRate = tab.overallRate !== null
-        ? tab.overallRate
-        : (tab.items.length > 0
-          ? tab.items.filter((k) => k.rawRate >= 1).length / tab.items.length
-          : 0);
+      const tabRate = rateForTab(tab);
 
       // Try to match tab label to a specific account name
       const matchAccount = currentBrandData.accounts.find((a) => tab.label.includes(a));
@@ -397,7 +416,7 @@ export default function DataOverviewPage() {
     const allRates = Object.values(rates);
     rates['汇总'] = allRates.length > 0 ? allRates.reduce((s, v) => s + v, 0) / allRates.length : 0;
     return rates;
-  }, [currentBrandData]);
+  }, [currentBrandData, compareMonth]);
 
   const tableSummary = useMemo(() => ({
     duration: filteredDaily.reduce((s, d) => s + d.rawDuration, 0),
@@ -571,9 +590,10 @@ export default function DataOverviewPage() {
       const sales = filtered.reduce((s, d) => s + d.rawSalesAfter, 0);
       const duration = filtered.reduce((s, d) => s + d.rawDuration, 0);
 
-      // Get KPI rate from first tab's overallRate
+      // Get KPI rate for the selected compare month (fallback to latest month)
       const mainKpiTab = bd.kpiTabs?.[0];
-      const kpiRate = mainKpiTab?.overallRate ?? 0;
+      const kpiRate = (compareMonth && mainKpiTab?.monthly?.[compareMonth]?.overallRate)
+        ?? mainKpiTab?.overallRate ?? 0;
 
       summaries.push({
         brandKey: bt.id,
@@ -587,7 +607,7 @@ export default function DataOverviewPage() {
       });
     }
     return summaries;
-  }, [brandDataMap, dateRange]);
+  }, [brandDataMap, dateRange, compareMonth]);
 
   const applyCustomRange = () => {
     if (!customStart || !customEnd) return;
@@ -1168,8 +1188,8 @@ export default function DataOverviewPage() {
                       <thead>
                         <tr className="border-b border-zinc-700 text-zinc-400">
                           <th className="text-left py-2 px-3">维度</th>
-                          <th className="text-right py-2 px-3">6月目标</th>
-                          <th className="text-right py-2 px-3">6月达成</th>
+                          <th className="text-right py-2 px-3">{kpiMonthLabel}目标</th>
+                          <th className="text-right py-2 px-3">{kpiMonthLabel}达成</th>
                           <th className="text-right py-2 px-3">达成率</th>
                           <th className="text-right py-2 px-3">整体完成率</th>
                         </tr>

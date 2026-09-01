@@ -36,8 +36,8 @@ const BRAND_SHEET_MAP: Record<string, BrandSheetConfig> = {
       { spreadsheetToken: VIVO_TOKEN, sheetId: '0a2100', range: 'A1:J500' },
     ],
     kpiSheets: [
-      { spreadsheetToken: VIVO_TOKEN, sheetId: '204xjT', range: 'A1:H6', dailyRange: 'H1:AL6', label: 'vivo（大号）KPI' },
-      { spreadsheetToken: VIVO_TOKEN, sheetId: 'vcgTtP', range: 'A1:H10', dailyRange: 'G1:AK10', label: '子账号KPI', hasOverallRate: false },
+      { spreadsheetToken: VIVO_TOKEN, sheetId: '204xjT', range: 'A1:H60', dailyRange: 'H1:AL60', label: 'vivo（大号）KPI' },
+      { spreadsheetToken: VIVO_TOKEN, sheetId: 'vcgTtP', range: 'A1:H60', dailyRange: 'G1:AL60', label: '子账号KPI', hasOverallRate: false },
     ],
     accounts: ['vivo（大号）', 'vivo官方旗舰店（抖音）', 'vivo官方旗舰店（快手）'],
     brandLabel: 'vivo',
@@ -49,9 +49,9 @@ const BRAND_SHEET_MAP: Record<string, BrandSheetConfig> = {
       { spreadsheetToken: IQOO_TOKEN, sheetId: 'RYPvqw', range: 'A1:J200' },
     ],
     kpiSheets: [
-      { spreadsheetToken: IQOO_TOKEN, sheetId: '204xjT', range: 'A1:H6', dailyRange: 'H1:AL6', label: 'iQOO手机（抖音）KPI' },
-      { spreadsheetToken: IQOO_TOKEN, sheetId: 'vcgTtP', range: 'A1:H10', dailyRange: 'G1:AK10', label: 'iQOO官方旗舰店（抖音）KPI', accountName: 'iQOO官方旗舰店（抖音）', hasOverallRate: false },
-      { spreadsheetToken: IQOO_TOKEN, sheetId: 'XXnMYT', range: 'A1:H10', dailyRange: 'H1:AL10', label: 'iQOO官方旗舰店（快手）KPI', accountName: 'iQOO官方旗舰店（快手）' },
+      { spreadsheetToken: IQOO_TOKEN, sheetId: '204xjT', range: 'A1:H60', dailyRange: 'H1:AL60', label: 'iQOO手机（抖音）KPI' },
+      { spreadsheetToken: IQOO_TOKEN, sheetId: 'vcgTtP', range: 'A1:H60', dailyRange: 'G1:AL60', label: 'iQOO官方旗舰店（抖音）KPI', accountName: 'iQOO官方旗舰店（抖音）', hasOverallRate: false },
+      { spreadsheetToken: IQOO_TOKEN, sheetId: 'XXnMYT', range: 'A1:H60', dailyRange: 'H1:AL60', label: 'iQOO官方旗舰店（快手）KPI', accountName: 'iQOO官方旗舰店（快手）' },
     ],
     accounts: ['iQOO手机', 'iQOO官方旗舰店（抖音）', 'iQOO官方旗舰店（快手）'],
     brandLabel: 'iQOO',
@@ -63,8 +63,8 @@ const BRAND_SHEET_MAP: Record<string, BrandSheetConfig> = {
       { spreadsheetToken: IOT_TOKEN, sheetId: 'RYPvqw', range: 'A1:J200' },
     ],
     kpiSheets: [
-      { spreadsheetToken: IOT_TOKEN, sheetId: '204xjT', range: 'A1:H10', dailyRange: 'H1:AL10', label: 'IOT平板KPI' },
-      { spreadsheetToken: IOT_TOKEN, sheetId: 'XXnMYT', range: 'A1:H10', dailyRange: 'H1:AL10', label: 'IOT手表KPI', accountName: 'IOT手表' },
+      { spreadsheetToken: IOT_TOKEN, sheetId: '204xjT', range: 'A1:H60', dailyRange: 'H1:AL60', label: 'IOT平板KPI' },
+      { spreadsheetToken: IOT_TOKEN, sheetId: 'XXnMYT', range: 'A1:H60', dailyRange: 'H1:AL60', label: 'IOT手表KPI', accountName: 'IOT手表' },
     ],
     accounts: ['IOT平板', 'IOT手表'],
     brandLabel: 'IOT',
@@ -244,74 +244,46 @@ function calcAverageFromDaily(dailyRow: string[]): number {
 }
 
 /**
- * Parse KPI Sheet using both main data and daily data.
- * 
- * Two possible sheet structures:
- * 
- * Structure A (hasOverallRate = true, default):
- *   A (0): 账号, B (1): 月份, C (2): 维度, D (3): 整体完成率,
- *   E (4): 6月目标, F (5): 6月达成, G (6): 达成率, H (7+): 每日数据
- * 
- * Structure B (hasOverallRate = false):
- *   A (0): 账号, B (1): 月份, C (2): 维度,
- *   D (3): 6月目标, E (4): 6月达成, F (5): 达成率, G (6+): 每日数据
- * 
- * Since Feishu API returns formula strings (e.g. "AVERAGE(H2:AL2)") instead of
- * computed values, we must:
- * 1. Read target from the target column (E for A, D for B — actual number)
- * 2. Calculate achieved from daily columns (AVERAGE)
- * 3. Calculate rate = achieved / target
- * 4. Calculate overallRate = count(rate >= 100%) / total items
+ * Parse a single KPI block (one month) from rows [blockStart..blockEnd).
+ * Block layout (same for all sheets; hasOverallRate controls target column):
+ *   header row: 账号,月份,维度[,整体完成率],X月目标,X月达成,达成率,每日数据...
+ *   data rows : one row per KPI dimension
+ * Daily values are aligned by absolute row index with the full-range daily read.
  */
-function parseKpiSheet(
+type KpiItem = {
+  dimension: string;
+  target: string;
+  achieved: string;
+  rate: string;
+  rawRate: number;
+  isLow: boolean;
+};
+
+function parseKpiBlock(
   mainRaw: string[][],
   dailyRaw: string[][],
-  _accountOverride?: string,
-  hasOverallRate: boolean = true
-): {
-  items: Array<{
-    dimension: string;
-    target: string;
-    achieved: string;
-    rate: string;
-    rawRate: number;
-    isLow: boolean;
-  }>;
-  overallRate: number | null;
-} {
-  // Column offsets based on sheet structure
-  // Structure A: target=E(4), Structure B: target=D(3)
+  blockStart: number,
+  blockEnd: number,
+  hasOverallRate: boolean
+): KpiItem[] {
   const targetIdx = hasOverallRate ? 4 : 3;
+  const items: KpiItem[] = [];
 
-  const items: Array<{
-    dimension: string;
-    target: string;
-    achieved: string;
-    rate: string;
-    rawRate: number;
-    isLow: boolean;
-  }> = [];
-
-  // Skip header row (index 0), process data rows starting from index 1
-  for (let i = 1; i < mainRaw.length; i++) {
+  for (let i = blockStart + 1; i < blockEnd; i++) {
     const row = mainRaw[i];
     if (!row || row.length < targetIdx + 1) continue;
 
     const dimension = (row[2] || '').trim();
     if (!dimension) continue;
 
-    // Read target from the correct column based on structure
     const targetVal = parseFloat(row[targetIdx]);
     if (isNaN(targetVal) && targetVal !== 0) continue;
 
-    // Calculate achieved from daily data (H:AL columns)
     const dailyRow = dailyRaw[i] || [];
     const achievedVal = calcAverageFromDaily(dailyRow);
 
-    // Calculate rate
     let rateVal: number;
     if (dimension.includes('违规') || dimension.includes('失误')) {
-      // Violation/mistake KPI: 0 = 100%, any non-zero = 0%
       rateVal = achievedVal === 0 ? 1 : 0;
     } else if (targetVal === 0) {
       rateVal = achievedVal === 0 ? 1 : 0;
@@ -319,24 +291,19 @@ function parseKpiSheet(
       rateVal = achievedVal / targetVal;
     }
 
-    // Format display values
     let targetDisplay: string;
     let achievedDisplay: string;
 
     if (dimension.includes('率') || dimension.includes('转粉') || dimension.includes('观看')) {
-      // Percentage-type dimensions (e.g. 曝光-观看率, 直播转粉率)
       targetDisplay = `${(targetVal * 100).toFixed(0)}%`;
       achievedDisplay = `${(achievedVal * 100).toFixed(2)}%`;
     } else if (dimension.includes('GPM')) {
-      // Currency-like dimension
       targetDisplay = formatNumber(targetVal);
       achievedDisplay = formatNumber(Math.round(achievedVal));
     } else if (dimension.includes('停留')) {
-      // Duration in seconds
       targetDisplay = `${targetVal}秒`;
       achievedDisplay = `${achievedVal.toFixed(1)}秒`;
     } else {
-      // Violation/mistake counts
       targetDisplay = `${targetVal}次`;
       achievedDisplay = `${achievedVal}次`;
     }
@@ -351,14 +318,48 @@ function parseKpiSheet(
     });
   }
 
-  // Calculate overall completion rate: count items where rate >= 100% / total items
-  let overallRate: number | null = null;
-  if (items.length > 0) {
-    const passedCount = items.filter((k) => k.rawRate >= 1).length;
-    overallRate = passedCount / items.length;
+  return items;
+}
+
+/**
+ * Parse a KPI sheet containing multiple monthly blocks.
+ * Each block starts with a header row whose first cell is "账号" and whose
+ * target column header is like "X月目标" (X = month number, e.g. "8月目标").
+ * Returns a map keyed by YYYY-MM for all months found in the sheet.
+ */
+function parseKpiSheetMulti(
+  mainRaw: string[][],
+  dailyRaw: string[][],
+  hasOverallRate: boolean
+): Record<string, { items: KpiItem[]; overallRate: number | null }> {
+  const result: Record<string, { items: KpiItem[]; overallRate: number | null }> = {};
+  const targetIdx = hasOverallRate ? 4 : 3;
+  const year = new Date().getFullYear();
+
+  // Locate all block header rows
+  const blocks: Array<{ monthKey: string; start: number }> = [];
+  for (let i = 0; i < mainRaw.length; i++) {
+    const row = mainRaw[i];
+    if (!row || row.length < 3) continue;
+    if (String(row[0] || '').trim() !== '账号') continue;
+    const header = String(row[targetIdx] || '');
+    const m = header.match(/(\d{1,2})月目标/);
+    if (!m) continue;
+    const month = parseInt(m[1], 10);
+    if (month < 1 || month > 12) continue;
+    blocks.push({ monthKey: `${year}-${String(month).padStart(2, '0')}`, start: i });
   }
 
-  return { items, overallRate };
+  for (let b = 0; b < blocks.length; b++) {
+    const { monthKey, start } = blocks[b];
+    const end = b + 1 < blocks.length ? blocks[b + 1].start : mainRaw.length;
+    const items = parseKpiBlock(mainRaw, dailyRaw, start, end, hasOverallRate);
+    if (items.length === 0) continue;
+    const passed = items.filter((k) => k.rawRate >= 1).length;
+    result[monthKey] = { items, overallRate: passed / items.length };
+  }
+
+  return result;
 }
 
 /* ========== Empty Data Fallback ========== */
@@ -405,11 +406,16 @@ async function fetchBrandData(accessToken: string, brandKey: string) {
         getSheetValues(accessToken, src.spreadsheetToken, src.sheetId, src.range),
         getSheetValues(accessToken, src.spreadsheetToken, src.sheetId, src.dailyRange),
       ]);
-      const parsed = parseKpiSheet(mainRaw, dailyRaw, src.accountName, src.hasOverallRate !== false);
+      // Sheet holds one block per month (e.g. "8月目标/8月达成"); parse all blocks.
+      const monthly = parseKpiSheetMulti(mainRaw, dailyRaw, src.hasOverallRate !== false);
+      // Latest month in this sheet -> default/back-compat fields
+      const latestKey = Object.keys(monthly).sort().pop() || '';
+      const latest = latestKey ? monthly[latestKey] : { items: [], overallRate: null };
       return {
         label: src.label || 'KPI',
-        items: parsed.items,
-        overallRate: parsed.overallRate,
+        items: latest.items,
+        overallRate: latest.overallRate,
+        monthly,
       };
     })
   );
