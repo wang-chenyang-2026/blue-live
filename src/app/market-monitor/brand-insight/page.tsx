@@ -553,6 +553,9 @@ function EcommercePanel() {
   const [error, setError] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
+  // 请求序号：每次发起拉取递增；过期响应（用户已切换到更新的品类）一律丢弃，
+  // 防止旧品类的品牌/KPI 数据残留或覆盖新品类数据
+  const fetchSeqRef = useRef(0);
 
   /* 加载品类树 */
   useEffect(() => {
@@ -642,8 +645,15 @@ function EcommercePanel() {
       if (abortRef.current) abortRef.current.abort();
       const controller = new AbortController();
       abortRef.current = controller;
+      // 本次拉取的序号；响应回来时若已不是最新序号则丢弃
+      const seq = ++fetchSeqRef.current;
+      const isStale = () => seq !== fetchSeqRef.current;
 
       setError(null);
+      // 切换品类立即清空上一品类的数据，避免品牌下拉/KPI 残留旧品类（如手机）内容
+      setBrandResult(undefined);
+      setTrendResult(undefined);
+      setPriceResult(undefined);
 
       const params = new URLSearchParams({
         l1: f.industry,
@@ -665,16 +675,20 @@ function EcommercePanel() {
         )
           .then((r) => r.json() as Promise<CrawlerResponse>)
           .then((j) => {
+            if (isStale()) return;
             if (j.success) setBrandResult(j.data);
             else throw new Error(j.error || '品牌列表加载失败');
           })
           .catch((e) => {
+            if (isStale()) return;
             if (e?.name !== 'AbortError') {
               console.warn('[brand]', e);
               setBrandResult(undefined);
             }
           })
-          .finally(() => setLoadingBrand(false)),
+          .finally(() => {
+            if (!isStale()) setLoadingBrand(false);
+          }),
 
         fetch(
           `${baseUrl}?${params.toString()}&view=${encodeURIComponent('品类视角-大盘趋势')}`,
@@ -682,17 +696,21 @@ function EcommercePanel() {
         )
           .then((r) => r.json() as Promise<CrawlerResponse>)
           .then((j) => {
+            if (isStale()) return;
             if (j.success) setTrendResult(j.data);
             else throw new Error(j.error || '大盘趋势加载失败');
           })
           .catch((e) => {
+            if (isStale()) return;
             // 趋势失败不阻断整体
             if (e?.name !== 'AbortError') {
               console.warn('[trend]', e);
               setTrendResult(undefined);
             }
           })
-          .finally(() => setLoadingTrend(false)),
+          .finally(() => {
+            if (!isStale()) setLoadingTrend(false);
+          }),
 
         fetch(
           `${baseUrl}?${params.toString()}&view=${encodeURIComponent('价格区间')}`,
@@ -700,22 +718,27 @@ function EcommercePanel() {
         )
           .then((r) => r.json() as Promise<CrawlerResponse>)
           .then((j) => {
+            if (isStale()) return;
             if (j.success) setPriceResult(j.data);
             else throw new Error(j.error || '价格区间加载失败');
           })
           .catch((e) => {
+            if (isStale()) return;
             if (e?.name !== 'AbortError') {
               console.warn('[price]', e);
               setPriceResult(undefined);
             }
           })
-          .finally(() => setLoadingPrice(false)),
+          .finally(() => {
+            if (!isStale()) setLoadingPrice(false);
+          }),
       ];
 
       try {
         await Promise.all(tasks);
       } catch (e) {
         if ((e as { name?: string })?.name === 'AbortError') return;
+        if (isStale()) return;
         setError(e instanceof Error ? e.message : '数据加载失败');
       }
     },
