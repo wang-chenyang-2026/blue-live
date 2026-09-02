@@ -162,7 +162,7 @@ export async function uploadBitableAttachment(
     form.append('parent_node', appToken);
     form.append('size', String(file.size));
     form.append('checksum', String(adler32(file.data)));
-    form.append('file', new Blob([file.data], { type: file.mime || 'application/octet-stream' }), file.name);
+    form.append('file', new Blob([new Uint8Array(file.data)], { type: file.mime || 'application/octet-stream' }), file.name);
 
     const res = await fetch(`${FEISHU_BASE}/drive/v1/medias/upload_all`, {
       method: 'POST',
@@ -202,7 +202,7 @@ export async function uploadBitableAttachment(
     form.append('seq', String(seq));
     form.append('size', String(chunk.length));
     form.append('checksum', String(adler32(chunk)));
-    form.append('file', new Blob([chunk], { type: 'application/octet-stream' }), file.name);
+    form.append('file', new Blob([new Uint8Array(chunk)], { type: 'application/octet-stream' }), file.name);
 
     let ok = false;
     for (let attempt = 0; attempt < 3 && !ok; attempt++) {
