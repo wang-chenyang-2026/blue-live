@@ -188,13 +188,32 @@ export interface ScriptTemplate {
 }
 
 // ==================== 问题反馈 ====================
+
+/** 反馈附件（飞书多维表格附件字段） */
+export interface FeedbackAttachment {
+  fileToken: string;
+  name: string;
+  size: number;
+  type: string; // mime type，如 image/png、video/mp4
+}
+
 export interface ProblemFeedback {
   id: string;
-  brandId: string;
-  accountId: string;
+  /** 所属模块（平台模块名，如 数据概览） */
+  module: string;
+  /** 反馈类别：新增功能需求 / 现有功能维护 / 使用反馈 */
+  category: string;
+  /** 提交人姓名 */
   staffId: string;
+  submitterName?: string;
+  /** 提交人手机号（用于跨账号识别同一用户） */
+  phone?: string;
   date: string;
   content: string;
   status: '待处理' | '已处理';
   reply?: string;
+  attachments?: FeedbackAttachment[];
+  // 旧字段兼容（历史 localStorage 数据）
+  brandId?: string;
+  accountId?: string;
 }

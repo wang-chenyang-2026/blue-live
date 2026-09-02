@@ -47,6 +47,7 @@ export function middleware(request: NextRequest) {
   requestHeaders.set('x-user-id', payload.userId);
   requestHeaders.set('x-user-phone', payload.phone);
   requestHeaders.set('x-user-role', encodeURIComponent(payload.role));
+  requestHeaders.set('x-user-name', encodeURIComponent(payload.name || ''));
 
   return NextResponse.next({
     request: { headers: requestHeaders },
