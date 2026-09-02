@@ -592,8 +592,10 @@ export default function DataOverviewPage() {
 
       // Get KPI rate for the selected compare month (fallback to latest month)
       const mainKpiTab = bd.kpiTabs?.[0];
-      const kpiRate = (compareMonth && mainKpiTab?.monthly?.[compareMonth]?.overallRate)
-        ?? mainKpiTab?.overallRate ?? 0;
+      const monthRate = compareMonth
+        ? (mainKpiTab?.monthly?.[compareMonth]?.overallRate ?? null)
+        : null;
+      const kpiRate: number = monthRate ?? mainKpiTab?.overallRate ?? 0;
 
       summaries.push({
         brandKey: bt.id,
