@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { AppProvider } from '@/contexts/AppContext';
 import { AuthGuard } from '@/components/layout/AuthGuard';
 import { ThemeSetter } from '@/components/layout/ThemeSetter';
+import { ClientErrorBoundary } from '@/components/layout/ClientErrorBoundary';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -14,9 +15,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="zh-CN" suppressHydrationWarning>
       <body className="antialiased bg-background text-foreground">
         <ThemeSetter />
-        <AppProvider>
-          <AuthGuard>{children}</AuthGuard>
-        </AppProvider>
+        <ClientErrorBoundary>
+          <AppProvider>
+            <AuthGuard>{children}</AuthGuard>
+          </AppProvider>
+        </ClientErrorBoundary>
       </body>
     </html>
   );
