@@ -44,14 +44,19 @@ interface ScheduleResponse {
 }
 
 // ===== 工具函数 =====
+function localDateStr(d: Date): string {
+  // Local YYYY-MM-DD — toISOString() is UTC and shifts early-morning dates back one day.
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function getToday(): string {
-  return new Date().toISOString().split('T')[0];
+  return localDateStr(new Date());
 }
 
 function getDaysAgo(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days + 1);
-  return d.toISOString().split('T')[0];
+  return localDateStr(d);
 }
 
 // 渠道胶囊颜色配置

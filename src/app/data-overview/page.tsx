@@ -96,7 +96,18 @@ type BrandTabId = typeof BRAND_TABS[number]['id'];
 
 /* ========== Date Helpers ========== */
 function toDateStr(d: Date): string {
-  return d.toISOString().split('T')[0];
+  // Use local date parts — toISOString() is UTC and shifts early-morning
+  // local dates (e.g. the 1st of a month, 00:xx in UTC+8) back one day.
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Parse a YYYY-MM-DD string as local date (new Date('YYYY-MM-DD') is UTC).
+function parseLocalDate(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d || 1);
 }
 
 function addDays(d: Date, n: number): Date {
@@ -613,8 +624,8 @@ export default function DataOverviewPage() {
 
   const applyCustomRange = () => {
     if (!customStart || !customEnd) return;
-    let s = new Date(customStart);
-    let e = new Date(customEnd);
+    let s = parseLocalDate(customStart);
+    let e = parseLocalDate(customEnd);
     const maxEnd = addDays(s, 365);
     if (e > maxEnd) e = maxEnd;
     if (s > e) [s, e] = [e, s];
