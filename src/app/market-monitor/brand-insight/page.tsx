@@ -55,6 +55,7 @@ import {
   BarChart,
   Bar,
 } from 'recharts';
+import { EcomExtraViews, type ExtraViewKey } from './ecom-extra-views';
 import {
   TrendingUp,
   RefreshCw,
@@ -104,7 +105,9 @@ interface EcomFilters {
   brand: string; // '' 表示全部品牌
 }
 
-type EcomSubView = 'trend' | 'brand' | 'price';
+type EcomSubView =
+  | 'trend' | 'brand' | 'price'
+  | 'sales' | 'shop' | 'product' | 'cross' | 'hotword';
 
 /* ---- 社媒声量 ---- */
 type BrandTaskStatus = 'pending' | 'running' | 'completed' | 'failed';
@@ -336,9 +339,14 @@ function formatDate(value?: string | number | null): string {
  * ============================================================ */
 
 const ECOM_SUBVIEWS: { key: EcomSubView; label: string }[] = [
-  { key: 'brand', label: '品牌排行' },
   { key: 'trend', label: '大盘趋势' },
+  { key: 'sales', label: '销售价量' },
+  { key: 'brand', label: '品牌排行' },
+  { key: 'shop', label: '店铺列表' },
+  { key: 'product', label: '商品列表' },
   { key: 'price', label: '价格区间' },
+  { key: 'cross', label: '价格交叉' },
+  { key: 'hotword', label: '热词频次' },
 ];
 
 interface BrandRow {
@@ -1033,7 +1041,8 @@ function EcommercePanel() {
               const isLoading =
                 (v.key === 'brand' && loadingBrand) ||
                 (v.key === 'trend' && loadingTrend) ||
-                (v.key === 'price' && loadingPrice);
+                (v.key === 'price' && loadingPrice) ||
+                false;
               return (
                 <Button
                   key={v.key}
@@ -1068,6 +1077,16 @@ function EcommercePanel() {
           )}
           {subView === 'price' && (
             <PriceView loading={loadingPrice} buckets={priceBuckets} />
+          )}
+          {(subView === 'sales' ||
+            subView === 'shop' ||
+            subView === 'product' ||
+            subView === 'cross' ||
+            subView === 'hotword') && (
+            <EcomExtraViews
+              view={subView as ExtraViewKey}
+              filters={{ industry: filters.industry, l2: filters.l2, l3: filters.l3 }}
+            />
           )}
         </CardContent>
       </Card>

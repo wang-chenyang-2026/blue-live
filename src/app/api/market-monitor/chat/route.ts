@@ -170,90 +170,45 @@ async function handleNewMediaQuery(
  * Handle Douyin KOL queries
  */
 async function handleDouyinKOLQuery(
-  intent: ParsedIntent,
+  _intent: ParsedIntent,
 ): Promise<{ reply: string; data?: unknown; dataType?: string }> {
-  try {
-    const { sessionId } = await initializeServer('douyin-kol-api-service');
-    const toolsRes = await callTool(
-      'douyin-kol-api-service',
-      'get_douyin_kol_list',
-      { keyword: intent.rawMessage.replace(/抖音|达人|kol|KOL/gi, '').trim() || '手机' },
-      sessionId,
-    );
-    const textContent = toolsRes.content?.[0]?.text || '';
-    let parsed: unknown = null;
-    try { parsed = JSON.parse(textContent); } catch { parsed = textContent; }
-    return {
-      reply: '已获取抖音达人KOL数据',
-      data: parsed,
-      dataType: 'douyin_kol',
-    };
-  } catch (err) {
-    return {
-      reply: `抖音KOL数据获取失败：${err instanceof Error ? err.message : '未知错误'}`,
-      dataType: 'error',
-    };
-  }
+  // 达人选号是多步异步流程（AI 生词 → 关键词确认 → 建项 → 轮询出 Excel），
+  // 不适合在自由对话中一步完成；引导用户到专用页面操作。
+  return {
+    reply:
+      '达人选号请在「市场监测 → 达人选号」页面操作：填写产品与选号需求后，AI 会生成搜索关键词组，确认后创建选号任务，完成后可下载达人 Excel。目前支持抖音平台；小红书选号即将开通。',
+    dataType: 'guide',
+  };
 }
 
 /**
  * Handle dim-server queries
  */
 async function handleDimQuery(
-  intent: ParsedIntent,
+  _intent: ParsedIntent,
 ): Promise<{ reply: string; data?: unknown; dataType?: string }> {
-  try {
-    const { sessionId } = await initializeServer('dim-server');
-    const result = await callTool(
-      'dim-server',
-      'match_dimension_table',
-      { keyword: intent.rawMessage.replace(/标签|维表/g, '').trim() || '手机' },
-      sessionId,
-    );
-    const textContent = result.content?.[0]?.text || '';
-    let parsed: unknown = null;
-    try { parsed = JSON.parse(textContent); } catch { parsed = textContent; }
-    return {
-      reply: '已匹配标签维表数据',
-      data: parsed,
-      dataType: 'dimension',
-    };
-  } catch (err) {
-    return {
-      reply: `标签维表查询失败：${err instanceof Error ? err.message : '未知错误'}`,
-      dataType: 'error',
-    };
-  }
+  // 维表匹配需要结构化输入（达人简介/品类全路径/帖子评论 JSON），自由对话无法可靠提供；
+  // 该能力的业务入口尚在规划中，这里不再占位空跑。
+  return {
+    reply:
+      '维度标签匹配功能正在规划中，暂未开放。您可以先使用「市场监测」中的电商数据监测、社媒洞察或达人选号功能。',
+    dataType: 'guide',
+  };
 }
 
 /**
  * Handle common-tools (社媒洞察) queries
  */
 async function handleCommonToolsQuery(
-  intent: ParsedIntent,
+  _intent: ParsedIntent,
 ): Promise<{ reply: string; data?: unknown; dataType?: string }> {
-  try {
-    const { sessionId } = await initializeServer('common-tools-server');
-    const result = await callTool(
-      'common-tools-server',
-      'submit_media_brief',
-      { keyword: intent.rawMessage.replace(/社媒|洞察|brief/gi, '').trim() || '手机市场' },
-      sessionId,
-    );
-    const textContent = result.content?.[0]?.text || '';
-    let parsed: unknown = null;
-    try { parsed = JSON.parse(textContent); } catch { parsed = textContent; }
-    return {
-      reply: '社媒洞察分析任务已提交',
-      data: parsed,
-      dataType: 'media_brief',
-    };
-  } catch (err) {
-    return {
-      reply: `社媒洞察查询失败：${err instanceof Error ? err.message : '未知错误'}`,
-      dataType: 'error',
-    };
-  }
+  // 社媒洞察是多步异步流程（提交洞察目标 → 解析关键词 → 选渠道/时间范围 → 采集分析出报告），
+  // 引导用户到专用页面操作。
+  return {
+    reply:
+      '社媒洞察请在「市场监测 → 社媒帖子监测 → 社媒洞察」页面提交：描述您的洞察目标后，系统会解析关键词，选择渠道（小红书/抖音/微博/B站）和时间范围，完成后生成声量数据与分析报告。品牌全网声量在「品牌洞察 → 品牌声量」中。',
+    dataType: 'guide',
+  };
 }
 
 export async function POST(req: Request): Promise<NextResponse<ChatResponse>> {
