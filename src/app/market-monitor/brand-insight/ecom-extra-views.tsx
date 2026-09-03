@@ -49,25 +49,31 @@ interface CrawlerApiResponse {
   error?: string;
 }
 
-/** 按月份区间（YYYYMM 数字）过滤 crawler 行；无「日期」字段的行保留 */
-function filterByMonths(
+/** 按品牌/平台/月份区间过滤 crawler 行；字段缺失自动跳过 */
+function filterRows(
   result: CrawlerResult | undefined,
-  from?: string,
-  to?: string,
+  opts: { brand?: string; platform?: string; monthFrom?: string; monthTo?: string },
 ): CrawlerResult | undefined {
-  if (!result?.rows?.length || (!from && !to)) return result;
-  const f = from ? Number(from) : 0;
-  const t = to ? Number(to) : 999999;
-  const lo = Math.min(f, t);
-  const hi = Math.max(f, t);
-  return {
-    ...result,
-    rows: result.rows.filter((r) => {
+  if (!result?.rows?.length) return result;
+  let rows = result.rows;
+  if (opts.brand) {
+    if (rows.some((r) => r['品牌'])) rows = rows.filter((r) => r['品牌'] === opts.brand);
+  }
+  if (opts.platform) {
+    if (rows.some((r) => r['平台'])) rows = rows.filter((r) => !r['平台'] || String(r['平台']).toLowerCase() === opts.platform);
+  }
+  if (opts.monthFrom || opts.monthTo) {
+    const f = opts.monthFrom ? Number(opts.monthFrom) : 0;
+    const t = opts.monthTo ? Number(opts.monthTo) : 999999;
+    const lo = Math.min(f, t);
+    const hi = Math.max(f, t);
+    rows = rows.filter((r) => {
       const m = Number(r['日期']);
       if (!m) return true;
       return m >= lo && m <= hi;
-    }),
-  };
+    });
+  }
+  return { ...result, rows };
 }
 
 export type ExtraViewKey = 'sales' | 'shop' | 'product' | 'cross' | 'hotword';
@@ -371,16 +377,20 @@ export function EcomExtraViews({
   filters,
   monthFrom,
   monthTo,
+  brand,
+  platform,
 }: {
   view: ExtraViewKey;
   filters: { industry: string; l2: string; l3: string };
   monthFrom?: string;
   monthTo?: string;
+  brand?: string;
+  platform?: string;
 }) {
   const [rawResult, setRawResult] = useState<CrawlerResult | undefined>();
   const result = useMemo(
-    () => filterByMonths(rawResult, monthFrom, monthTo),
-    [rawResult, monthFrom, monthTo],
+    () => filterRows(rawResult, { brand, platform, monthFrom, monthTo }),
+    [rawResult, brand, platform, monthFrom, monthTo],
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -456,12 +466,26 @@ export function EcomExtraViews({
 
   if (!result) return <LoadingSkeleton view={view} />;
 
-  if (view === 'sales') return <SalesView rows={parseSales(result)} />;
-  if (view === 'shop') return <ShopView rows={parseShops(result)} />;
-  if (view === 'cross') return <CrossView rows={parseCross(result)} />;
-  if (view === 'hotword') return <HotwordView data={parseHotwords(result)} />;
+  // 维度不生效提示
+  const noPlatformViews: ExtraViewKey[] = ['sales', 'cross'];
+  const noBrandViews: ExtraViewKey[] = ['sales', 'shop', 'hotword'];
+  const showPlatformHint = platform && noPlatformViews.includes(view);
+  const showBrandHint = brand && noBrandViews.includes(view);
+  const PLAT_LABEL: Record<string, string> = { jd: '京东', tmall: '天猫', douyin: '抖音' };
+
+  const hint = (showPlatformHint || showBrandHint) ? (
+    <div className="text-xs text-muted-foreground mb-2">
+      {showPlatformHint && <span>该视角为上游全平台汇总数据，平台筛选不生效。</span>}
+      {showBrandHint && <span>该视角无品牌维度，品牌筛选不生效。</span>}
+    </div>
+  ) : null;
+
+  if (view === 'sales') return <>{hint}<SalesView rows={parseSales(result)} /></>;
+  if (view === 'shop') return <>{hint}<ShopView rows={parseShops(result)} globalPlatform={platform ? PLAT_LABEL[platform] || platform : ''} /></>;
+  if (view === 'cross') return <>{hint}<CrossView rows={parseCross(result)} /></>;
+  if (view === 'hotword') return <>{hint}<HotwordView data={parseHotwords(result)} globalPlatform={platform ? PLAT_LABEL[platform] || platform : ''} /></>;
   // product：接口成功（未来上游修复后）直接展示原始表格
-  return <GenericTable result={result} title="商品列表" />;
+  return <>{hint}<GenericTable result={result} title="商品列表" /></>;
 }
 
 /* ---------------- 加载骨架 ---------------- */
@@ -566,8 +590,8 @@ function yoyColor(v: number | null): string {
 
 /* ---------------- 店铺列表 ---------------- */
 
-function ShopView({ rows }: { rows: ShopRow[] }) {
-  const [plat, setPlat] = useState<string>('全部');
+function ShopView({ rows, globalPlatform }: { rows: ShopRow[]; globalPlatform?: string }) {
+  const [plat, setPlat] = useState<string>(globalPlatform || '全部');
   const [page, setPage] = useState(1);
 
   const latestPeriod = useMemo(() => {
@@ -596,6 +620,7 @@ function ShopView({ rows }: { rows: ShopRow[] }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
+        {!globalPlatform && (
         <div className="flex flex-wrap gap-1.5">
           {platforms.map((p) => (
             <button
@@ -615,6 +640,7 @@ function ShopView({ rows }: { rows: ShopRow[] }) {
             </button>
           ))}
         </div>
+        )}
         <div className="text-xs text-muted-foreground">
           {latestPeriod} 数据 · 共 {list.length} 家店铺（按销售额降序）
         </div>
@@ -724,11 +750,11 @@ function CrossView({ rows }: { rows: CrossRow[] }) {
 
 /* ---------------- 热词频次 ---------------- */
 
-function HotwordView({ data }: { data: { platforms: string[]; byPlatform: Record<string, HotRow[]> } }) {
-  const [plat, setPlat] = useState<string>('');
+function HotwordView({ data, globalPlatform }: { data: { platforms: string[]; byPlatform: Record<string, HotRow[]> }; globalPlatform?: string }) {
+  const [plat, setPlat] = useState<string>(globalPlatform || '');
   useEffect(() => {
-    if (!plat && data.platforms.length) setPlat(data.platforms[0]);
-  }, [data.platforms, plat]);
+    if (!plat && data.platforms.length) setPlat(globalPlatform || data.platforms[0]);
+  }, [data.platforms, plat, globalPlatform]);
 
   const rows = useMemo(() => {
     const list = data.byPlatform[plat] || [];
@@ -742,6 +768,7 @@ function HotwordView({ data }: { data: { platforms: string[]; byPlatform: Record
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
+        {!globalPlatform && (
         <div className="flex flex-wrap gap-1.5">
           {data.platforms.map((p) => (
             <button
@@ -758,6 +785,7 @@ function HotwordView({ data }: { data: { platforms: string[]; byPlatform: Record
             </button>
           ))}
         </div>
+        )}
         <div className="text-xs text-muted-foreground">Top {HOT_TOP_N} 热词（按所选区间频次合计）</div>
       </div>
 

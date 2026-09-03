@@ -70,6 +70,7 @@ interface FilterState {
   category: string;
   subcategory: string;
   brand: string;
+  platform: string; // '' 全部平台 | 'jd' | 'tmall' | 'douyin'
   monthFrom: string; // YYYYMM，'' 表示不限
   monthTo: string;   // YYYYMM，'' 表示不限
 }
@@ -90,6 +91,32 @@ function staticMonthWindow(): number[] {
     months.push(d.getFullYear() * 100 + (d.getMonth() + 1));
   }
   return months;
+}
+
+const PLATFORM_OPTIONS = [
+  { value: '__all__', label: '全部平台' },
+  { value: 'jd', label: '京东' },
+  { value: 'tmall', label: '天猫' },
+  { value: 'douyin', label: '抖音' },
+] as const;
+const PLATFORM_CODE_TO_LABEL: Record<string, string> = { jd: '京东', tmall: '天猫', douyin: '抖音' };
+
+function filterRawRows(raw: any[], opts: { brand?: string; platform?: string; monthFrom?: string; monthTo?: string }) {
+  if (!Array.isArray(raw)) return [];
+  let rows = raw;
+  if (opts.brand) {
+    if (rows.some((r) => r['品牌'])) rows = rows.filter((r) => r['品牌'] === opts.brand);
+  }
+  if (opts.platform) {
+    if (rows.some((r) => r['平台'])) rows = rows.filter((r) => !r['平台'] || String(r['平台']).toLowerCase() === opts.platform);
+  }
+  if (opts.monthFrom || opts.monthTo) {
+    const f = opts.monthFrom ? Number(opts.monthFrom) : 0;
+    const t = opts.monthTo ? Number(opts.monthTo) : 999999;
+    const lo = Math.min(f, t), hi = Math.max(f, t);
+    rows = rows.filter((r) => { const m = Number(r['日期']); if (!m) return true; return m >= lo && m <= hi; });
+  }
+  return rows;
 }
 
 // Radix Select does not accept empty-string as an <Item value>, so we use a
@@ -157,15 +184,18 @@ const CHART_COLORS = ['#4158D0', '#FF6B35', '#FF4D4F', '#FAAD14', '#52C41A', '#1
 /**
  * 基于大盘趋势原始数据计算 KPI，按月份区间过滤
  */
-function buildKpiFromTrend(raw: any[], realBrandCount: number, monthFrom?: string, monthTo?: string, brand?: string): KpiCard[] {
-  // First apply brand filter if a specific brand is selected and data has brand fields
-  let brandFiltered = raw;
-  if (brand && brand !== '全部品牌' && Array.isArray(raw)) {
-    const withBrand = raw.filter((r) => r['品牌']);
-    // Only apply brand filter if data actually contains per-brand records;
-    // aggregate views have empty 品牌 field and should not be filtered
+function buildKpiFromTrend(raw: any[], realBrandCount: number, monthFrom?: string, monthTo?: string, brand?: string, platform?: string): KpiCard[] {
+  // Apply platform filter first (only if data has platform column)
+  let platformFiltered = raw;
+  if (platform && Array.isArray(raw) && raw.some((r) => r['平台'])) {
+    platformFiltered = raw.filter((r) => !r['平台'] || String(r['平台']).toLowerCase() === platform);
+  }
+  // Then apply brand filter if a specific brand is selected and data has brand fields
+  let brandFiltered = platformFiltered;
+  if (brand && brand !== '全部品牌' && Array.isArray(platformFiltered)) {
+    const withBrand = platformFiltered.filter((r) => r['品牌']);
     if (withBrand.length > 0) {
-      brandFiltered = raw.filter((r) => r['品牌'] === brand);
+      brandFiltered = platformFiltered.filter((r) => r['品牌'] === brand);
     }
   }
   const filtered = filterRawByMonthRange(brandFiltered, monthFrom, monthTo);
@@ -830,6 +860,7 @@ export default function EcommercePage() {
     category: '',
     subcategory: ALL_SUBCATEGORY,
     brand: '',
+    platform: '',
     monthFrom: '',
     monthTo: '',
   });
@@ -888,6 +919,7 @@ export default function EcommercePage() {
             category: firstCategory,
             subcategory: firstSubcategory,
             brand: firstBrand,
+            platform: '',
             monthFrom: '',
             monthTo: '',
           });
@@ -938,10 +970,16 @@ export default function EcommercePage() {
       const kpiSource = isSpecificBrand && brandListRaw.length > 0 ? brandListRaw : trendRaw;
       const from = availableMonths.includes(Number(debouncedFilters.monthFrom)) ? debouncedFilters.monthFrom : '';
       const to = availableMonths.includes(Number(debouncedFilters.monthTo)) ? debouncedFilters.monthTo : '';
-      return buildKpiFromTrend(kpiSource, realBrands.length, from, to, debouncedFilters.brand);
+      const plat = debouncedFilters.platform;
+      const filteredForBrandCount = brandListRaw.filter((r) => {
+        if (plat && r['平台'] && String(r['平台']).toLowerCase() !== plat) return false;
+        return true;
+      });
+      const brandCount = new Set(filteredForBrandCount.map((r) => r['品牌']).filter(Boolean)).size || realBrands.length;
+      return buildKpiFromTrend(kpiSource, brandCount, from, to, debouncedFilters.brand, plat);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [trendRaw, brandListRaw, realBrands.length, debouncedFilters.monthFrom, debouncedFilters.monthTo, debouncedFilters.brand, availableMonths],
+    [trendRaw, brandListRaw, realBrands.length, debouncedFilters.monthFrom, debouncedFilters.monthTo, debouncedFilters.brand, debouncedFilters.platform, availableMonths],
   );
 
   /* ---------- 3b. normalizeViewData: map Chinese field names to English ---------- */
@@ -965,7 +1003,7 @@ export default function EcommercePage() {
       case '大盘趋势':
         return raw.map((item) => ({
           date: String(item['日期'] || ''),
-          platform: item['平台'] || '-',
+          platform: PLATFORM_CODE_TO_LABEL[String(item['平台'] || '').toLowerCase()] || item['平台'] || '-',
           sales: Number(item['销售额(元)']) || 0,
           volume: Number(item['销量(件)']) || 0,
           avgPrice: Number(item['均价(元)']) || 0,
@@ -1073,7 +1111,7 @@ export default function EcommercePage() {
       debouncedFilters.category,
       subcategoryForApi(debouncedFilters.subcategory),
     ];
-    const brand = debouncedFilters.brand === '全部品牌' ? '' : debouncedFilters.brand;
+    const brand = ''; // upstream doesn't support brand filtering; done client-side
     const categoryKey = categoryList.join('>');
 
     // Determine if this is a category-level change (vs brand-only or refresh)
@@ -1131,7 +1169,6 @@ export default function EcommercePage() {
     debouncedFilters.industry,
     debouncedFilters.category,
     debouncedFilters.subcategory,
-    debouncedFilters.brand,
     refreshNonce,
   ]);
 
@@ -1147,7 +1184,7 @@ export default function EcommercePage() {
       debouncedFilters.category,
       subcategoryForApi(debouncedFilters.subcategory),
     ];
-    const brand = debouncedFilters.brand === '全部品牌' ? '' : debouncedFilters.brand;
+    const brand = ''; // upstream doesn't support brand/platform/time filtering; done client-side
 
     const viewMap: Record<string, string> = {
       '大盘趋势': '品类视角-大盘趋势',
@@ -1182,7 +1219,7 @@ export default function EcommercePage() {
       if (controller.signal.aborted || myViewToken !== viewReqToken.current) return;
 
       if (Array.isArray(view)) {
-        setViewData(normalizeViewData(activeView, view));
+        setViewData(view); // store raw rows; normalize + filter at render time
       } else if (view === null) {
         setViewData([]);
         setError('视图数据加载失败，请稍后重试或切换其他视图');
@@ -1197,10 +1234,9 @@ export default function EcommercePage() {
     debouncedFilters.industry,
     debouncedFilters.category,
     debouncedFilters.subcategory,
-    debouncedFilters.brand,
     refreshNonce,
-    // NOTE: month range intentionally excluded — MCP always returns 13 months,
-    // time filtering is done client-side. No need to refetch.
+    // NOTE: brand/platform/month range intentionally excluded — MCP always returns 13 months unfiltered,
+    // all filtering is done client-side. No need to refetch.
   ]);
 
   /* ---------- 5c. Fetch real brands when category/subcategory changes ---------- */
@@ -1248,13 +1284,14 @@ export default function EcommercePage() {
         category: firstCat,
         subcategory: firstSub,
         brand: '全部品牌',
+        platform: '',
       };
     });
   }, [categoryTree]);
 
   const handleCategoryChange = useCallback((v: string) => {
     setFilters((prev) => {
-      return { ...prev, category: v, subcategory: ALL_SUBCATEGORY, brand: '全部品牌' };
+      return { ...prev, category: v, subcategory: ALL_SUBCATEGORY, brand: '全部品牌', platform: '' };
     });
   }, []);
 
@@ -1292,20 +1329,20 @@ export default function EcommercePage() {
 
   /* ---------- 7. View content renderer ---------- */
   const renderViewContent = () => {
-    // For 大盘趋势 tab, derive view data directly from trendRaw (no separate fetch)
-    const activeViewData = activeView === '大盘趋势'
-      ? normalizeViewData('大盘趋势', trendRaw)
-      : viewData;
-
-    // Apply month-range filter for date-based views
-    const dateViews = ['大盘趋势', '销售价量', '品牌排行'];
+    const brandForFilter = debouncedFilters.brand === '全部品牌' ? '' : debouncedFilters.brand;
     const mvFrom = availableMonths.includes(Number(debouncedFilters.monthFrom)) ? debouncedFilters.monthFrom : '';
     const mvTo = availableMonths.includes(Number(debouncedFilters.monthTo)) ? debouncedFilters.monthTo : '';
-    let filteredViewData = dateViews.includes(activeView)
-      ? filterViewByMonthRange(activeViewData, mvFrom, mvTo)
-      : activeViewData;
-    // 品牌排行：原始为「品牌 × 月份」明细，需按品牌汇总（销售额/销量求和、均价=销额/销量、份额重算）。
-    // 区间过滤前先聚合也兼容（全量 13 个月同样需要去重），故品牌排行一律走聚合。
+    const fo = { brand: brandForFilter, platform: debouncedFilters.platform, monthFrom: mvFrom, monthTo: mvTo };
+
+    let rawRows: any[];
+    if (activeView === '大盘趋势') {
+      rawRows = (brandForFilter && brandListRaw.length > 0) ? brandListRaw : trendRaw;
+    } else {
+      rawRows = viewData; // already raw Chinese rows
+    }
+    let filteredViewData = normalizeViewData(activeView, filterRawRows(rawRows, fo));
+
+    // 品牌排行：原始为「品牌 × 月份」明细，需按品牌汇总
     if (activeView === '品牌排行') {
       const map = new Map<string, any>();
       for (const r of filteredViewData as any[]) {
@@ -1326,15 +1363,25 @@ export default function EcommercePage() {
         .map((r, i) => ({ ...r, rank: i + 1, color: CHART_COLORS[i % CHART_COLORS.length] }));
     }
 
+    // 维度不生效提示
+    const noPlatformViews = ['销售价量', '价格区间', '价格交叉'];
+    const noBrandViews = ['销售价量', '价格区间', '店铺列表', '热词频次'];
+    const showPlatformHint = debouncedFilters.platform && noPlatformViews.includes(activeView);
+    const showBrandHint = brandForFilter && noBrandViews.includes(activeView);
+
+    let viewContent: React.ReactNode;
     switch (activeView) {
       case '大盘趋势':
-        return <TrendView loading={loading} data={filteredViewData} />;
+        viewContent = <TrendView loading={loading} data={filteredViewData} />;
+        break;
       case '品牌排行':
-        return <BrandRankingView loading={viewLoading} data={filteredViewData} />;
+        viewContent = <BrandRankingView loading={viewLoading} data={filteredViewData} />;
+        break;
       case '销售价量':
-        return <PriceVolumeView loading={viewLoading} data={filteredViewData} xKey="label" />;
+        viewContent = <PriceVolumeView loading={viewLoading} data={filteredViewData} xKey="label" />;
+        break;
       case '店铺列表':
-        return (
+        viewContent = (
           <DataTableView
             loading={viewLoading}
             data={filteredViewData.map((d) => ({
@@ -1355,8 +1402,9 @@ export default function EcommercePage() {
             ]}
           />
         );
+        break;
       case '商品列表':
-        return (
+        viewContent = (
           <DataTableView
             loading={viewLoading}
             data={filteredViewData.map((d) => ({
@@ -1377,15 +1425,31 @@ export default function EcommercePage() {
             ]}
           />
         );
+        break;
       case '价格区间':
-        return <PriceVolumeView loading={viewLoading} data={filteredViewData} xKey="range" />;
+        viewContent = <PriceVolumeView loading={viewLoading} data={filteredViewData} xKey="range" />;
+        break;
       case '价格交叉':
-        return <PriceCrossView loading={viewLoading} data={filteredViewData} />;
+        viewContent = <PriceCrossView loading={viewLoading} data={filteredViewData} />;
+        break;
       case '热词频次':
-        return <HotwordsView loading={viewLoading} data={filteredViewData} />;
+        viewContent = <HotwordsView loading={viewLoading} data={filteredViewData} />;
+        break;
       default:
-        return <div className="text-center py-12 text-muted-foreground">暂无数据</div>;
+        viewContent = <div className="text-center py-12 text-muted-foreground">暂无数据</div>;
     }
+
+    return (
+      <>
+        {(showPlatformHint || showBrandHint) && (
+          <div className="text-xs text-muted-foreground mb-2">
+            {showPlatformHint && <span>该视角为上游全平台汇总数据，平台筛选不生效。</span>}
+            {showBrandHint && <span>该视角无品牌维度，品牌筛选不生效。</span>}
+          </div>
+        )}
+        {viewContent}
+      </>
+    );
   };
 
   /* ---------- 8. Render ---------- */
@@ -1486,6 +1550,24 @@ export default function EcommercePage() {
                     <SelectItem key={b} value={b}>
                       {b}
                     </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Platform */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">平台</span>
+              <Select
+                value={filters.platform || '__all__'}
+                onValueChange={(v) => setFilters((prev) => ({ ...prev, platform: v === '__all__' ? '' : v }))}
+              >
+                <SelectTrigger size="sm" className="w-28">
+                  <SelectValue placeholder="全部平台" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PLATFORM_OPTIONS.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

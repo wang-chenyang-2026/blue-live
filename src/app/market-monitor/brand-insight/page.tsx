@@ -103,6 +103,7 @@ interface EcomFilters {
   l2: string;
   l3: string; // '' 表示该二级下全部三级
   brand: string; // '' 表示全部品牌
+  platform: string; // '' 全部 | 'jd' | 'tmall' | 'douyin'
 }
 
 type EcomSubView =
@@ -574,26 +575,33 @@ function extractMonths(results: (CrawlerResult | undefined)[]): number[] {
 }
 
 /**
- * 按月份区间过滤 crawler 原始行（行内「日期」为 YYYYMM）。
- * from/to 任一为空表示该端不限；from > to 时自动取 min/max。
- * 无日期字段的行保留（不影响无月份维度的结果）。
+ * 按品牌/平台/月份区间过滤 crawler 原始行（行内字段为中文：日期/平台/品牌）。
+ * 字段缺失自动跳过（无平台列则不过滤平台，无品牌列则不过滤品牌）。
  */
-function filterResultByMonths(
+function filterRows(
   result: CrawlerResult | undefined,
-  from?: string,
-  to?: string,
+  opts: { brand?: string; platform?: string; monthFrom?: string; monthTo?: string },
 ): CrawlerResult | undefined {
-  if (!result?.rows?.length || (!from && !to)) return result;
-  const lo = Math.min(from ? Number(from) : 0, to ? Number(to) : 999999);
-  const hi = Math.max(from ? Number(from) : 0, to ? Number(to) : 999999);
-  return {
-    ...result,
-    rows: result.rows.filter((row) => {
+  if (!result?.rows?.length) return result;
+  let rows = result.rows;
+  if (opts.brand) {
+    if (rows.some((r) => r['品牌'])) rows = rows.filter((r) => r['品牌'] === opts.brand);
+  }
+  if (opts.platform) {
+    if (rows.some((r) => r['平台'])) rows = rows.filter((r) => !r['平台'] || String(r['平台']).toLowerCase() === opts.platform);
+  }
+  if (opts.monthFrom || opts.monthTo) {
+    const f = opts.monthFrom ? Number(opts.monthFrom) : 0;
+    const t = opts.monthTo ? Number(opts.monthTo) : 999999;
+    const lo = Math.min(f, t);
+    const hi = Math.max(f, t);
+    rows = rows.filter((row) => {
       const m = Number(row['日期'] ?? row['月份']);
       if (!m) return true;
       return m >= lo && m <= hi;
-    }),
-  };
+    });
+  }
+  return { ...result, rows };
 }
 
 /**
@@ -665,6 +673,7 @@ function EcommercePanel() {
     l2: '',
     l3: '',
     brand: '',
+    platform: '',
   });
 
   const [subView, setSubView] = useState<EcomSubView>('brand');
@@ -705,6 +714,7 @@ function EcommercePanel() {
             l2: l2List[0] || '',
             l3: '',
             brand: '',
+            platform: '',
           });
         }
       } catch (e) {
@@ -743,29 +753,33 @@ function EcommercePanel() {
     ? `${monthLabel(effFrom || availableMonths[0] || '')} ~ ${monthLabel(effTo || availableMonths[availableMonths.length - 1] || '')}`
     : '';
 
-  // 原始明细（品牌 × 月份），趋势/明细场景可用；先按月份区间过滤再解析
+  // 原始明细（品牌 × 月份），趋势/明细场景可用；先按品牌/平台/月份区间过滤再解析
   const brandRowsRaw = useMemo(
-    () => parseBrandRows(filterResultByMonths(brandResult, effFrom, effTo)),
-    [brandResult, effFrom, effTo],
+    () => parseBrandRows(filterRows(brandResult, { brand: filters.brand, platform: filters.platform, monthFrom: effFrom, monthTo: effTo })),
+    [brandResult, filters.brand, filters.platform, effFrom, effTo],
   );
   // 排行/KPI 用：按品牌聚合为单条（修复同品牌按月重复出现的问题）
   const brandRows = useMemo(() => aggregateBrandRows(brandRowsRaw), [brandRowsRaw]);
+  // 趋势图：选品牌时用 brandResult（含品牌+平台+月份），否则用 trendResult
+  const trendSource = filters.brand ? brandResult : trendResult;
   const trendPoints = useMemo(
-    () => aggregateTrendPoints(parseTrend(filterResultByMonths(trendResult, effFrom, effTo))),
-    [trendResult, effFrom, effTo],
+    () => aggregateTrendPoints(parseTrend(filterRows(trendSource, { brand: filters.brand, platform: filters.platform, monthFrom: effFrom, monthTo: effTo }))),
+    [trendSource, filters.brand, filters.platform, effFrom, effTo],
   );
   const priceBuckets = useMemo(
-    () => aggregatePriceBuckets(parsePriceBuckets(filterResultByMonths(priceResult, effFrom, effTo))),
-    [priceResult, effFrom, effTo],
+    () => aggregatePriceBuckets(parsePriceBuckets(filterRows(priceResult, { brand: filters.brand, platform: filters.platform, monthFrom: effFrom, monthTo: effTo }))),
+    [priceResult, filters.brand, filters.platform, effFrom, effTo],
   );
 
   // 品牌下拉来源：品牌列表
+  // 品牌下拉来源：只按月份过滤（不按品牌/平台），避免切品牌/平台后选项消失
   const brandOptions = useMemo(() => {
-    const names = brandRows
+    const unfilteredRows = parseBrandRows(filterRows(brandResult, { monthFrom: effFrom, monthTo: effTo }));
+    const names = unfilteredRows
       .map((r) => r.name)
       .filter((n) => n && n !== '合计' && n !== '总计' && n !== '其他');
     return ['', ...Array.from(new Set(names))];
-  }, [brandRows]);
+  }, [brandResult, effFrom, effTo]);
 
   // 选中具体品牌时，过滤品牌排行；否则展示全部
   const visibleBrandRows = useMemo(() => {
@@ -935,13 +949,13 @@ function EcommercePanel() {
 
   const handleIndustry = (v: string) => {
     const l2Arr = Object.keys(tree[v] || {});
-    setFilters({ industry: v, l2: l2Arr[0] || '', l3: '', brand: '' });
+    setFilters({ industry: v, l2: l2Arr[0] || '', l3: '', brand: '', platform: '' });
   };
   const handleL2 = (v: string) => {
-    setFilters((p) => ({ ...p, l2: v, l3: '', brand: '' }));
+    setFilters((p) => ({ ...p, l2: v, l3: '', brand: '', platform: '' }));
   };
   const handleL3 = (v: string) => {
-    setFilters((p) => ({ ...p, l3: v, brand: '' }));
+    setFilters((p) => ({ ...p, l3: v, brand: '', platform: '' }));
   };
   const handleBrand = (v: string) => {
     setFilters((p) => ({ ...p, brand: v }));
@@ -1039,6 +1053,25 @@ function EcommercePanel() {
                         {b}
                       </SelectItem>
                     ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 平台 */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">平台</span>
+              <Select
+                value={filters.platform || '__ALL__'}
+                onValueChange={(v) => setFilters((p) => ({ ...p, platform: v === '__ALL__' ? '' : v }))}
+              >
+                <SelectTrigger size="sm" className="w-28">
+                  <SelectValue placeholder="全部平台" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__ALL__">全部平台</SelectItem>
+                  <SelectItem value="jd">京东</SelectItem>
+                  <SelectItem value="tmall">天猫</SelectItem>
+                  <SelectItem value="douyin">抖音</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1214,6 +1247,8 @@ function EcommercePanel() {
               filters={{ industry: filters.industry, l2: filters.l2, l3: filters.l3 }}
               monthFrom={effFrom}
               monthTo={effTo}
+              brand={filters.brand}
+              platform={filters.platform}
             />
           )}
         </CardContent>
