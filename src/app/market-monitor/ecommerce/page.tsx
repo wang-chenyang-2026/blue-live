@@ -631,7 +631,15 @@ function DataTableView({
               {columns.map((col) => (
                 <TableCell
                   key={col.key}
-                  className={cn(col.align === 'right' && 'text-right font-mono tabular-nums')}
+                  className={cn(
+                    col.align === 'right' && 'text-right font-mono tabular-nums',
+                    col.align !== 'right' && 'max-w-[320px] truncate',
+                  )}
+                  title={
+                    col.align !== 'right' && row[col.key] != null
+                      ? String(row[col.key])
+                      : undefined
+                  }
                 >
                   {row[col.key]}
                 </TableCell>
@@ -987,7 +995,7 @@ export default function EcommercePage() {
       case '商品列表':
         return raw.map((item, i) => ({
           id: i + 1,
-          name: item['商品名称'] || item['商品'] || '-',
+          name: item['商品名'] || item['商品名称'] || item['商品'] || '-',
           brand: item['品牌'] || '-',
           price: Number(item['均价(元)']) || Number(item['价格']) || 0,
           sales: Number(item['销售额(元)']) || 0,
