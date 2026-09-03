@@ -686,6 +686,7 @@ function EcommercePanel() {
   const [brandResult, setBrandResult] = useState<CrawlerResult | undefined>();
   const [trendResult, setTrendResult] = useState<CrawlerResult | undefined>();
   const [priceResult, setPriceResult] = useState<CrawlerResult | undefined>();
+  const [productResult, setProductResult] = useState<CrawlerResult | undefined>();
 
   const [loadingBrand, setLoadingBrand] = useState(false);
   const [loadingTrend, setLoadingTrend] = useState(false);
@@ -789,6 +790,34 @@ function EcommercePanel() {
 
   // KPI：基于品牌列表（全部品牌）计算
   const kpis = useMemo(() => {
+    // 选平台时：KPI 基于大盘趋势（有平台列）计算，品牌数基于商品列表去重
+    if (filters.platform) {
+      const filteredTrend = filterRows(trendResult, { platform: filters.platform, monthFrom: effFrom, monthTo: effTo });
+      const trendRows = filteredTrend?.rows ?? [];
+      const totalSales = trendRows.reduce<number>((s, r) => s + (Number(r['销售额(元)']) || 0), 0);
+      const totalVolume = trendRows.reduce<number>((s, r) => s + (Number(r['销量(件)']) || 0), 0);
+      const avgPrice = totalVolume > 0 && totalSales > 0 ? totalSales / totalVolume : null;
+
+      // 品牌数：从商品列表按平台过滤后去重
+      let brandCount = 0;
+      let brandCountNote = '';
+      if (productResult) {
+        const filteredProduct = filterRows(productResult, { platform: filters.platform, monthFrom: effFrom, monthTo: effTo });
+        const brands = new Set<string>();
+        for (const row of filteredProduct?.rows ?? []) {
+          const b = String(row['品牌'] || '').trim();
+          if (b && b !== '合计' && b !== '总计') brands.add(b);
+        }
+        brandCount = brands.size;
+        brandCountNote = '按商品库去重';
+      } else {
+        brandCount = -1; // 未加载
+        brandCountNote = '按商品库去重';
+      }
+      return { totalSales, totalVolume, brandCount, avgPrice, brandCountNote };
+    }
+
+    // 未选平台：保持原有逻辑（基于品牌列表）
     const totalSales = brandRows.reduce<number>(
       (s, r) => (r.sales != null ? s + r.sales : s),
       0,
@@ -802,8 +831,8 @@ function EcommercePanel() {
     ).length;
     const avgPrice =
       totalVolume > 0 && totalSales > 0 ? totalSales / totalVolume : null;
-    return { totalSales, totalVolume, brandCount, avgPrice };
-  }, [brandRows]);
+    return { totalSales, totalVolume, brandCount, avgPrice, brandCountNote: '' };
+  }, [brandRows, filters.platform, trendResult, productResult, effFrom, effTo]);
 
   /* 拉取 crawler 数据：品牌列表是主数据，趋势 / 价格区间辅助 */
   const fetchAll = useCallback(
@@ -821,6 +850,7 @@ function EcommercePanel() {
       setBrandResult(undefined);
       setTrendResult(undefined);
       setPriceResult(undefined);
+      setProductResult(undefined);
 
       const params = new URLSearchParams({
         l1: f.industry,
@@ -916,6 +946,22 @@ function EcommercePanel() {
           })
           .finally(() => {
             if (!isStale()) setLoadingPrice(false);
+          }),
+
+        // 第4份：商品列表（仅用于选平台时统计品牌数，失败不影响主流程）
+        fetchWithRetry(
+          `${baseUrl}?${params.toString()}&view=${encodeURIComponent('商品列表')}`,
+        )
+          .then((j) => {
+            if (isStale()) return;
+            if (j.success) setProductResult(j.data);
+          })
+          .catch((e) => {
+            if (isStale()) return;
+            if (e?.name !== 'AbortError') {
+              console.warn('[product]', e);
+              setProductResult(undefined);
+            }
           }),
       ];
 
@@ -1159,10 +1205,11 @@ function EcommercePanel() {
         />
         <KpiCard
           label="品牌数"
-          value={String(kpis.brandCount)}
+          value={kpis.brandCount < 0 ? '—' : String(kpis.brandCount)}
           icon={<Layers className="h-4 w-4" />}
           loading={loadingBrand}
           accent="from-[#52C41A] to-[#95DE64]"
+          note={kpis.brandCountNote}
         />
         <KpiCard
           label="均价"
@@ -1220,6 +1267,13 @@ function EcommercePanel() {
             })}
           </div>
 
+          {/* 无平台维度视角提示 */}
+          {filters.platform && (subView === 'brand' || subView === 'sales') && (
+            <div className="mb-4 text-xs text-muted-foreground">
+              该视角为上游全平台汇总数据，无平台维度，平台筛选不生效；已按品牌/时间联动。
+            </div>
+          )}
+
           {subView === 'brand' && (
             <BrandRankingView
               loading={loadingBrand}
@@ -1263,12 +1317,14 @@ function KpiCard({
   icon,
   loading,
   accent,
+  note,
 }: {
   label: string;
   value: string;
   icon: React.ReactNode;
   loading?: boolean;
   accent: string;
+  note?: string;
 }) {
   return (
     <Card className="bg-card border-border overflow-hidden relative">
@@ -1287,6 +1343,9 @@ function KpiCard({
         <div className="mt-3 text-2xl font-bold">
           {loading ? <Skeleton className="h-7 w-28" /> : value}
         </div>
+        {note && (
+          <div className="mt-1 text-[10px] text-muted-foreground">{note}</div>
+        )}
       </CardContent>
     </Card>
   );

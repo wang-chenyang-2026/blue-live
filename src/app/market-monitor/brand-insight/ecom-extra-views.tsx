@@ -475,7 +475,7 @@ export function EcomExtraViews({
 
   const hint = (showPlatformHint || showBrandHint) ? (
     <div className="text-xs text-muted-foreground mb-2">
-      {showPlatformHint && <span>该视角为上游全平台汇总数据，平台筛选不生效。</span>}
+      {showPlatformHint && <span>该视角为上游全平台汇总数据，无平台维度，平台筛选不生效；已按品牌/时间联动。</span>}
       {showBrandHint && <span>该视角无品牌维度，品牌筛选不生效。</span>}
     </div>
   ) : null;

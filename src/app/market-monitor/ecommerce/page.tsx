@@ -1372,7 +1372,7 @@ export default function EcommercePage() {
     }
 
     // 维度不生效提示
-    const noPlatformViews = ['销售价量', '价格区间', '价格交叉'];
+    const noPlatformViews = ['品牌排行', '销售价量', '价格区间', '价格交叉'];
     const noBrandViews = ['销售价量', '价格区间', '店铺列表', '热词频次'];
     const showPlatformHint = debouncedFilters.platform && noPlatformViews.includes(activeView);
     const showBrandHint = brandForFilter && noBrandViews.includes(activeView);
@@ -1451,7 +1451,7 @@ export default function EcommercePage() {
       <>
         {(showPlatformHint || showBrandHint) && (
           <div className="text-xs text-muted-foreground mb-2">
-            {showPlatformHint && <span>该视角为上游全平台汇总数据，平台筛选不生效。</span>}
+            {showPlatformHint && <span>该视角为上游全平台汇总数据，无平台维度，平台筛选不生效；已按品牌/时间联动。</span>}
             {showBrandHint && <span>该视角无品牌维度，品牌筛选不生效。</span>}
           </div>
         )}
