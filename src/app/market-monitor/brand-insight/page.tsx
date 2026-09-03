@@ -550,9 +550,20 @@ function monthLabel(m: number | string): string {
   return s.length === 6 ? `${s.slice(0, 4)}-${s.slice(4, 6)}` : s;
 }
 
+function staticMonthWindow(): number[] {
+  const now = new Date();
+  const latest = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+  const months: number[] = [];
+  for (let i = 12; i >= 0; i--) {
+    const d = new Date(latest.getFullYear(), latest.getMonth() - i, 1);
+    months.push(d.getFullYear() * 100 + (d.getMonth() + 1));
+  }
+  return months;
+}
+
 /** 从 crawler 结果行中提取全部月份（YYYYMM 数字，升序去重） */
 function extractMonths(results: (CrawlerResult | undefined)[]): number[] {
-  const set = new Set<number>();
+  const set = new Set<number>(staticMonthWindow());
   for (const res of results) {
     for (const row of res?.rows ?? []) {
       const m = Number(row['日期'] ?? row['月份']);

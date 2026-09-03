@@ -81,6 +81,17 @@ const monthOptLabel = (yyyymm: number | string): string => {
   return v.length === 6 ? `${v.slice(0, 4)}年${parseInt(v.slice(4, 6), 10)}月` : v;
 };
 
+function staticMonthWindow(): number[] {
+  const now = new Date();
+  const latest = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+  const months: number[] = [];
+  for (let i = 12; i >= 0; i--) {
+    const d = new Date(latest.getFullYear(), latest.getMonth() - i, 1);
+    months.push(d.getFullYear() * 100 + (d.getMonth() + 1));
+  }
+  return months;
+}
+
 // Radix Select does not accept empty-string as an <Item value>, so we use a
 // sentinel value in the UI and convert it to '' when calling MCP.
 const ALL_SUBCATEGORY = '__all__';
@@ -901,10 +912,14 @@ export default function EcommercePage() {
   }, [realBrands]);
 
   /* ---------- 2b. 数据中实际可用的月份（YYYYMM 升序），来自大盘趋势数据 ---------- */
-  const availableMonths = useMemo(
-    () => [...new Set((trendRaw as any[]).map((r) => Number(r['日期'])).filter(Boolean))].sort((a, b) => a - b),
-    [trendRaw],
-  );
+  const availableMonths = useMemo(() => {
+    const set = new Set<number>(staticMonthWindow());
+    for (const r of trendRaw as any[]) {
+      const m = Number(r['日期']);
+      if (m >= 200000 && m <= 210012) set.add(m);
+    }
+    return [...set].sort((a, b) => a - b);
+  }, [trendRaw]);
 
   /* ---------- 3. KPI cards（基于大盘趋势真实数据计算，按月份区间过滤） ---------- */
   const kpiCards: KpiCard[] = useMemo(
@@ -1008,6 +1023,10 @@ export default function EcommercePage() {
       signal?: AbortSignal,
     ): Promise<any[] | null> => {
       try {
+        const timeoutSignal = AbortSignal.timeout(120000);
+        const combinedSignal = signal
+          ? AbortSignal.any([signal, timeoutSignal])
+          : timeoutSignal;
         const res = await fetch('/api/market-monitor/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1017,7 +1036,7 @@ export default function EcommercePage() {
             brand: brand === '全部品牌' ? '' : brand,
             view: categoryView,
           }),
-          signal,
+          signal: combinedSignal,
         });
         const json = await res.json();
         if (json?.success && Array.isArray(json?.data?.data)) {
@@ -1057,7 +1076,7 @@ export default function EcommercePage() {
     const myToken = ++trendReqToken.current;
 
     setError(null);
-    setLoading(false);
+    if (!hasDataRef.current) setLoading(true);
 
     // On category change, clear old data immediately so stale KPI/chart is not shown
     if (isCategoryChange) {
