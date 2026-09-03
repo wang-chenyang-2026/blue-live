@@ -49,6 +49,27 @@ interface CrawlerApiResponse {
   error?: string;
 }
 
+/** 按月份区间（YYYYMM 数字）过滤 crawler 行；无「日期」字段的行保留 */
+function filterByMonths(
+  result: CrawlerResult | undefined,
+  from?: string,
+  to?: string,
+): CrawlerResult | undefined {
+  if (!result?.rows?.length || (!from && !to)) return result;
+  const f = from ? Number(from) : 0;
+  const t = to ? Number(to) : 999999;
+  const lo = Math.min(f, t);
+  const hi = Math.max(f, t);
+  return {
+    ...result,
+    rows: result.rows.filter((r) => {
+      const m = Number(r['日期']);
+      if (!m) return true;
+      return m >= lo && m <= hi;
+    }),
+  };
+}
+
 export type ExtraViewKey = 'sales' | 'shop' | 'product' | 'cross' | 'hotword';
 
 function toNum(v: unknown): number | null {
@@ -348,11 +369,19 @@ const CROSS_TOP_N = 15;
 export function EcomExtraViews({
   view,
   filters,
+  monthFrom,
+  monthTo,
 }: {
   view: ExtraViewKey;
   filters: { industry: string; l2: string; l3: string };
+  monthFrom?: string;
+  monthTo?: string;
 }) {
-  const [result, setResult] = useState<CrawlerResult | undefined>();
+  const [rawResult, setRawResult] = useState<CrawlerResult | undefined>();
+  const result = useMemo(
+    () => filterByMonths(rawResult, monthFrom, monthTo),
+    [rawResult, monthFrom, monthTo],
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadedKey, setLoadedKey] = useState<string>('');
@@ -367,7 +396,7 @@ export function EcomExtraViews({
     abortRef.current = ctrl;
     setLoading(true);
     setError(null);
-    setResult(undefined);
+    setRawResult(undefined);
     try {
       const params = new URLSearchParams({
         l1: filters.industry,
@@ -382,7 +411,7 @@ export function EcomExtraViews({
       const j = (await res.json()) as CrawlerApiResponse;
       if (ctrl.signal.aborted) return;
       if (j.success) {
-        setResult(j.data);
+        setRawResult(j.data);
       } else {
         setError(j.error || '数据加载失败');
       }
@@ -655,7 +684,7 @@ function CrossView({ rows }: { rows: CrossRow[] }) {
   return (
     <div className="space-y-3">
       <div className="text-xs text-muted-foreground">
-        Top {CROSS_TOP_N} 品牌 × 价位带「价格市占率」矩阵（近 13 个月均值，%；价位档按接口实际分档，颜色越深市占率越高）
+        Top {CROSS_TOP_N} 品牌 × 价位带「价格市占率」矩阵（所选区间月均，%；价位档按接口实际分档，颜色越深市占率越高）
       </div>
       <div className="rounded-lg border border-border overflow-x-auto">
         <Table>
@@ -729,7 +758,7 @@ function HotwordView({ data }: { data: { platforms: string[]; byPlatform: Record
             </button>
           ))}
         </div>
-        <div className="text-xs text-muted-foreground">Top {HOT_TOP_N} 热词（按近 13 个月频次合计）</div>
+        <div className="text-xs text-muted-foreground">Top {HOT_TOP_N} 热词（按所选区间频次合计）</div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2.5">

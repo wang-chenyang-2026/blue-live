@@ -70,8 +70,16 @@ interface FilterState {
   category: string;
   subcategory: string;
   brand: string;
-  timeRange: string;
+  monthFrom: string; // YYYYMM，'' 表示不限
+  monthTo: string;   // YYYYMM，'' 表示不限
 }
+
+// Radix Select 不接受空字符串作为 Item 值，用哨兵值表示"不限/全部"
+const ALL_MONTH = '__all__';
+const monthOptLabel = (yyyymm: number | string): string => {
+  const v = String(yyyymm);
+  return v.length === 6 ? `${v.slice(0, 4)}年${parseInt(v.slice(4, 6), 10)}月` : v;
+};
 
 // Radix Select does not accept empty-string as an <Item value>, so we use a
 // sentinel value in the UI and convert it to '' when calling MCP.
@@ -99,46 +107,36 @@ const VIEWS: EcommerceView[] = [
   { key: '热词频次', label: '热词频次', message: '查看热词频次数据' },
 ];
 
-const TIME_RANGES = ['近30天', '近90天', '近半年', '近一年', '全部'];
-
 /**
- * MCP returns months 2-14 from current month (fixed 13-month window).
- * "近30天" maps to 1 latest month, "近90天" to 3, "近半年" to 6, "近一年" to 12.
- * "全部" shows all available months.
- * Current month and last month are not available (data settlement delay ~2 months).
+ * 久谦 crawler 固定返回过去第 2~14 个月（共 13 个月，月度粒度，最新月滞后约 2 个月）。
+ * 时间筛选为「开始年月 ~ 结束年月」区间，在前端对已返回的 13 个月数据切片。
  */
-function getMonthCount(timeRange: string): number {
-  switch (timeRange) {
-    case '近30天': return 1;
-    case '近90天': return 3;
-    case '近半年': return 6;
-    case '近一年': return 12;
-    case '全部': return 13;
-    default: return 3;
-  }
+function monthBounds(from?: string, to?: string): [number, number] {
+  const lo = Math.min(from ? Number(from) : 0, to ? Number(to) : 999999);
+  const hi = Math.max(from ? Number(from) : 0, to ? Number(to) : 999999);
+  return [lo || 0, hi || 999999];
 }
 
-/** Filter raw MCP records (with numeric 日期 field YYYYMM) to the selected time range. */
-function filterRawByTimeRange(raw: any[], timeRange: string): any[] {
-  if (!Array.isArray(raw) || raw.length === 0) return raw;
-  if (timeRange === '全部') return raw;
-  const count = getMonthCount(timeRange);
-  const months = [...new Set(raw.map((r) => Number(r['日期'])).filter(Boolean))].sort((a, b) => b - a);
-  const allowed = new Set(months.slice(0, count));
-  return raw.filter((r) => allowed.has(Number(r['日期'])));
+/** Filter raw MCP records (with numeric 日期 field YYYYMM) to the selected month range. */
+function filterRawByMonthRange(raw: any[], from?: string, to?: string): any[] {
+  if (!Array.isArray(raw) || raw.length === 0 || (!from && !to)) return raw;
+  const [lo, hi] = monthBounds(from, to);
+  return raw.filter((r) => {
+    const m = Number(r['日期']);
+    return !m || (m >= lo && m <= hi);
+  });
 }
 
-/** Filter normalized view data (with date string field) by time range. Only for date-based views. */
-function filterViewByTimeRange(data: any[], timeRange: string): any[] {
-  if (!Array.isArray(data) || data.length === 0) return data;
-  if (timeRange === '全部') return data;
-  // Only filter if data has date-like field
+/** Filter normalized view data (with date field YYYYMM) by month range. Only for date-based views. */
+function filterViewByMonthRange(data: any[], from?: string, to?: string): any[] {
+  if (!Array.isArray(data) || data.length === 0 || (!from && !to)) return data;
   const hasDate = data.some((d) => d.date && /^\d{6}$/.test(String(d.date)));
   if (!hasDate) return data;
-  const count = getMonthCount(timeRange);
-  const months = [...new Set(data.map((d) => Number(d.date)).filter(Boolean))].sort((a, b) => b - a);
-  const allowed = new Set(months.slice(0, count));
-  return data.filter((d) => allowed.has(Number(d.date)));
+  const [lo, hi] = monthBounds(from, to);
+  return data.filter((d) => {
+    const m = Number(d.date);
+    return !m || (m >= lo && m <= hi);
+  });
 }
 
 /* ========== 图表配色（真实数据视图使用） ========== */
@@ -146,9 +144,9 @@ const CHART_COLORS = ['#4158D0', '#FF6B35', '#FF4D4F', '#FAAD14', '#52C41A', '#1
 
 /* ========== KPI Calculation ========== */
 /**
- * 基于大盘趋势原始数据计算 KPI，按 timeRange 过滤月份
+ * 基于大盘趋势原始数据计算 KPI，按月份区间过滤
  */
-function buildKpiFromTrend(raw: any[], realBrandCount: number, timeRange: string, brand?: string): KpiCard[] {
+function buildKpiFromTrend(raw: any[], realBrandCount: number, monthFrom?: string, monthTo?: string, brand?: string): KpiCard[] {
   // First apply brand filter if a specific brand is selected and data has brand fields
   let brandFiltered = raw;
   if (brand && brand !== '全部品牌' && Array.isArray(raw)) {
@@ -159,7 +157,7 @@ function buildKpiFromTrend(raw: any[], realBrandCount: number, timeRange: string
       brandFiltered = raw.filter((r) => r['品牌'] === brand);
     }
   }
-  const filtered = filterRawByTimeRange(brandFiltered, timeRange);
+  const filtered = filterRawByMonthRange(brandFiltered, monthFrom, monthTo);
   if (!Array.isArray(filtered) || filtered.length === 0) {
     return [
       { label: '总销售额', value: '—', change: 0, icon: <DollarSign className="h-5 w-5" />, color: '#4158D0' },
@@ -188,18 +186,31 @@ function buildKpiFromTrend(raw: any[], realBrandCount: number, timeRange: string
   }
   const avgPrice = totalVolume > 0 ? totalSales / totalVolume : 0;
 
+  // 环比始终基于未做月份切片的完整 13 个月序列：最新自然月 vs 上一自然月。
+  // 否则区间只选 1 个月时窗口内找不到上一月，会错误兜底为 0。
+  const byMonthAll = new Map<number, { sales: number; volume: number }>();
+  for (const r of (Array.isArray(brandFiltered) ? brandFiltered : [])) {
+    const m = Number(r['日期']);
+    if (!m) continue;
+    const cur = byMonthAll.get(m) || { sales: 0, volume: 0 };
+    cur.sales += Number(r['销售额(元)']) || 0;
+    cur.volume += Number(r['销量(件)']) || 0;
+    byMonthAll.set(m, cur);
+  }
+  const monthsAll = [...byMonthAll.keys()].sort((a, b) => a - b);
+
   const now = new Date();
   const curMonth = now.getFullYear() * 100 + (now.getMonth() + 1);
-  let lastMonthIdx = months.length - 1;
-  if (months[lastMonthIdx] === curMonth) lastMonthIdx -= 1;
+  let lastMonthIdx = monthsAll.length - 1;
+  if (monthsAll[lastMonthIdx] === curMonth) lastMonthIdx -= 1;
   const prevMonthIdx = lastMonthIdx - 1;
 
   let salesMom = 0;
   let volumeMom = 0;
   let priceMom = 0;
   if (lastMonthIdx >= 1 && prevMonthIdx >= 0) {
-    const cur = byMonth.get(months[lastMonthIdx])!;
-    const prev = byMonth.get(months[prevMonthIdx])!;
+    const cur = byMonthAll.get(monthsAll[lastMonthIdx])!;
+    const prev = byMonthAll.get(monthsAll[prevMonthIdx])!;
     salesMom = prev.sales > 0 ? +(((cur.sales - prev.sales) / prev.sales) * 100).toFixed(1) : 0;
     volumeMom = prev.volume > 0 ? +(((cur.volume - prev.volume) / prev.volume) * 100).toFixed(1) : 0;
     const curPrice = cur.volume > 0 ? cur.sales / cur.volume : 0;
@@ -800,7 +811,8 @@ export default function EcommercePage() {
     category: '',
     subcategory: ALL_SUBCATEGORY,
     brand: '',
-    timeRange: '近90天',
+    monthFrom: '',
+    monthTo: '',
   });
   const [realBrands, setRealBrands] = useState<string[]>([]);
   const [brandsLoading, setBrandsLoading] = useState(false);
@@ -857,7 +869,8 @@ export default function EcommercePage() {
             category: firstCategory,
             subcategory: firstSubcategory,
             brand: firstBrand,
-            timeRange: '近90天',
+            monthFrom: '',
+            monthTo: '',
           });
         }
       } catch (err) {
@@ -887,16 +900,25 @@ export default function EcommercePage() {
     return ['全部品牌', ...realBrands];
   }, [realBrands]);
 
-  /* ---------- 3. KPI cards（基于大盘趋势真实数据计算，按时间范围过滤） ---------- */
+  /* ---------- 2b. 数据中实际可用的月份（YYYYMM 升序），来自大盘趋势数据 ---------- */
+  const availableMonths = useMemo(
+    () => [...new Set((trendRaw as any[]).map((r) => Number(r['日期'])).filter(Boolean))].sort((a, b) => a - b),
+    [trendRaw],
+  );
+
+  /* ---------- 3. KPI cards（基于大盘趋势真实数据计算，按月份区间过滤） ---------- */
   const kpiCards: KpiCard[] = useMemo(
     () => {
       // When a specific brand is selected, use brandListRaw for KPI (has brand field)
       // Otherwise use trendRaw (aggregate data)
       const isSpecificBrand = debouncedFilters.brand && debouncedFilters.brand !== '全部品牌';
       const kpiSource = isSpecificBrand && brandListRaw.length > 0 ? brandListRaw : trendRaw;
-      return buildKpiFromTrend(kpiSource, realBrands.length, debouncedFilters.timeRange, debouncedFilters.brand);
+      const from = availableMonths.includes(Number(debouncedFilters.monthFrom)) ? debouncedFilters.monthFrom : '';
+      const to = availableMonths.includes(Number(debouncedFilters.monthTo)) ? debouncedFilters.monthTo : '';
+      return buildKpiFromTrend(kpiSource, realBrands.length, from, to, debouncedFilters.brand);
     },
-    [trendRaw, brandListRaw, realBrands.length, debouncedFilters.timeRange, debouncedFilters.brand],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [trendRaw, brandListRaw, realBrands.length, debouncedFilters.monthFrom, debouncedFilters.monthTo, debouncedFilters.brand, availableMonths],
   );
 
   /* ---------- 3b. normalizeViewData: map Chinese field names to English ---------- */
@@ -906,6 +928,7 @@ export default function EcommercePage() {
     switch (viewKey) {
       case '品牌排行':
         return raw.map((item, i) => ({
+          date: String(item['日期'] || ''),
           rank: i + 1,
           name: item['品牌'] || '-',
           sales: Number(item['销售额(元)']) || 0,
@@ -1149,7 +1172,7 @@ export default function EcommercePage() {
     debouncedFilters.subcategory,
     debouncedFilters.brand,
     refreshNonce,
-    // NOTE: timeRange intentionally excluded — MCP always returns 13 months,
+    // NOTE: month range intentionally excluded — MCP always returns 13 months,
     // time filtering is done client-side. No need to refetch.
   ]);
 
@@ -1212,8 +1235,24 @@ export default function EcommercePage() {
     setFilters((prev) => ({ ...prev, brand: v }));
   }, []);
 
-  const handleTimeRangeChange = useCallback((v: string) => {
-    setFilters((prev) => ({ ...prev, timeRange: v }));
+  const handleMonthFromChange = useCallback((v: string) => {
+    const from = v === ALL_MONTH ? '' : v;
+    setFilters((prev) => {
+      // 钳制：开始月晚于结束月时，把结束月拉齐到开始月
+      let to = prev.monthTo;
+      if (from && to && Number(to) < Number(from)) to = from;
+      return { ...prev, monthFrom: from, monthTo: to };
+    });
+  }, []);
+
+  const handleMonthToChange = useCallback((v: string) => {
+    const to = v === ALL_MONTH ? '' : v;
+    setFilters((prev) => {
+      // 钳制：结束月早于开始月时，把开始月拉齐到结束月
+      let from = prev.monthFrom;
+      if (to && from && Number(from) > Number(to)) from = to;
+      return { ...prev, monthFrom: from, monthTo: to };
+    });
   }, []);
 
   const handleViewChange = (key: string) => {
@@ -1231,11 +1270,34 @@ export default function EcommercePage() {
       ? normalizeViewData('大盘趋势', trendRaw)
       : viewData;
 
-    // Apply time-range filter for date-based views
-    const dateViews = ['大盘趋势', '销售价量'];
-    const filteredViewData = dateViews.includes(activeView)
-      ? filterViewByTimeRange(activeViewData, debouncedFilters.timeRange)
+    // Apply month-range filter for date-based views
+    const dateViews = ['大盘趋势', '销售价量', '品牌排行'];
+    const mvFrom = availableMonths.includes(Number(debouncedFilters.monthFrom)) ? debouncedFilters.monthFrom : '';
+    const mvTo = availableMonths.includes(Number(debouncedFilters.monthTo)) ? debouncedFilters.monthTo : '';
+    let filteredViewData = dateViews.includes(activeView)
+      ? filterViewByMonthRange(activeViewData, mvFrom, mvTo)
       : activeViewData;
+    // 品牌排行：原始为「品牌 × 月份」明细，需按品牌汇总（销售额/销量求和、均价=销额/销量、份额重算）。
+    // 区间过滤前先聚合也兼容（全量 13 个月同样需要去重），故品牌排行一律走聚合。
+    if (activeView === '品牌排行') {
+      const map = new Map<string, any>();
+      for (const r of filteredViewData as any[]) {
+        const g = map.get(r.name) || { ...r, sales: 0, volume: 0 };
+        g.sales += Number(r.sales) || 0;
+        g.volume += Number(r.volume) || 0;
+        map.set(r.name, g);
+      }
+      const total = [...map.values()].reduce((s, r) => s + (r.sales || 0), 0);
+      filteredViewData = [...map.values()]
+        .map((r) => ({
+          ...r,
+          share: total > 0 ? +(((r.sales as number) / total) * 100).toFixed(2) : 0,
+          avgPrice: r.volume > 0 ? Math.round((r.sales as number) / r.volume) : 0,
+          yoy: '-',
+        }))
+        .sort((a, b) => b.sales - a.sales)
+        .map((r, i) => ({ ...r, rank: i + 1, color: CHART_COLORS[i % CHART_COLORS.length] }));
+    }
 
     switch (activeView) {
       case '大盘趋势':
@@ -1402,20 +1464,38 @@ export default function EcommercePage() {
               </Select>
             </div>
 
-            {/* Time Range */}
+            {/* Month Range */}
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">时间</span>
               <Select
-                value={filters.timeRange}
-                onValueChange={handleTimeRangeChange}
+                value={availableMonths.includes(Number(debouncedFilters.monthFrom)) ? debouncedFilters.monthFrom : ALL_MONTH}
+                onValueChange={handleMonthFromChange}
               >
                 <SelectTrigger size="sm" className="w-28">
-                  <SelectValue />
+                  <SelectValue placeholder="开始月份" />
                 </SelectTrigger>
                 <SelectContent>
-                  {TIME_RANGES.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
+                  <SelectItem value={ALL_MONTH}>开始月份</SelectItem>
+                  {[...availableMonths].reverse().map((m) => (
+                    <SelectItem key={`f${m}`} value={String(m)}>
+                      {monthOptLabel(m)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span className="text-xs text-muted-foreground">至</span>
+              <Select
+                value={availableMonths.includes(Number(debouncedFilters.monthTo)) ? debouncedFilters.monthTo : ALL_MONTH}
+                onValueChange={handleMonthToChange}
+              >
+                <SelectTrigger size="sm" className="w-28">
+                  <SelectValue placeholder="结束月份" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_MONTH}>结束月份</SelectItem>
+                  {[...availableMonths].reverse().map((m) => (
+                    <SelectItem key={`t${m}`} value={String(m)}>
+                      {monthOptLabel(m)}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -544,6 +544,47 @@ function formatPeriodLabel(raw: string): string {
   return String(raw).trim();
 }
 
+/** YYYYMM 数字 → "2026-07" */
+function monthLabel(m: number | string): string {
+  const s = String(m);
+  return s.length === 6 ? `${s.slice(0, 4)}-${s.slice(4, 6)}` : s;
+}
+
+/** 从 crawler 结果行中提取全部月份（YYYYMM 数字，升序去重） */
+function extractMonths(results: (CrawlerResult | undefined)[]): number[] {
+  const set = new Set<number>();
+  for (const res of results) {
+    for (const row of res?.rows ?? []) {
+      const m = Number(row['日期'] ?? row['月份']);
+      if (m >= 200000 && m <= 210012) set.add(m);
+    }
+  }
+  return [...set].sort((a, b) => a - b);
+}
+
+/**
+ * 按月份区间过滤 crawler 原始行（行内「日期」为 YYYYMM）。
+ * from/to 任一为空表示该端不限；from > to 时自动取 min/max。
+ * 无日期字段的行保留（不影响无月份维度的结果）。
+ */
+function filterResultByMonths(
+  result: CrawlerResult | undefined,
+  from?: string,
+  to?: string,
+): CrawlerResult | undefined {
+  if (!result?.rows?.length || (!from && !to)) return result;
+  const lo = Math.min(from ? Number(from) : 0, to ? Number(to) : 999999);
+  const hi = Math.max(from ? Number(from) : 0, to ? Number(to) : 999999);
+  return {
+    ...result,
+    rows: result.rows.filter((row) => {
+      const m = Number(row['日期'] ?? row['月份']);
+      if (!m) return true;
+      return m >= lo && m <= hi;
+    }),
+  };
+}
+
 /**
  * 大盘趋势聚合：原始为「月份 × 平台(jd/tmall/douyin)」明细，
  * 需按月份合并三平台销售额/销量，形成按月走势（否则同月3条且不聚合）。
@@ -617,6 +658,10 @@ function EcommercePanel() {
 
   const [subView, setSubView] = useState<EcomSubView>('brand');
 
+  // 月份区间筛选（YYYYMM 字符串，'' 表示不限）；仅在前端对已拉取的 13 个月数据过滤
+  const [monthFrom, setMonthFrom] = useState('');
+  const [monthTo, setMonthTo] = useState('');
+
   // 三份数据（品牌列表 / 大盘趋势 / 价格区间）
   const [brandResult, setBrandResult] = useState<CrawlerResult | undefined>();
   const [trendResult, setTrendResult] = useState<CrawlerResult | undefined>();
@@ -674,12 +719,34 @@ function EcommercePanel() {
     [tree, filters.industry, filters.l2],
   );
 
-  // 原始明细（品牌 × 月份），趋势/明细场景可用
-  const brandRowsRaw = useMemo(() => parseBrandRows(brandResult), [brandResult]);
+  // 数据中实际存在的月份（品类切换后随数据更新）
+  const availableMonths = useMemo(
+    () => extractMonths([brandResult, trendResult, priceResult]),
+    [brandResult, trendResult, priceResult],
+  );
+  // 选中的月份若不在当前品类数据中（如刚切换品类），视为不限
+  const effFrom = availableMonths.includes(Number(monthFrom)) ? monthFrom : '';
+  const effTo = availableMonths.includes(Number(monthTo)) ? monthTo : '';
+  const hasMonthFilter = !!(effFrom || effTo);
+  const rangeLabel = hasMonthFilter
+    ? `${monthLabel(effFrom || availableMonths[0] || '')} ~ ${monthLabel(effTo || availableMonths[availableMonths.length - 1] || '')}`
+    : '';
+
+  // 原始明细（品牌 × 月份），趋势/明细场景可用；先按月份区间过滤再解析
+  const brandRowsRaw = useMemo(
+    () => parseBrandRows(filterResultByMonths(brandResult, effFrom, effTo)),
+    [brandResult, effFrom, effTo],
+  );
   // 排行/KPI 用：按品牌聚合为单条（修复同品牌按月重复出现的问题）
   const brandRows = useMemo(() => aggregateBrandRows(brandRowsRaw), [brandRowsRaw]);
-  const trendPoints = useMemo(() => aggregateTrendPoints(parseTrend(trendResult)), [trendResult]);
-  const priceBuckets = useMemo(() => aggregatePriceBuckets(parsePriceBuckets(priceResult)), [priceResult]);
+  const trendPoints = useMemo(
+    () => aggregateTrendPoints(parseTrend(filterResultByMonths(trendResult, effFrom, effTo))),
+    [trendResult, effFrom, effTo],
+  );
+  const priceBuckets = useMemo(
+    () => aggregatePriceBuckets(parsePriceBuckets(filterResultByMonths(priceResult, effFrom, effTo))),
+    [priceResult, effFrom, effTo],
+  );
 
   // 品牌下拉来源：品牌列表
   const brandOptions = useMemo(() => {
@@ -965,6 +1032,54 @@ function EcommercePanel() {
               </Select>
             </div>
 
+            {/* 时间周期：开始年月 ~ 结束年月（对近 13 个月数据做区间筛选） */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">时间</span>
+              <Select
+                value={effFrom || '__ALL__'}
+                onValueChange={(v) => {
+                  const from = v === '__ALL__' ? '' : v;
+                  setMonthFrom(from);
+                  if (from && effTo && Number(effTo) < Number(from)) setMonthTo(from);
+                }}
+                disabled={availableMonths.length === 0}
+              >
+                <SelectTrigger size="sm" className="w-28">
+                  <SelectValue placeholder="开始月份" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__ALL__">开始月份</SelectItem>
+                  {[...availableMonths].reverse().map((m) => (
+                    <SelectItem key={`mf${m}`} value={String(m)}>
+                      {monthLabel(m)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span className="text-xs text-muted-foreground">至</span>
+              <Select
+                value={effTo || '__ALL__'}
+                onValueChange={(v) => {
+                  const to = v === '__ALL__' ? '' : v;
+                  setMonthTo(to);
+                  if (to && effFrom && Number(effFrom) > Number(to)) setMonthFrom(to);
+                }}
+                disabled={availableMonths.length === 0}
+              >
+                <SelectTrigger size="sm" className="w-28">
+                  <SelectValue placeholder="结束月份" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__ALL__">结束月份</SelectItem>
+                  {[...availableMonths].reverse().map((m) => (
+                    <SelectItem key={`mt${m}`} value={String(m)}>
+                      {monthLabel(m)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="flex-1" />
 
             <Button
@@ -1030,7 +1145,7 @@ function EcommercePanel() {
               <Store className="h-4 w-4 text-primary" />
               电商品牌表现
               <span className="text-xs text-muted-foreground font-normal ml-2">
-                数据来源：crawler-server（近 13 个月）
+                数据来源：crawler-server（{rangeLabel ? `所选区间 ${rangeLabel}` : '近 13 个月，月度数据'}）
               </span>
             </CardTitle>
           </div>
@@ -1086,6 +1201,8 @@ function EcommercePanel() {
             <EcomExtraViews
               view={subView as ExtraViewKey}
               filters={{ industry: filters.industry, l2: filters.l2, l3: filters.l3 }}
+              monthFrom={effFrom}
+              monthTo={effTo}
             />
           )}
         </CardContent>
