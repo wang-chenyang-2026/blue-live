@@ -74,31 +74,76 @@ async function handleCrawlerQuery(
   }
 
   try {
-    const { sessionId } = await initializeServer('crawler-server');
+    const TRANSIENT_KEYWORDS = ['KEY_RPM_EXCEEDED', 'Session ID missing', 'rate limit', 'timeout', 'ECONNRESET', 'fetch failed'];
+    const DETERMINISTIC_KEYWORDS = ['Out of range float', 'code":500'];
 
-    // Check abort again after session init (which may take time)
-    if (signal?.aborted) {
-      return { reply: '请求已取消', dataType: 'cancelled' };
+    let textContent = '';
+    let lastError: unknown = null;
+    const MAX_ATTEMPTS = 3;
+    const DELAYS = [0, 2500, 5000];
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      if (signal?.aborted) {
+        return { reply: '请求已取消', dataType: 'cancelled' };
+      }
+
+      if (attempt > 0) {
+        await new Promise((r) => setTimeout(r, DELAYS[attempt]));
+      }
+
+      if (signal?.aborted) {
+        return { reply: '请求已取消', dataType: 'cancelled' };
+      }
+
+      try {
+        const { sessionId } = await initializeServer('crawler-server');
+
+        if (signal?.aborted) {
+          return { reply: '请求已取消', dataType: 'cancelled' };
+        }
+
+        const result = await callTool(
+          'crawler-server',
+          'download_data',
+          {
+            category_list: category,
+            category_view: view,
+          },
+          sessionId,
+        );
+
+        if (signal?.aborted) {
+          return { reply: '请求已取消', dataType: 'cancelled' };
+        }
+
+        textContent = result.content?.[0]?.text || '';
+        lastError = null;
+
+        const isTransient = TRANSIENT_KEYWORDS.some((kw) => textContent.includes(kw));
+        const isDeterministic = DETERMINISTIC_KEYWORDS.some((kw) => textContent.includes(kw)) && !isTransient;
+
+        if (isTransient && attempt < MAX_ATTEMPTS - 1) {
+          continue;
+        }
+
+        break;
+      } catch (err) {
+        lastError = err;
+        const errMsg = err instanceof Error ? err.message : String(err);
+        const isTransient = TRANSIENT_KEYWORDS.some((kw) => errMsg.includes(kw));
+
+        if (isTransient && attempt < MAX_ATTEMPTS - 1) {
+          continue;
+        }
+
+        break;
+      }
     }
 
-    const result = await callTool(
-      'crawler-server',
-      'download_data',
-      {
-        category_list: category,
-        category_view: view,
-        // MCP download_data does not accept start_date/end_date;
-        // it always returns months 2-14 from current month.
-        // jqec_cp defaults to bowen.cui@bluefocus.com on the server side.
-      },
-      sessionId,
-    );
-
-    if (signal?.aborted) {
-      return { reply: '请求已取消', dataType: 'cancelled' };
+    if (lastError && !textContent) {
+      throw lastError;
     }
 
-    const textContent = result.content?.[0]?.text || '';
     let parsedData: unknown = null;
     try {
       const parsed = JSON.parse(textContent);

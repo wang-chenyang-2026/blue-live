@@ -457,7 +457,7 @@ export function EcomExtraViews({
         </div>
         <div className="mt-1.5 text-muted-foreground">
           {isProduct
-            ? '该视角上游数据源返回异常（久谦 MCP 商品列表接口 500，Out of range float values are not JSON compliant），需供应商修复；接口恢复后此处将自动展示数据。可先查看其他视角。'
+            ? '该细分品类的「商品列表」上游数据异常（久谦 MCP 返回 500，需供应商修复）；可将三级品类切为「全部」查看全品类商品，或先查看品牌排行、店铺列表。接口恢复后此处将自动展示数据。'
             : error}
         </div>
       </div>

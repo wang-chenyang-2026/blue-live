@@ -1222,7 +1222,15 @@ export default function EcommercePage() {
         setViewData(view); // store raw rows; normalize + filter at render time
       } else if (view === null) {
         setViewData([]);
-        setError('视图数据加载失败，请稍后重试或切换其他视图');
+        const isProductList = activeView === '商品列表';
+        const hasSpecificL3 = debouncedFilters.subcategory && debouncedFilters.subcategory !== ALL_SUBCATEGORY;
+        if (isProductList && hasSpecificL3) {
+          setError('该细分品类的「商品列表」上游数据异常（久谦数据源返回错误，正联系供应商修复）。可暂时切换「品牌排行」「店铺列表」查看该品类数据，或将三级品类切为「全部」查看全品类商品。');
+        } else if (isProductList) {
+          setError('「商品列表」上游数据暂时异常（久谦数据源返回错误），请稍后点击「重试」，或先查看其他视角。');
+        } else {
+          setError('视图数据加载失败，请稍后重试或切换其他视图');
+        }
       }
       setViewLoading(false);
     })();
