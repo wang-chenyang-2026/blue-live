@@ -148,11 +148,24 @@ async function mcpRequest(
     headers['Mcp-Session-Id'] = sessionId;
   }
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 45000);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if ((err as Error)?.name === 'AbortError') {
+      throw new Error(`MCP ${serverName} request timeout after 45s`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 
   // Extract session ID from response headers
   const responseSessionId =

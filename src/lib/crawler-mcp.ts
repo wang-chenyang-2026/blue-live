@@ -104,12 +104,25 @@ async function mcpPostOnce<T = unknown>(
   };
   if (sessionId) headers['Mcp-Session-Id'] = sessionId;
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-    cache: 'no-store' as RequestCache,
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60000);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      cache: 'no-store' as RequestCache,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if ((err as Error)?.name === 'AbortError') {
+      throw new Error(`MCP crawler request timeout after 60s`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 
   const nextSession =
     res.headers.get('mcp-session-id') ||
