@@ -485,6 +485,14 @@ function BrandRankingView({ loading, data }: { loading: boolean; data: any[] }) 
 
   const maxSales = Math.max(...data.map((d) => d.sales));
 
+  // 饼图只展示 Top 10，其余合并为「其他」
+  const top10 = data.slice(0, 10);
+  const othersSales = data.slice(10).reduce((s, d) => s + (Number(d.sales) || 0), 0);
+  const pieData = [
+    ...top10.map((d) => ({ name: d.name, salesWan: +((d.sales) / 10000).toFixed(1), color: d.color })),
+    ...(othersSales > 0 ? [{ name: '其他', salesWan: +(othersSales / 10000).toFixed(1), color: '#94A3B8' }] : []),
+  ];
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div className="space-y-3">
@@ -525,33 +533,43 @@ function BrandRankingView({ loading, data }: { loading: boolean; data: any[] }) 
         ))}
       </div>
 
-      <div className="h-[350px]">
-        <ChartContainer
-          config={data.reduce((acc: Record<string, any>, d) => {
-            acc[d.name] = { label: d.name, color: d.color };
-            return acc;
-          }, {})}
-          className="h-full"
-        >
-          <PieChart>
-            <Pie
-              data={data}
-              dataKey="sales"
-              nameKey="name"
-              cx="50%"
-              cy="50%"
-              innerRadius={60}
-              outerRadius={100}
-              paddingAngle={2}
-            >
-              {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
-              ))}
-            </Pie>
-            <ChartTooltip content={<ChartTooltipContent />} />
-            <ChartLegend content={<ChartLegendContent />} />
-          </PieChart>
-        </ChartContainer>
+      <div className="space-y-2">
+        <div className="h-[350px]">
+          <ChartContainer
+            config={pieData.reduce((acc: Record<string, any>, d) => {
+              acc[d.name] = { label: d.name, color: d.color };
+              return acc;
+            }, {})}
+            className="h-full"
+          >
+            <PieChart>
+              <Pie
+                data={pieData}
+                dataKey="salesWan"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={100}
+                paddingAngle={2}
+              >
+                {pieData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <ChartTooltip
+                content={
+                  <ChartTooltipContent
+                    formatter={(value) => [`${Number(value).toLocaleString()} 万元`, '销售额']}
+                  />
+                }
+              />
+            </PieChart>
+          </ChartContainer>
+        </div>
+        <p className="text-xs text-muted-foreground text-center">
+          环形图展示 Top 10 品牌销售额占比，其余品牌合并为「其他」；完整排行见左侧列表。
+        </p>
       </div>
     </div>
   );
