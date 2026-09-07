@@ -85,17 +85,44 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, data: { ...raw, columns, data }, cached: true });
     }
 
-    const promise = crawlerDownloadData({
-      categoryList,
-      categoryView: fullView,
-    }).then((res) => {
-      // 打印 MCP 原始返回，方便排查
-      console.log('[brand/crawler] MCP raw response:', JSON.stringify(res, null, 2));
-      // 防御：确保即便底层返回未规范化结构，也再走一次规范化
-      return normalizeDownloadResult(res as unknown);
-    });
+    // 瞬时错误关键词：限流/超时/网络错误 → 重试；确定性错误（如 Out of range float）→ 不重试
+    const TRANSIENT_PATTERNS = [
+      'KEY_RPM_EXCEEDED', 'RPM_OR_CONCURRENCY', 'RATE_LIMIT',
+      'timeout', 'Timeout', 'ECONNRESET', 'ECONNREFUSED',
+      'fetch failed', '502', '503', '504',
+    ];
+    const isTransient = (msg: string) => TRANSIENT_PATTERNS.some((p) => msg.includes(p));
+    const MAX_RETRIES = 3;
 
-    cache.set(key, { ts: now, promise });
+    const promise = (async () => {
+      let lastErr: unknown = null;
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          if (attempt > 0) {
+            const delay = 8000 * attempt;
+            console.log(`[brand/crawler] retry attempt ${attempt}/${MAX_RETRIES}, waiting ${delay}ms...`);
+            await new Promise((r) => setTimeout(r, delay));
+          }
+          const res = await crawlerDownloadData({
+            categoryList,
+            categoryView: fullView,
+          });
+          console.log('[brand/crawler] MCP raw response:', JSON.stringify(res, null, 2));
+          return normalizeDownloadResult(res as unknown);
+        } catch (err) {
+          lastErr = err;
+          const msg = err instanceof Error ? err.message : String(err);
+          if (!isTransient(msg)) {
+            console.error('[brand/crawler] deterministic error, no retry:', msg);
+            throw err;
+          }
+          console.warn(`[brand/crawler] transient error (attempt ${attempt + 1}/${MAX_RETRIES + 1}):`, msg);
+        }
+      }
+      throw lastErr;
+    })();
+
+    cache.set(key, { ts: Date.now(), promise });
 
     const result = await promise;
     // 打印规范化后的数据

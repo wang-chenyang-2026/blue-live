@@ -687,6 +687,7 @@ function EcommercePanel() {
   const [trendResult, setTrendResult] = useState<CrawlerResult | undefined>();
   const [priceResult, setPriceResult] = useState<CrawlerResult | undefined>();
   const [productResult, setProductResult] = useState<CrawlerResult | undefined>();
+  const [productLoading, setProductLoading] = useState(false);
 
   const [loadingBrand, setLoadingBrand] = useState(false);
   const [loadingTrend, setLoadingTrend] = useState(false);
@@ -1042,6 +1043,42 @@ function EcommercePanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.industry, filters.l2, filters.l3]);
 
+  // 商品列表按需补拉：选平台时若 productResult 为空且主请求已结束，单独补拉商品库
+  useEffect(() => {
+    if (!filters.industry || !filters.l2) return;
+    if (productResult !== undefined) return; // 已有数据或已尝试过
+    if (loadingBrand) return; // 等 fetchAll 结束
+    if (!filters.platform) return; // 未选平台不需要商品库
+
+    const ctrl = new AbortController();
+    setProductLoading(true);
+    const params = new URLSearchParams({
+      l1: filters.industry,
+      l2: filters.l2,
+      l3: filters.l3 || '',
+      view: '商品列表',
+    });
+    fetch(`/api/market-monitor/brand/crawler?${params.toString()}`, { signal: ctrl.signal })
+      .then((res) => res.json())
+      .then((j) => {
+        if (ctrl.signal.aborted) return;
+        if (j.success) {
+          setProductResult(j.data);
+        }
+      })
+      .catch((e) => {
+        if (e?.name !== 'AbortError') {
+          console.warn('[product-retry]', e);
+        }
+      })
+      .finally(() => {
+        if (!ctrl.signal.aborted) setProductLoading(false);
+      });
+
+    return () => ctrl.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.industry, filters.l2, filters.l3, filters.platform, productResult, loadingBrand]);
+
   // 品牌下拉可能在 brandRows 加载完成后才确定，自动同步：若当前 brand 不在列表则置空
   useEffect(() => {
     if (filters.brand && !brandOptions.includes(filters.brand)) {
@@ -1331,7 +1368,9 @@ function EcommercePanel() {
           )}
           {filters.platform && subView === 'brand' && !platformBrandRows && (
             <div className="mb-4 text-xs text-amber-600 dark:text-amber-400">
-              平台维度暂不可用，当前为全平台品牌排行。
+              {productLoading
+                ? '商品库数据加载中，平台维度即将生效…'
+                : '平台维度暂不可用，当前为全平台品牌排行。'}
             </div>
           )}
           {subView === 'price' && (filters.brand || filters.platform) && (
