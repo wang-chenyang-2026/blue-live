@@ -946,7 +946,9 @@ function EcommercePanel() {
         throw lastErr instanceof Error ? lastErr : new Error('数据加载失败');
       };
 
-      const tasks: Promise<void>[] = [
+      // 错峰请求：上游深夜并发能力下降，4 路齐发最慢请求会超时，分两批降低瞬时并发
+      // 第一批立即发出：品牌列表 + 大盘趋势（首屏主视图）
+      const batch1: Promise<void>[] = [
         fetchWithRetry(
           `${baseUrl}?${params.toString()}&view=${encodeURIComponent('品牌列表')}`,
         )
@@ -985,45 +987,57 @@ function EcommercePanel() {
           .finally(() => {
             if (!isStale()) setLoadingTrend(false);
           }),
-
-        fetchWithRetry(
-          `${baseUrl}?${params.toString()}&view=${encodeURIComponent('价格区间')}`,
-        )
-          .then((j) => {
-            if (isStale()) return;
-            if (j.success) setPriceResult(j.data);
-            else throw new Error(j.error || '价格区间加载失败');
-          })
-          .catch((e) => {
-            if (isStale()) return;
-            if (e?.name !== 'AbortError') {
-              console.warn('[price]', e);
-              setPriceResult(undefined);
-            }
-          })
-          .finally(() => {
-            if (!isStale()) setLoadingPrice(false);
-          }),
-
-        // 第4份：商品列表（仅用于选平台时统计品牌数，失败不影响主流程）
-        fetchWithRetry(
-          `${baseUrl}?${params.toString()}&view=${encodeURIComponent('商品列表')}`,
-        )
-          .then((j) => {
-            if (isStale()) return;
-            if (j.success) setProductResult(j.data);
-          })
-          .catch((e) => {
-            if (isStale()) return;
-            if (e?.name !== 'AbortError') {
-              console.warn('[product]', e);
-              setProductResult(undefined);
-            }
-          }),
       ];
 
+      // 第二批延迟 2500ms 发出：价格区间 + 商品列表
+      const batch2Promise = new Promise<void>((resolve) => {
+        setTimeout(() => {
+          if (controller.signal.aborted) {
+            resolve();
+            return;
+          }
+          const batch2: Promise<void>[] = [
+            fetchWithRetry(
+              `${baseUrl}?${params.toString()}&view=${encodeURIComponent('价格区间')}`,
+            )
+              .then((j) => {
+                if (isStale()) return;
+                if (j.success) setPriceResult(j.data);
+                else throw new Error(j.error || '价格区间加载失败');
+              })
+              .catch((e) => {
+                if (isStale()) return;
+                if (e?.name !== 'AbortError') {
+                  console.warn('[price]', e);
+                  setPriceResult(undefined);
+                }
+              })
+              .finally(() => {
+                if (!isStale()) setLoadingPrice(false);
+              }),
+
+            // 第4份：商品列表（仅用于选平台时统计品牌数，失败不影响主流程）
+            fetchWithRetry(
+              `${baseUrl}?${params.toString()}&view=${encodeURIComponent('商品列表')}`,
+            )
+              .then((j) => {
+                if (isStale()) return;
+                if (j.success) setProductResult(j.data);
+              })
+              .catch((e) => {
+                if (isStale()) return;
+                if (e?.name !== 'AbortError') {
+                  console.warn('[product]', e);
+                  setProductResult(undefined);
+                }
+              }),
+          ];
+          Promise.all(batch2).finally(() => resolve());
+        }, 2500);
+      });
+
       try {
-        await Promise.all(tasks);
+        await Promise.all([...batch1, batch2Promise]);
       } catch (e) {
         if ((e as { name?: string })?.name === 'AbortError') return;
         if (isStale()) return;
