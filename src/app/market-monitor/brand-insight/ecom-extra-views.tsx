@@ -467,6 +467,12 @@ export function EcomExtraViews({
   if (!result) return <LoadingSkeleton view={view} />;
 
   // 维度不生效提示
+  // 各视图维度支持情况：
+  // sales(销售价量): 无平台、无品牌
+  // shop(店铺列表): 有平台、无品牌
+  // product(商品列表): 有平台、有品牌
+  // cross(价格交叉): 无平台、有品牌
+  // hotword(热词频次): 有平台、无品牌
   const noPlatformViews: ExtraViewKey[] = ['sales', 'cross'];
   const noBrandViews: ExtraViewKey[] = ['sales', 'shop', 'hotword'];
   const showPlatformHint = platform && noPlatformViews.includes(view);
@@ -475,8 +481,11 @@ export function EcomExtraViews({
 
   const hint = (showPlatformHint || showBrandHint) ? (
     <div className="text-xs text-muted-foreground mb-2">
-      {showPlatformHint && <span>该视角为上游全平台汇总数据，无平台维度，平台筛选不生效；已按品牌/时间联动。</span>}
-      {showBrandHint && <span>该视角无品牌维度，品牌筛选不生效。</span>}
+      {showPlatformHint && view === 'sales' && <span>当前视图为全平台、全品牌汇总数据，平台与品牌筛选不生效，仅按时间联动。</span>}
+      {showPlatformHint && view === 'cross' && <span>价格交叉无平台维度，平台筛选不生效；品牌、时间筛选正常联动。</span>}
+      {showBrandHint && view === 'shop' && <span>店铺数据无品牌归属，品牌筛选不生效；平台、时间筛选正常联动。</span>}
+      {showBrandHint && view === 'hotword' && <span>热词数据无品牌维度，品牌筛选不生效；平台、时间筛选正常联动。</span>}
+      {showBrandHint && view === 'sales' && !showPlatformHint && <span>当前视图为全平台、全品牌汇总数据，平台与品牌筛选不生效，仅按时间联动。</span>}
     </div>
   ) : null;
 

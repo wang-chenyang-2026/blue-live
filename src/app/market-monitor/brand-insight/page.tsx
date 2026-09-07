@@ -788,17 +788,73 @@ function EcommercePanel() {
     return brandRows.filter((r) => r.name === filters.brand);
   }, [brandRows, filters.brand]);
 
-  // KPI：基于品牌列表（全部品牌）计算
+  // 品牌排行：选平台时用商品列表数据按品牌聚合
+  const platformBrandRows = useMemo((): BrandRow[] | null => {
+    if (!filters.platform || !productResult) return null;
+    const filtered = filterRows(productResult, { platform: filters.platform, monthFrom: effFrom, monthTo: effTo });
+    const rows = filtered?.rows ?? [];
+    const map = new Map<string, { name: string; sales: number; volume: number }>();
+    for (const r of rows) {
+      const brand = String(r['品牌'] || '').trim();
+      if (!brand || brand === '合计' || brand === '总计') continue;
+      const g = map.get(brand) || { name: brand, sales: 0, volume: 0 };
+      g.sales += Number(r['销售额(元)']) || 0;
+      g.volume += Number(r['销量(件)']) || 0;
+      map.set(brand, g);
+    }
+    const totalSales = [...map.values()].reduce((s, g) => s + g.sales, 0);
+    return [...map.values()]
+      .map((g): BrandRow => ({
+        name: g.name,
+        sales: g.sales,
+        volume: g.volume,
+        avgPrice: g.volume > 0 ? g.sales / g.volume : null,
+        salesYoy: null,
+        volumeYoy: null,
+        share: totalSales > 0 ? (g.sales / totalSales) * 100 : 0,
+        raw: {},
+      }))
+      .sort((a, b) => (b.sales ?? 0) - (a.sales ?? 0));
+  }, [filters.platform, productResult, effFrom, effTo]);
+
+  // KPI：基于品牌列表（全部品牌）计算；选品牌时按品牌聚合
   const kpis = useMemo(() => {
-    // 选平台时：KPI 基于大盘趋势（有平台列）计算，品牌数基于商品列表去重
-    if (filters.platform) {
+    const isBrandSelected = !!filters.brand && filters.brand !== '全部品牌';
+    const isPlatformSelected = !!filters.platform;
+
+    // 选品牌 + 选平台：从商品列表按平台+品牌+时间过滤后聚合
+    if (isBrandSelected && isPlatformSelected) {
+      if (productResult) {
+        const filteredProduct = filterRows(productResult, { brand: filters.brand, platform: filters.platform, monthFrom: effFrom, monthTo: effTo });
+        const rows = filteredProduct?.rows ?? [];
+        const totalSales = rows.reduce<number>((s, r) => s + (Number(r['销售额(元)']) || 0), 0);
+        const totalVolume = rows.reduce<number>((s, r) => s + (Number(r['销量(件)']) || 0), 0);
+        const avgPrice = totalVolume > 0 && totalSales > 0 ? totalSales / totalVolume : null;
+        return { totalSales, totalVolume, brandCount: 1, avgPrice, brandCountNote: '' };
+      }
+      // 商品列表未加载，回退用品牌列表全平台值
+      const totalSales = brandRows.reduce<number>((s, r) => (r.sales != null ? s + r.sales : s), 0);
+      const totalVolume = brandRows.reduce<number>((s, r) => (r.volume != null ? s + r.volume : s), 0);
+      const avgPrice = totalVolume > 0 && totalSales > 0 ? totalSales / totalVolume : null;
+      return { totalSales, totalVolume, brandCount: -1, avgPrice, brandCountNote: '商品库未加载，显示全平台值' };
+    }
+
+    // 选品牌 + 未选平台：从品牌列表（已按品牌+时间过滤）聚合
+    if (isBrandSelected) {
+      const totalSales = brandRows.reduce<number>((s, r) => (r.sales != null ? s + r.sales : s), 0);
+      const totalVolume = brandRows.reduce<number>((s, r) => (r.volume != null ? s + r.volume : s), 0);
+      const avgPrice = totalVolume > 0 && totalSales > 0 ? totalSales / totalVolume : null;
+      return { totalSales, totalVolume, brandCount: 1, avgPrice, brandCountNote: '' };
+    }
+
+    // 选平台 + 未选品牌：KPI 基于大盘趋势（有平台列）计算，品牌数基于商品列表去重
+    if (isPlatformSelected) {
       const filteredTrend = filterRows(trendResult, { platform: filters.platform, monthFrom: effFrom, monthTo: effTo });
       const trendRows = filteredTrend?.rows ?? [];
       const totalSales = trendRows.reduce<number>((s, r) => s + (Number(r['销售额(元)']) || 0), 0);
       const totalVolume = trendRows.reduce<number>((s, r) => s + (Number(r['销量(件)']) || 0), 0);
       const avgPrice = totalVolume > 0 && totalSales > 0 ? totalSales / totalVolume : null;
 
-      // 品牌数：从商品列表按平台过滤后去重
       let brandCount = 0;
       let brandCountNote = '';
       if (productResult) {
@@ -811,13 +867,13 @@ function EcommercePanel() {
         brandCount = brands.size;
         brandCountNote = '按商品库去重';
       } else {
-        brandCount = -1; // 未加载
+        brandCount = -1;
         brandCountNote = '按商品库去重';
       }
       return { totalSales, totalVolume, brandCount, avgPrice, brandCountNote };
     }
 
-    // 未选平台：保持原有逻辑（基于品牌列表）
+    // 未选品牌 + 未选平台：保持原有逻辑（基于品牌列表）
     const totalSales = brandRows.reduce<number>(
       (s, r) => (r.sales != null ? s + r.sales : s),
       0,
@@ -832,7 +888,7 @@ function EcommercePanel() {
     const avgPrice =
       totalVolume > 0 && totalSales > 0 ? totalSales / totalVolume : null;
     return { totalSales, totalVolume, brandCount, avgPrice, brandCountNote: '' };
-  }, [brandRows, filters.platform, trendResult, productResult, effFrom, effTo]);
+  }, [brandRows, filters.brand, filters.platform, trendResult, productResult, effFrom, effTo]);
 
   /* 拉取 crawler 数据：品牌列表是主数据，趋势 / 价格区间辅助 */
   const fetchAll = useCallback(
@@ -1267,18 +1323,34 @@ function EcommercePanel() {
             })}
           </div>
 
-          {/* 无平台维度视角提示 */}
-          {filters.platform && (subView === 'brand' || subView === 'sales') && (
+          {/* 维度不支持提示 */}
+          {filters.platform && subView === 'sales' && (
             <div className="mb-4 text-xs text-muted-foreground">
-              该视角为上游全平台汇总数据，无平台维度，平台筛选不生效；已按品牌/时间联动。
+              当前视图为全平台、全品牌汇总数据，平台与品牌筛选不生效，仅按时间联动。
+            </div>
+          )}
+          {filters.platform && subView === 'brand' && !platformBrandRows && (
+            <div className="mb-4 text-xs text-amber-600 dark:text-amber-400">
+              平台维度暂不可用，当前为全平台品牌排行。
+            </div>
+          )}
+          {subView === 'price' && (filters.brand || filters.platform) && (
+            <div className="mb-4 text-xs text-muted-foreground">
+              当前视图为全平台、全品牌汇总分布，平台与品牌筛选不生效，仅按时间联动。
+            </div>
+          )}
+          {filters.brand && filters.platform && subView === 'trend' && (
+            <div className="mb-4 text-xs text-muted-foreground">
+              品牌走势为全平台数据，平台筛选不生效。
             </div>
           )}
 
           {subView === 'brand' && (
             <BrandRankingView
               loading={loadingBrand}
-              rows={visibleBrandRows}
-              allRows={brandRows}
+              rows={platformBrandRows || visibleBrandRows}
+              allRows={platformBrandRows || brandRows}
+              note={platformBrandRows ? '按商品库统计' : ''}
             />
           )}
           {subView === 'trend' && (
@@ -1355,10 +1427,12 @@ function BrandRankingView({
   loading,
   rows,
   allRows,
+  note,
 }: {
   loading: boolean;
   rows: BrandRow[];
   allRows: BrandRow[];
+  note?: string;
 }) {
   if (loading) {
     return <Skeleton className="h-[360px] w-full rounded-lg" />;
@@ -1384,6 +1458,9 @@ function BrandRankingView({
 
   return (
     <div className="space-y-4">
+      {note && (
+        <div className="text-xs text-muted-foreground">{note}</div>
+      )}
       <div className="rounded-md border border-border overflow-hidden">
         <Table>
           <TableHeader>
