@@ -23,6 +23,7 @@ import {
 import { cn } from '@/lib/utils';
 
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { ThemeToggle } from './ThemeToggle';
 
 const MODULE_ICONS: Record<ModuleKey, React.ReactNode> = {
   dashboard: <LayoutDashboard className="h-4 w-4" />,
@@ -138,6 +139,7 @@ export function AppSidebar() {
 
       {/* Footer */}
       <div className="border-t border-border p-4 space-y-2">
+        <ThemeToggle />
         <Popover>
           <PopoverTrigger asChild>
             <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
