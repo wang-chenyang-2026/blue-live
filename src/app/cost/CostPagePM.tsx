@@ -165,8 +165,8 @@ const CATEGORY_ICONS: Record<string, { icon: React.ReactNode; color: string; bg:
   '全职主播成本': { icon: <PersonIcon color="#6B7FE8" />, color: '#6B7FE8', bg: 'rgba(65,88,208,0.1)' },
   '全职中控成本': { icon: <MonitorIcon color="#9B85FF" />, color: '#9B85FF', bg: 'rgba(123,97,255,0.1)' },
   '全职运营成本': { icon: <PersonIcon color="#10B981" />, color: '#10B981', bg: 'rgba(16,185,129,0.1)' },
-  '日常物料成本': { icon: <BoxIcon color="#6B7280" />, color: 'var(--muted-foreground)', bg: 'rgba(107,114,128,0.15)' },
-  '其它成本': { icon: <DocumentIcon color="#6B7280" />, color: 'var(--muted-foreground)', bg: 'rgba(107,114,128,0.1)' },
+  '日常物料成本': { icon: <BoxIcon color="#9CA3AF" />, color: 'var(--muted-foreground)', bg: 'rgba(107,114,128,0.15)' },
+  '其它成本': { icon: <DocumentIcon color="#9CA3AF" />, color: 'var(--muted-foreground)', bg: 'rgba(107,114,128,0.1)' },
 };
 
 // ==================== 类型定义 ====================
@@ -650,7 +650,7 @@ export default function CostPagePM() {
               style={
                 activeBrand === b.id
                   ? { backgroundColor: b.color, color: '#fff' }
-                  : { backgroundColor: 'transparent', color: 'var(--muted-foreground)', border: '1px solid #374151' }
+                  : { backgroundColor: 'transparent', color: 'var(--muted-foreground)', border: '1px solid var(--border)' }
               }
             >
               {b.name}
@@ -700,7 +700,7 @@ export default function CostPagePM() {
           className="relative rounded-xl p-5 transition-all duration-200 hover:-translate-y-0.5"
           style={{
             backgroundColor: 'var(--card)',
-            border: '1px solid #1F2937',
+            border: '1px solid var(--border)',
           }}
           onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--accent)'; }}
           onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--card)'; }}
@@ -729,7 +729,7 @@ export default function CostPagePM() {
           className="relative rounded-xl p-5 transition-all duration-200 hover:-translate-y-0.5"
           style={{
             backgroundColor: 'var(--card)',
-            border: '1px solid #1F2937',
+            border: '1px solid var(--border)',
           }}
           onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--accent)'; }}
           onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--card)'; }}
@@ -1053,7 +1053,7 @@ export default function CostPagePM() {
 
             <div
               className="flex flex-col items-center justify-center py-20 rounded-xl"
-              style={{ backgroundColor: 'var(--card)', border: '1px solid #1f2937' }}
+              style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
             >
               <span className="text-5xl mb-4">📭</span>
               <p className="text-base font-medium mb-1" style={{ color: 'var(--muted-foreground)' }}>暂无收入记录</p>
@@ -1080,7 +1080,7 @@ export default function CostPagePM() {
           <div className="mt-6">
             <div
               className="flex flex-col items-center justify-center py-20 rounded-xl"
-              style={{ backgroundColor: 'var(--card)', border: '1px solid #1f2937' }}
+              style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
             >
               <span className="text-5xl mb-4">📊</span>
               <p className="text-base font-medium mb-1" style={{ color: 'var(--muted-foreground)' }}>利润率看板</p>
@@ -1110,7 +1110,7 @@ function CategoryCardV2({
       className="rounded-xl p-4 transition-all duration-200 hover:-translate-y-0.5"
       style={{
         backgroundColor: 'var(--card)',
-        border: isZero ? '1px solid var(--border)' : `1px solid ${(iconInfo?.color || '#374151') + '30'}`,
+        border: isZero ? '1px solid var(--border)' : `1px solid ${(iconInfo?.color || '#9CA3AF') + '30'}`,
         opacity: isZero ? 0.5 : 1,
       }}
       onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--accent)'; }}
@@ -1215,7 +1215,7 @@ function DonutChartV2({
   return (
     <div
       className="rounded-xl p-6 flex flex-col"
-      style={{ backgroundColor: 'var(--card)', border: '1px solid #1f2937' }}
+      style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
     >
       {/* 标题 */}
       <h3 className="text-sm font-semibold mb-6 flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
@@ -1272,7 +1272,7 @@ const KPITab = memo(function KPITab({
       <div className="mt-6">
         <div
           className="flex flex-col items-center justify-center py-20 rounded-xl"
-          style={{ backgroundColor: 'var(--card)', border: '1px solid #1f2937' }}
+          style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
         >
           <span className="text-5xl mb-4"></span>
           <p className="text-base font-medium mb-1" style={{ color: 'var(--muted-foreground)' }}>KPI 管理模块</p>
@@ -1298,7 +1298,7 @@ const KPITab = memo(function KPITab({
           <div
             key={kpi.id}
             className="rounded-xl p-5"
-            style={{ backgroundColor: 'var(--card)', border: '1px solid #1f2937' }}
+            style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
           >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -1377,7 +1377,7 @@ function RulesSection({ rules }: { rules: string }) {
   const [expanded, setExpanded] = useState(false);
   if (!rules || !rules.trim()) return null;
   return (
-    <div className="mt-4 rounded-xl overflow-hidden" style={{ backgroundColor: 'var(--card)', border: '1px solid #1f2937' }}>
+    <div className="mt-4 rounded-xl overflow-hidden" style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}>
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-2 px-4 py-3 text-left transition hover:bg-white/[0.02]"
