@@ -92,9 +92,9 @@ const CATEGORY_CONFIG: Record<string, {
     label: '日常物料',
     icon: null,
     bg: 'rgba(107,114,128,0.15)',
-    text: '#6B7280',
+    text: 'var(--muted-foreground)',
     tagBg: 'rgba(107,114,128,0.15)',
-    tagText: '#6B7280',
+    tagText: 'var(--muted-foreground)',
     dimKey: 'purchase',
   },
   '设计费分摊': {
@@ -110,9 +110,9 @@ const CATEGORY_CONFIG: Record<string, {
     label: '其它',
     icon: null,
     bg: 'rgba(107,114,128,0.1)',
-    text: '#6B7280',
+    text: 'var(--muted-foreground)',
     tagBg: 'rgba(107,114,128,0.1)',
-    tagText: '#6B7280',
+    tagText: 'var(--muted-foreground)',
   },
 };
 
@@ -165,8 +165,8 @@ const CATEGORY_ICONS: Record<string, { icon: React.ReactNode; color: string; bg:
   '全职主播成本': { icon: <PersonIcon color="#6B7FE8" />, color: '#6B7FE8', bg: 'rgba(65,88,208,0.1)' },
   '全职中控成本': { icon: <MonitorIcon color="#9B85FF" />, color: '#9B85FF', bg: 'rgba(123,97,255,0.1)' },
   '全职运营成本': { icon: <PersonIcon color="#10B981" />, color: '#10B981', bg: 'rgba(16,185,129,0.1)' },
-  '日常物料成本': { icon: <BoxIcon color="#6B7280" />, color: '#6B7280', bg: 'rgba(107,114,128,0.15)' },
-  '其它成本': { icon: <DocumentIcon color="#6B7280" />, color: '#6B7280', bg: 'rgba(107,114,128,0.1)' },
+  '日常物料成本': { icon: <BoxIcon color="#6B7280" />, color: 'var(--muted-foreground)', bg: 'rgba(107,114,128,0.15)' },
+  '其它成本': { icon: <DocumentIcon color="#6B7280" />, color: 'var(--muted-foreground)', bg: 'rgba(107,114,128,0.1)' },
 };
 
 // ==================== 类型定义 ====================
@@ -535,17 +535,17 @@ export default function CostPagePM() {
   // 加载骨架
   if (!isClient || !selectedMonth || !startDate) {
     return (
-      <div className="min-h-screen" style={{ backgroundColor: '#0B0F19' }}>
+      <div className="min-h-screen" style={{ backgroundColor: 'var(--background)' }}>
         <div className="p-6 space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <div className="h-8 w-40 rounded" style={{ backgroundColor: '#1f2937' }} />
-              <div className="h-4 w-60 rounded mt-2" style={{ backgroundColor: '#1f2937' }} />
+              <div className="h-8 w-40 rounded" style={{ backgroundColor: 'var(--border)' }} />
+              <div className="h-4 w-60 rounded mt-2" style={{ backgroundColor: 'var(--border)' }} />
             </div>
           </div>
           <div className="grid grid-cols-4 gap-4">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-32 rounded-xl animate-pulse" style={{ backgroundColor: '#111827' }} />
+              <div key={i} className="h-32 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--card)' }} />
             ))}
           </div>
         </div>
@@ -558,12 +558,12 @@ export default function CostPagePM() {
   const profitRatePct = (profitData.profitRate * 100).toFixed(1);
 
   return (
-    <div className="min-h-screen p-4 md:p-8 space-y-6" style={{ backgroundColor: '#0B0F19', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }}>
+    <div className="min-h-screen p-4 md:p-8 space-y-6" style={{ backgroundColor: 'var(--background)', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }}>
       {/* ===== 1. 标题区 ===== */}
       <div className="flex items-start gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold" style={{ color: '#E5E7EB' }}>成本核算</h1>
+            <h1 className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>成本核算</h1>
             <span
               className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-2xl"
               style={{ backgroundColor: 'rgba(16,185,129,0.15)', color: '#10B981' }}
@@ -571,15 +571,15 @@ export default function CostPagePM() {
               🛡 完整数据视图
             </span>
           </div>
-          <p className="text-xs mt-1.5" style={{ color: '#9CA3AF' }}>六大成本项、收入计算、KPI 扣减与利润率分析</p>
+          <p className="text-xs mt-1.5" style={{ color: 'var(--muted-foreground)' }}>六大成本项、收入计算、KPI 扣减与利润率分析</p>
         </div>
       </div>
 
       {/* ===== 2. 筛选栏 ===== */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm" style={{ color: '#9CA3AF' }}>日期范围</span>
-          <span className="text-sm" style={{ color: '#9CA3AF' }}>
+          <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>日期范围</span>
+          <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
             {formatDisplayDate(startDate)} ~ {formatDisplayDate(endDate)}
           </span>
           <input
@@ -587,15 +587,15 @@ export default function CostPagePM() {
             value={startDate}
             onChange={(e) => { setStartDate(e.target.value); setQuickRange(''); }}
             className="bg-transparent border rounded-lg px-3 py-1.5 text-sm focus:outline-none"
-            style={{ borderColor: '#374151', color: '#E5E7EB' }}
+            style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
           />
-          <span style={{ color: '#4B5563' }}>~</span>
+          <span style={{ color: 'var(--muted-foreground)' }}>~</span>
           <input
             type="date"
             value={endDate}
             onChange={(e) => { setEndDate(e.target.value); setQuickRange(''); }}
             className="bg-transparent border rounded-lg px-3 py-1.5 text-sm focus:outline-none"
-            style={{ borderColor: '#374151', color: '#E5E7EB' }}
+            style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
           />
           <button
             onClick={() => {
@@ -604,7 +604,7 @@ export default function CostPagePM() {
               setQuickRange('7d');
             }}
             className="px-3 py-1.5 text-xs rounded-lg border transition"
-            style={{ borderColor: quickRange === '7d' ? brandColor : '#374151', color: quickRange === '7d' ? brandColor : '#9CA3AF', backgroundColor: quickRange === '7d' ? brandColor + '15' : 'transparent' }}
+            style={{ borderColor: quickRange === '7d' ? brandColor : 'var(--border)', color: quickRange === '7d' ? brandColor : 'var(--muted-foreground)', backgroundColor: quickRange === '7d' ? brandColor + '15' : 'transparent' }}
           >
             近7天
           </button>
@@ -616,7 +616,7 @@ export default function CostPagePM() {
               setQuickRange('month');
             }}
             className="px-3 py-1.5 text-xs rounded-lg border transition"
-            style={{ borderColor: quickRange === 'month' ? brandColor : '#374151', color: quickRange === 'month' ? brandColor : '#9CA3AF', backgroundColor: quickRange === 'month' ? brandColor + '15' : 'transparent' }}
+            style={{ borderColor: quickRange === 'month' ? brandColor : 'var(--border)', color: quickRange === 'month' ? brandColor : 'var(--muted-foreground)', backgroundColor: quickRange === 'month' ? brandColor + '15' : 'transparent' }}
           >
             本月
           </button>
@@ -650,7 +650,7 @@ export default function CostPagePM() {
               style={
                 activeBrand === b.id
                   ? { backgroundColor: b.color, color: '#fff' }
-                  : { backgroundColor: 'transparent', color: '#9CA3AF', border: '1px solid #374151' }
+                  : { backgroundColor: 'transparent', color: 'var(--muted-foreground)', border: '1px solid #374151' }
               }
             >
               {b.name}
@@ -667,10 +667,10 @@ export default function CostPagePM() {
           style={{
             background: `linear-gradient(135deg, rgba(65,88,208,0.08) 0%, transparent 100%)`,
             border: '1px solid rgba(65,88,208,0.2)',
-            backgroundColor: '#111827',
+            backgroundColor: 'var(--card)',
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1a2236'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#111827'; }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--accent)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--card)'; }}
         >
           <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl" style={{ backgroundColor: brandColor }} />
           <div className="flex items-center gap-2 mb-3">
@@ -679,9 +679,9 @@ export default function CostPagePM() {
                 <text x="2" y="13" fill="#4158D0" fontSize="12" fontWeight="bold">$</text>
               </svg>
             </div>
-            <span className="text-xs" style={{ color: '#9CA3AF', letterSpacing: '1px' }}>总成本</span>
+            <span className="text-xs" style={{ color: 'var(--muted-foreground)', letterSpacing: '1px' }}>总成本</span>
           </div>
-          <p className="font-bold mb-2" style={{ color: '#E5E7EB', fontSize: '32px', fontWeight: 700, fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
+          <p className="font-bold mb-2" style={{ color: 'var(--foreground)', fontSize: '32px', fontWeight: 700, fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
             {formatCurrency(profitData.totalCost)}
           </p>
           <div className="flex items-center gap-2">
@@ -691,7 +691,7 @@ export default function CostPagePM() {
             >
               成本占比 {costRatio}%
             </span>
-            <span className="text-xs" style={{ color: '#9CA3AF' }}>较上月 +12.3%</span>
+            <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>较上月 +12.3%</span>
           </div>
         </div>
 
@@ -699,11 +699,11 @@ export default function CostPagePM() {
         <div
           className="relative rounded-xl p-5 transition-all duration-200 hover:-translate-y-0.5"
           style={{
-            backgroundColor: '#111827',
+            backgroundColor: 'var(--card)',
             border: '1px solid #1F2937',
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1a2236'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#111827'; }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--accent)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--card)'; }}
         >
           <div className="flex items-center gap-2 mb-3">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(16,185,129,0.2)' }}>
@@ -711,7 +711,7 @@ export default function CostPagePM() {
                 <polyline points="2,12 5,8 8,10 14,4" stroke="#10B981" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
-            <span className="text-xs" style={{ color: '#9CA3AF', letterSpacing: '1px' }}>利润率</span>
+            <span className="text-xs" style={{ color: 'var(--muted-foreground)', letterSpacing: '1px' }}>利润率</span>
           </div>
           <p className="font-bold mb-2" style={{ color: profitIsPositive ? '#10B981' : '#EF4444', fontSize: '32px', fontWeight: 700, fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
             {profitRatePct}%
@@ -728,11 +728,11 @@ export default function CostPagePM() {
         <div
           className="relative rounded-xl p-5 transition-all duration-200 hover:-translate-y-0.5"
           style={{
-            backgroundColor: '#111827',
+            backgroundColor: 'var(--card)',
             border: '1px solid #1F2937',
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1a2236'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#111827'; }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--accent)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--card)'; }}
         >
           <div className="flex items-center gap-2 mb-3">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(123,97,255,0.2)' }}>
@@ -741,12 +741,12 @@ export default function CostPagePM() {
                 <path d="M5 6V4a3 3 0 016 0v2" stroke="#7B61FF" strokeWidth="1.5" fill="none" />
               </svg>
             </div>
-            <span className="text-xs" style={{ color: '#9CA3AF', letterSpacing: '1px' }}>品牌服务费收入</span>
+            <span className="text-xs" style={{ color: 'var(--muted-foreground)', letterSpacing: '1px' }}>品牌服务费收入</span>
           </div>
-          <p className="font-bold mb-2" style={{ color: brandRevenues.length > 0 ? '#E5E7EB' : '#9CA3AF', fontSize: '32px', fontWeight: 700, fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
+          <p className="font-bold mb-2" style={{ color: brandRevenues.length > 0 ? 'var(--foreground)' : 'var(--muted-foreground)', fontSize: '32px', fontWeight: 700, fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
             {formatCurrency(profitData.revenue)}
           </p>
-          <span className="text-xs" style={{ color: '#6B7280' }}>
+          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
             {brandRevenues.length} 条记录
           </span>
         </div>
@@ -757,10 +757,10 @@ export default function CostPagePM() {
           style={{
             background: `linear-gradient(135deg, rgba(239,68,68,0.08) 0%, transparent 100%)`,
             border: '1px solid rgba(239,68,68,0.2)',
-            backgroundColor: '#111827',
+            backgroundColor: 'var(--card)',
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1a2236'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#111827'; }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--accent)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--card)'; }}
         >
           <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl" style={{ backgroundColor: '#EF4444' }} />
           <div className="flex items-center gap-2 mb-3">
@@ -769,12 +769,12 @@ export default function CostPagePM() {
                 <text x="2" y="13" fill="#EF4444" fontSize="12" fontWeight="bold">$</text>
               </svg>
             </div>
-            <span className="text-xs" style={{ color: '#9CA3AF', letterSpacing: '1px' }}>毛利</span>
+            <span className="text-xs" style={{ color: 'var(--muted-foreground)', letterSpacing: '1px' }}>毛利</span>
           </div>
           <p className="font-bold mb-2" style={{ color: grossProfit >= 0 ? '#10B981' : '#EF4444', fontSize: '32px', fontWeight: 700, fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
             {formatSignedCurrency(grossProfit)}
           </p>
-          <p className="text-xs" style={{ color: '#6B7280' }}>
+          <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
             利润率 = (收入 - 成本) / 收入
           </p>
         </div>
@@ -782,18 +782,18 @@ export default function CostPagePM() {
 
       {/* ===== 4. Tab 切换栏（带数字角标） ===== */}
       <div className="relative">
-        <div className="flex items-center gap-6 border-b" style={{ borderColor: '#1f2937' }}>
+        <div className="flex items-center gap-6 border-b" style={{ borderColor: 'var(--border)' }}>
           <button
             onClick={() => setActiveTab('cost')}
             className="relative px-2 py-3 text-sm transition-colors duration-150 flex items-center gap-2"
-            style={{ color: activeTab === 'cost' ? '#E5E7EB' : '#6B7280', fontWeight: activeTab === 'cost' ? 700 : 400 }}
+            style={{ color: activeTab === 'cost' ? 'var(--foreground)' : 'var(--muted-foreground)', fontWeight: activeTab === 'cost' ? 700 : 400 }}
             role="tab"
             aria-selected={activeTab === 'cost'}
           >
             成本明细
             <span
               className="inline-flex items-center justify-center text-xs px-1.5 rounded-full min-w-[20px] h-5"
-              style={{ backgroundColor: activeTab === 'cost' ? 'rgba(255,255,255,0.15)' : 'rgba(107,114,128,0.3)', color: activeTab === 'cost' ? '#E5E7EB' : '#9CA3AF', fontSize: '11px' }}
+              style={{ backgroundColor: activeTab === 'cost' ? 'rgba(255,255,255,0.15)' : 'rgba(107,114,128,0.3)', color: activeTab === 'cost' ? 'var(--foreground)' : 'var(--muted-foreground)', fontSize: '11px' }}
             >
               {tableRows.length}
             </span>
@@ -801,14 +801,14 @@ export default function CostPagePM() {
           <button
             onClick={() => setActiveTab('revenue')}
             className="relative px-2 py-3 text-sm transition-colors duration-150 flex items-center gap-2"
-            style={{ color: activeTab === 'revenue' ? '#E5E7EB' : '#6B7280', fontWeight: activeTab === 'revenue' ? 700 : 400 }}
+            style={{ color: activeTab === 'revenue' ? 'var(--foreground)' : 'var(--muted-foreground)', fontWeight: activeTab === 'revenue' ? 700 : 400 }}
             role="tab"
             aria-selected={activeTab === 'revenue'}
           >
             收入明细
             <span
               className="inline-flex items-center justify-center text-xs px-1.5 rounded-full min-w-[20px] h-5"
-              style={{ backgroundColor: activeTab === 'revenue' ? 'rgba(255,255,255,0.15)' : 'rgba(107,114,128,0.3)', color: activeTab === 'revenue' ? '#E5E7EB' : '#9CA3AF', fontSize: '11px' }}
+              style={{ backgroundColor: activeTab === 'revenue' ? 'rgba(255,255,255,0.15)' : 'rgba(107,114,128,0.3)', color: activeTab === 'revenue' ? 'var(--foreground)' : 'var(--muted-foreground)', fontSize: '11px' }}
             >
               {brandRevenues.length}
             </span>
@@ -816,7 +816,7 @@ export default function CostPagePM() {
           <button
             onClick={() => setActiveTab('kpi')}
             className="relative px-2 py-3 text-sm transition-colors duration-150"
-            style={{ color: activeTab === 'kpi' ? '#E5E7EB' : '#6B7280', fontWeight: activeTab === 'kpi' ? 700 : 400 }}
+            style={{ color: activeTab === 'kpi' ? 'var(--foreground)' : 'var(--muted-foreground)', fontWeight: activeTab === 'kpi' ? 700 : 400 }}
             role="tab"
             aria-selected={activeTab === 'kpi'}
           >
@@ -825,7 +825,7 @@ export default function CostPagePM() {
           <button
             onClick={() => setActiveTab('profit')}
             className="relative px-2 py-3 text-sm transition-colors duration-150"
-            style={{ color: activeTab === 'profit' ? '#E5E7EB' : '#6B7280', fontWeight: activeTab === 'profit' ? 700 : 400 }}
+            style={{ color: activeTab === 'profit' ? 'var(--foreground)' : 'var(--muted-foreground)', fontWeight: activeTab === 'profit' ? 700 : 400 }}
             role="tab"
             aria-selected={activeTab === 'profit'}
           >
@@ -841,7 +841,7 @@ export default function CostPagePM() {
               <div className="grid grid-cols-1 lg:grid-cols-[65fr_35fr] gap-4">
                 {/* 左侧：3×2 成本分类卡片网格 */}
                 <div>
-                  <h3 className="text-sm font-semibold mb-4 flex items-center gap-2" style={{ color: '#E5E7EB' }}>
+                  <h3 className="text-sm font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
                     <span className="w-1 h-4 rounded-full" style={{ backgroundColor: brandColor }} />
                     成本分类统计
                   </h3>
@@ -862,7 +862,7 @@ export default function CostPagePM() {
               <div className="flex items-center justify-center py-12">
                 <div className="flex items-center gap-3">
                   <RefreshCw className="w-5 h-5 animate-spin" style={{ color: brandColor }} />
-                  <span className="text-sm" style={{ color: '#9CA3AF' }}>正在加载成本数据...</span>
+                  <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>正在加载成本数据...</span>
                 </div>
               </div>
             )}
@@ -873,21 +873,21 @@ export default function CostPagePM() {
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
                 <div className="flex items-center gap-3 flex-wrap">
                   <div className="relative flex-1 min-w-[200px] max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B7280' }} />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
                     <input
                       type="text"
                       placeholder="搜索姓名或类别..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border focus:outline-none"
-                      style={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#E5E7EB' }}
+                      style={{ backgroundColor: 'var(--border)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
                     />
                   </div>
                   <select
                     value={categoryFilter}
                     onChange={(e) => setCategoryFilter(e.target.value)}
                     className="px-3 py-2 text-sm rounded-lg border focus:outline-none"
-                    style={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#E5E7EB' }}
+                    style={{ backgroundColor: 'var(--border)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
                   >
                     <option value="all">全部类别</option>
                     {COST_CATEGORIES.map((cat) => (
@@ -900,7 +900,7 @@ export default function CostPagePM() {
                 <button
                   onClick={exportCSV}
                   className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg font-medium transition hover:brightness-110 border"
-                  style={{ borderColor: '#374151', backgroundColor: 'transparent', color: '#E5E7EB' }}
+                  style={{ borderColor: 'var(--border)', backgroundColor: 'transparent', color: 'var(--foreground)' }}
                 >
                   <Download className="w-4 h-4" />
                   导出
@@ -908,23 +908,23 @@ export default function CostPagePM() {
               </div>
 
               {/* 表格 */}
-              <div className="rounded-xl overflow-hidden border" style={{ borderColor: '#1f2937' }}>
+              <div className="rounded-xl overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr style={{ backgroundColor: '#111827' }}>
-                        <th scope="col" className="p-3 text-left text-xs font-medium" style={{ color: '#6B7280' }}>类别</th>
-                        <th scope="col" className="p-3 text-left text-xs font-medium" style={{ color: '#6B7280' }}>姓名</th>
-                        <th scope="col" className="p-3 text-right text-xs font-medium w-[140px]" style={{ color: '#6B7280' }}>金额</th>
-                        <th scope="col" className="p-3 text-right text-xs font-medium w-[80px]" style={{ color: '#6B7280' }}>占比</th>
-                        <th scope="col" className="p-3 text-left text-xs font-medium" style={{ color: '#6B7280' }}>备注</th>
-                        <th scope="col" className="p-3 text-center text-xs font-medium w-[100px]" style={{ color: '#6B7280' }}>操作</th>
+                      <tr style={{ backgroundColor: 'var(--card)' }}>
+                        <th scope="col" className="p-3 text-left text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>类别</th>
+                        <th scope="col" className="p-3 text-left text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>姓名</th>
+                        <th scope="col" className="p-3 text-right text-xs font-medium w-[140px]" style={{ color: 'var(--muted-foreground)' }}>金额</th>
+                        <th scope="col" className="p-3 text-right text-xs font-medium w-[80px]" style={{ color: 'var(--muted-foreground)' }}>占比</th>
+                        <th scope="col" className="p-3 text-left text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>备注</th>
+                        <th scope="col" className="p-3 text-center text-xs font-medium w-[100px]" style={{ color: 'var(--muted-foreground)' }}>操作</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredRows.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="text-center py-12 text-sm" style={{ color: '#6B7280' }}>
+                          <td colSpan={6} className="text-center py-12 text-sm" style={{ color: 'var(--muted-foreground)' }}>
                             暂无成本数据
                           </td>
                         </tr>
@@ -938,19 +938,19 @@ export default function CostPagePM() {
                             <tr
                               key={row.id}
                               className="border-t transition"
-                              style={{ borderColor: '#1f2937' }}
+                              style={{ borderColor: 'var(--border)' }}
                               onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)'; }}
                               onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                             >
                               <td className="p-3">
                                 <div className="flex items-center gap-2">
-                                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: CATEGORY_ICONS[row.category]?.color || '#6B7280' }} />
-                                  <span className="text-xs font-medium" style={{ color: CATEGORY_ICONS[row.category]?.color || '#9CA3AF' }}>
+                                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: CATEGORY_ICONS[row.category]?.color || 'var(--muted-foreground)' }} />
+                                  <span className="text-xs font-medium" style={{ color: CATEGORY_ICONS[row.category]?.color || 'var(--muted-foreground)' }}>
                                     {config.label}成本
                                   </span>
                                 </div>
                               </td>
-                              <td className="p-3 font-medium" style={{ color: '#E5E7EB', fontSize: '14px' }}>
+                              <td className="p-3 font-medium" style={{ color: 'var(--foreground)', fontSize: '14px' }}>
                                 <span>{row.name}</span>
                                 {row.id.startsWith('fulltime-') && (() => {
                                   const idx = parseInt(row.id.replace('fulltime-', ''));
@@ -969,17 +969,17 @@ export default function CostPagePM() {
                               </td>
                               <td
                                 className="p-3 text-right font-medium"
-                                style={{ color: '#E5E7EB', fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}
+                                style={{ color: 'var(--foreground)', fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}
                               >
                                 {formatCurrency(row.amount)}
                               </td>
                               <td
                                 className="p-3 text-right text-xs"
-                                style={{ color: '#9CA3AF', fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}
+                                style={{ color: 'var(--muted-foreground)', fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}
                               >
                                 {ratio.toFixed(1)}%
                               </td>
-                              <td className="p-3 text-xs" style={{ color: '#9CA3AF' }}>
+                              <td className="p-3 text-xs" style={{ color: 'var(--muted-foreground)' }}>
                                 {row.remark || '—'}
                               </td>
                               <td className="p-3 text-center">
@@ -1014,9 +1014,9 @@ export default function CostPagePM() {
                 {filteredRows.length > 0 && (
                   <div
                     className="flex items-center justify-between px-4 py-3 border-t"
-                    style={{ backgroundColor: '#111827', borderColor: '#1f2937' }}
+                    style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
                   >
-                    <span className="text-xs" style={{ color: '#6B7280' }}>
+                    <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
                       共 {filteredRows.length} 条 · 第 1/1 页
                     </span>
                   </div>
@@ -1034,17 +1034,17 @@ export default function CostPagePM() {
           <div className="mt-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
               <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B7280' }} />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
                 <input
                   type="text"
                   placeholder="搜索..."
                   className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border focus:outline-none"
-                  style={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#E5E7EB' }}
+                  style={{ backgroundColor: 'var(--border)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
                 />
               </div>
               <button
                 className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg font-medium transition hover:brightness-110 border"
-                style={{ borderColor: '#374151', backgroundColor: 'transparent', color: '#E5E7EB' }}
+                style={{ borderColor: 'var(--border)', backgroundColor: 'transparent', color: 'var(--foreground)' }}
               >
                 <Download className="w-4 h-4" />
                 导出
@@ -1053,11 +1053,11 @@ export default function CostPagePM() {
 
             <div
               className="flex flex-col items-center justify-center py-20 rounded-xl"
-              style={{ backgroundColor: '#111827', border: '1px solid #1f2937' }}
+              style={{ backgroundColor: 'var(--card)', border: '1px solid #1f2937' }}
             >
               <span className="text-5xl mb-4">📭</span>
-              <p className="text-base font-medium mb-1" style={{ color: '#9CA3AF' }}>暂无收入记录</p>
-              <p className="text-xs" style={{ color: '#6B7280' }}>当前筛选条件下没有品牌服务费收入数据</p>
+              <p className="text-base font-medium mb-1" style={{ color: 'var(--muted-foreground)' }}>暂无收入记录</p>
+              <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>当前筛选条件下没有品牌服务费收入数据</p>
             </div>
           </div>
         )}
@@ -1080,11 +1080,11 @@ export default function CostPagePM() {
           <div className="mt-6">
             <div
               className="flex flex-col items-center justify-center py-20 rounded-xl"
-              style={{ backgroundColor: '#111827', border: '1px solid #1f2937' }}
+              style={{ backgroundColor: 'var(--card)', border: '1px solid #1f2937' }}
             >
               <span className="text-5xl mb-4">📊</span>
-              <p className="text-base font-medium mb-1" style={{ color: '#9CA3AF' }}>利润率看板</p>
-              <p className="text-xs" style={{ color: '#6B7280' }}>功能开发中...</p>
+              <p className="text-base font-medium mb-1" style={{ color: 'var(--muted-foreground)' }}>利润率看板</p>
+              <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>功能开发中...</p>
             </div>
           </div>
         )}
@@ -1109,12 +1109,12 @@ function CategoryCardV2({
     <div
       className="rounded-xl p-4 transition-all duration-200 hover:-translate-y-0.5"
       style={{
-        backgroundColor: '#111827',
-        border: `1px solid ${isZero ? '#1f2937' : (iconInfo?.color || '#1f2937') + '30'}`,
+        backgroundColor: 'var(--card)',
+        border: isZero ? '1px solid var(--border)' : `1px solid ${(iconInfo?.color || '#374151') + '30'}`,
         opacity: isZero ? 0.5 : 1,
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1a2236'; }}
-      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#111827'; }}
+      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--accent)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--card)'; }}
     >
       {/* 图标 + 分类名称 + 人数 */}
       <div className="flex items-start gap-3 mb-4">
@@ -1125,8 +1125,8 @@ function CategoryCardV2({
           {iconInfo?.icon}
         </div>
         <div>
-          <div className="text-sm font-medium" style={{ color: '#E5E7EB' }}>{item.label}</div>
-          <div className="text-xs" style={{ color: '#9CA3AF' }}>
+          <div className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{item.label}</div>
+          <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
             {item.key === '日常物料成本' || item.key === '其它成本' ? `${item.count}项` : `${item.count}人`}
           </div>
         </div>
@@ -1135,25 +1135,25 @@ function CategoryCardV2({
       {/* 大金额数字 */}
       <div
         className="text-2xl font-bold mb-3"
-        style={{ color: isZero ? '#4B5563' : '#E5E7EB', fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}
+        style={{ color: isZero ? 'var(--muted-foreground)' : 'var(--foreground)', fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}
       >
         {formatCurrency(item.cost)}
       </div>
 
       {/* 进度条 + 占比 */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: '#1f2937' }}>
+        <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--border)' }}>
           <div
             className="h-full rounded-full transition-all duration-500"
             style={{
               width: `${Math.min(pct, 100)}%`,
-              backgroundColor: iconInfo?.color || '#6B7280',
+              backgroundColor: iconInfo?.color || 'var(--muted-foreground)',
             }}
           />
         </div>
         <div className="flex items-center gap-1 text-xs flex-shrink-0">
-          <span style={{ color: '#9CA3AF' }}>占比</span>
-          <span style={{ color: '#E5E7EB', fontFamily: '"SF Mono", "Fira Code", monospace', fontSize: '12px' }}>
+          <span style={{ color: 'var(--muted-foreground)' }}>占比</span>
+          <span style={{ color: 'var(--foreground)', fontFamily: '"SF Mono", "Fira Code", monospace', fontSize: '12px' }}>
             {pct > 0 ? pct.toFixed(1) : '0'}%
           </span>
         </div>
@@ -1215,10 +1215,10 @@ function DonutChartV2({
   return (
     <div
       className="rounded-xl p-6 flex flex-col"
-      style={{ backgroundColor: '#111827', border: '1px solid #1f2937' }}
+      style={{ backgroundColor: 'var(--card)', border: '1px solid #1f2937' }}
     >
       {/* 标题 */}
-      <h3 className="text-sm font-semibold mb-6 flex items-center gap-2" style={{ color: '#E5E7EB' }}>
+      <h3 className="text-sm font-semibold mb-6 flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
         <span className="w-1 h-4 rounded-full" style={{ backgroundColor: brandColor }} />
         成本占比分布
       </h3>
@@ -1245,8 +1245,8 @@ function DonutChartV2({
           {segments.map((seg) => (
             <div key={seg.key} className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: seg.color }} />
-              <span className="text-xs" style={{ color: '#9CA3AF' }}>{seg.label}</span>
-              <span className="text-xs font-medium" style={{ color: '#E5E7EB' }}>{seg.pct}%</span>
+              <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{seg.label}</span>
+              <span className="text-xs font-medium" style={{ color: 'var(--foreground)' }}>{seg.pct}%</span>
             </div>
           ))}
         </div>
@@ -1272,11 +1272,11 @@ const KPITab = memo(function KPITab({
       <div className="mt-6">
         <div
           className="flex flex-col items-center justify-center py-20 rounded-xl"
-          style={{ backgroundColor: '#111827', border: '1px solid #1f2937' }}
+          style={{ backgroundColor: 'var(--card)', border: '1px solid #1f2937' }}
         >
           <span className="text-5xl mb-4"></span>
-          <p className="text-base font-medium mb-1" style={{ color: '#9CA3AF' }}>KPI 管理模块</p>
-          <p className="text-xs" style={{ color: '#6B7280' }}>功能开发中...</p>
+          <p className="text-base font-medium mb-1" style={{ color: 'var(--muted-foreground)' }}>KPI 管理模块</p>
+          <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>功能开发中...</p>
         </div>
       </div>
     );
@@ -1298,11 +1298,11 @@ const KPITab = memo(function KPITab({
           <div
             key={kpi.id}
             className="rounded-xl p-5"
-            style={{ backgroundColor: '#111827', border: '1px solid #1f2937' }}
+            style={{ backgroundColor: 'var(--card)', border: '1px solid #1f2937' }}
           >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <span className="text-sm font-medium" style={{ color: '#E5E7EB' }}>
+                <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                   {account?.name || kpi.accountId}
                 </span>
                 {kpi.isDeducted ? (
@@ -1326,7 +1326,7 @@ const KPITab = memo(function KPITab({
               <button
                 onClick={() => onToggleDeduction(kpi)}
                 className="text-xs px-3 py-1.5 rounded-lg border transition hover:opacity-80"
-                style={{ borderColor: '#374151', color: '#9CA3AF' }}
+                style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
               >
                 切换达标状态
               </button>
@@ -1340,19 +1340,19 @@ const KPITab = memo(function KPITab({
                   <div
                     key={m.label}
                     className="rounded-lg p-3 text-center"
-                    style={{ backgroundColor: '#0B0F19' }}
+                    style={{ backgroundColor: 'var(--background)' }}
                   >
-                    <p className="text-[10px] mb-1" style={{ color: '#6B7280' }}>{m.label}</p>
+                    <p className="text-[10px] mb-1" style={{ color: 'var(--muted-foreground)' }}>{m.label}</p>
                     <p
                       className="text-lg font-bold"
                       style={{ color: passed ? '#10B981' : '#EF4444' }}
                     >
                       {m.actual}{m.unit}
                     </p>
-                    <p className="text-[10px] mt-0.5" style={{ color: '#4B5563' }}>
+                    <p className="text-[10px] mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
                       目标 {m.target}{m.unit}
                     </p>
-                    <div className="mt-2 h-1 rounded-full overflow-hidden" style={{ backgroundColor: '#1f2937' }}>
+                    <div className="mt-2 h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--border)' }}>
                       <div
                         className="h-full rounded-full transition-all"
                         style={{
@@ -1377,11 +1377,11 @@ function RulesSection({ rules }: { rules: string }) {
   const [expanded, setExpanded] = useState(false);
   if (!rules || !rules.trim()) return null;
   return (
-    <div className="mt-4 rounded-xl overflow-hidden" style={{ backgroundColor: '#111827', border: '1px solid #1f2937' }}>
+    <div className="mt-4 rounded-xl overflow-hidden" style={{ backgroundColor: 'var(--card)', border: '1px solid #1f2937' }}>
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-2 px-4 py-3 text-left transition hover:bg-white/[0.02]"
-        style={{ color: '#9CA3AF' }}
+        style={{ color: 'var(--muted-foreground)' }}
       >
         <span style={{ fontSize: 12, transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▶</span>
         <span style={{ fontSize: 14 }}>计算规则说明</span>
@@ -1391,7 +1391,7 @@ function RulesSection({ rules }: { rules: string }) {
           className="px-4 pb-4"
           style={{
             fontSize: 13,
-            color: '#6B7280',
+            color: 'var(--muted-foreground)',
             lineHeight: 1.6,
             whiteSpace: 'pre-wrap',
             padding: '0 12px 12px 12px',

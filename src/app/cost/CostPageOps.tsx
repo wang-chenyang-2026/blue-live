@@ -92,9 +92,9 @@ const CATEGORY_CONFIG: Record<string, {
     label: '日常物料',
     icon: <Package className="w-4 h-4" />,
     bg: 'rgba(107,114,128,0.15)',
-    text: '#6B7280',
+    text: 'var(--muted-foreground)',
     tagBg: 'rgba(107,114,128,0.15)',
-    tagText: '#6B7280',
+    tagText: 'var(--muted-foreground)',
     dimKey: 'purchase',
   },
   '设计费分摊': {
@@ -110,9 +110,9 @@ const CATEGORY_CONFIG: Record<string, {
     label: '其它',
     icon: <MoreHorizontal className="w-4 h-4" />,
     bg: 'rgba(107,114,128,0.1)',
-    text: '#6B7280',
+    text: 'var(--muted-foreground)',
     tagBg: 'rgba(107,114,128,0.1)',
-    tagText: '#6B7280',
+    tagText: 'var(--muted-foreground)',
   },
 };
 
@@ -488,18 +488,18 @@ export default function CostPageOps() {
   // 加载状态骨架
   if (!isClient || !selectedMonth || !startDate) {
     return (
-      <div className="min-h-screen" style={{ backgroundColor: '#0B0F19' }}>
+      <div className="min-h-screen" style={{ backgroundColor: 'var(--background)' }}>
         <div className="p-6 space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <div className="h-8 w-40 rounded" style={{ backgroundColor: '#1f2937' }} />
-              <div className="h-4 w-60 rounded mt-2" style={{ backgroundColor: '#1f2937' }} />
+              <div className="h-8 w-40 rounded" style={{ backgroundColor: 'var(--border)' }} />
+              <div className="h-4 w-60 rounded mt-2" style={{ backgroundColor: 'var(--border)' }} />
             </div>
           </div>
-          <div className="h-44 rounded-2xl animate-pulse" style={{ backgroundColor: '#111827' }} />
+          <div className="h-44 rounded-2xl animate-pulse" style={{ backgroundColor: 'var(--card)' }} />
           <div className="grid grid-cols-3 gap-4">
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="h-28 rounded-xl animate-pulse" style={{ backgroundColor: '#111827' }} />
+              <div key={i} className="h-28 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--card)' }} />
             ))}
           </div>
         </div>
@@ -508,12 +508,12 @@ export default function CostPageOps() {
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-6 space-y-6" style={{ backgroundColor: '#0B0F19' }}>
+    <div className="min-h-screen p-4 md:p-6 space-y-6" style={{ backgroundColor: 'var(--background)' }}>
       {/* ===== 1. 顶部筛选栏 ===== */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: '#E5E7EB' }}>成本核算</h1>
-          <p className="text-sm mt-1" style={{ color: '#9CA3AF' }}>六大成本项与KPI扣减分析</p>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>成本核算</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>六大成本项与KPI扣减分析</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* 快捷按钮 */}
@@ -524,7 +524,7 @@ export default function CostPageOps() {
               setQuickRange('7d');
             }}
             className="px-3 py-1.5 text-xs rounded-lg border transition"
-            style={quickRange === '7d' ? { borderColor: '#4158D0', color: '#4158D0', backgroundColor: '#4158D015' } : { borderColor: '#374151', color: '#9CA3AF', backgroundColor: 'transparent' }}
+            style={quickRange === '7d' ? { borderColor: '#4158D0', color: '#4158D0', backgroundColor: '#4158D015' } : { borderColor: 'var(--border)', color: 'var(--muted-foreground)', backgroundColor: 'transparent' }}
           >
             近7天
           </button>
@@ -536,7 +536,7 @@ export default function CostPageOps() {
               setQuickRange('month');
             }}
             className="px-3 py-1.5 text-xs rounded-lg border transition"
-            style={quickRange === 'month' ? { borderColor: '#4158D0', color: '#4158D0', backgroundColor: '#4158D015' } : { borderColor: '#374151', color: '#9CA3AF', backgroundColor: 'transparent' }}
+            style={quickRange === 'month' ? { borderColor: '#4158D0', color: '#4158D0', backgroundColor: '#4158D015' } : { borderColor: 'var(--border)', color: 'var(--muted-foreground)', backgroundColor: 'transparent' }}
           >
             本月
           </button>
@@ -546,15 +546,15 @@ export default function CostPageOps() {
             value={startDate}
             onChange={(e) => { setStartDate(e.target.value); setQuickRange(''); }}
             className="bg-transparent border rounded-lg px-3 py-1.5 text-sm focus:outline-none"
-            style={{ borderColor: '#374151', color: '#E5E7EB' }}
+            style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
           />
-          <span style={{ color: '#4B5563' }}>~</span>
+          <span style={{ color: 'var(--muted-foreground)' }}>~</span>
           <input
             type="date"
             value={endDate}
             onChange={(e) => { setEndDate(e.target.value); setQuickRange(''); }}
             className="bg-transparent border rounded-lg px-3 py-1.5 text-sm focus:outline-none"
-            style={{ borderColor: '#374151', color: '#E5E7EB' }}
+            style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
           />
           {/* 刷新按钮 */}
           <button
@@ -585,7 +585,7 @@ export default function CostPageOps() {
                 style={
                   activeBrand === b.id
                     ? { backgroundColor: b.color + '20', color: b.color, borderColor: b.color + '40' }
-                    : { borderColor: '#374151', color: '#9CA3AF' }
+                    : { borderColor: 'var(--border)', color: 'var(--muted-foreground)' }
                 }
               >
                 {b.name}
@@ -611,8 +611,8 @@ export default function CostPageOps() {
         <div className="relative grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
           {/* 左：总成本 */}
           <div>
-            <p className="text-xs mb-1" style={{ color: '#9CA3AF' }}>总成本</p>
-            <p className="font-bold" style={{ color: '#E5E7EB', fontSize: '52px', lineHeight: 1.1 }}>
+            <p className="text-xs mb-1" style={{ color: 'var(--muted-foreground)' }}>总成本</p>
+            <p className="font-bold" style={{ color: 'var(--foreground)', fontSize: '52px', lineHeight: 1.1 }}>
               {formatCurrency(feishuData?.totalCost ?? 0)}
             </p>
             <div className="flex items-center gap-2 mt-2">
@@ -625,7 +625,7 @@ export default function CostPageOps() {
               >
                 {momChange >= 0 ? '↑' : '↓'} {Math.abs(momChange).toFixed(1)}%
               </span>
-              <span className="text-xs" style={{ color: '#6B7280' }}>环比上月</span>
+              <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>环比上月</span>
             </div>
           </div>
 
@@ -633,24 +633,24 @@ export default function CostPageOps() {
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-4">
               <div className="text-center">
-                <p className="text-2xl font-bold" style={{ color: '#E5E7EB' }}>
+                <p className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
                   {categoryData.filter((c) => c.cost > 0).length}
                 </p>
-                <p className="text-xs" style={{ color: '#6B7280' }}>成本分类</p>
+                <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>成本分类</p>
               </div>
-              <div className="w-px h-8" style={{ backgroundColor: '#374151' }} />
+              <div className="w-px h-8" style={{ backgroundColor: 'var(--border)' }} />
               <div className="text-center">
-                <p className="text-2xl font-bold" style={{ color: '#E5E7EB' }}>
+                <p className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
                   {totalPeople}
                 </p>
-                <p className="text-xs" style={{ color: '#6B7280' }}>人涉及</p>
+                <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>人涉及</p>
               </div>
-              <div className="w-px h-8" style={{ backgroundColor: '#374151' }} />
+              <div className="w-px h-8" style={{ backgroundColor: 'var(--border)' }} />
               <div className="text-center">
-                <p className="text-2xl font-bold" style={{ color: '#E5E7EB' }}>
+                <p className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
                   {dayCount}
                 </p>
-                <p className="text-xs" style={{ color: '#6B7280' }}>天周期</p>
+                <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>天周期</p>
               </div>
             </div>
             {/* 品牌成本分布小标签 */}
@@ -662,7 +662,7 @@ export default function CostPageOps() {
                     className="text-[10px] px-2 py-0.5 rounded-full"
                     style={{
                       backgroundColor: (BRAND_COLORS[brand.toLowerCase()] || '#6B7280') + '15',
-                      color: BRAND_COLORS[brand.toLowerCase()] || '#6B7280',
+                      color: BRAND_COLORS[brand.toLowerCase()] || 'var(--muted-foreground)',
                       border: `1px solid ${(BRAND_COLORS[brand.toLowerCase()] || '#6B7280')}30`,
                     }}
                   >
@@ -675,7 +675,7 @@ export default function CostPageOps() {
 
           {/* 右：迷你趋势折线图（SVG mock） */}
           <div>
-            <p className="text-xs mb-2" style={{ color: '#6B7280' }}>近4周趋势</p>
+            <p className="text-xs mb-2" style={{ color: 'var(--muted-foreground)' }}>近4周趋势</p>
             <MiniTrendChart data={MOCK_TREND} color={brandColor} />
           </div>
         </div>
@@ -687,7 +687,7 @@ export default function CostPageOps() {
           {/* 左栏：SVG 环形图 */}
           <div
             className="lg:col-span-2 rounded-2xl p-6 flex flex-col items-center justify-center"
-            style={{ backgroundColor: '#111827', border: '1px solid #1f2937' }}
+            style={{ backgroundColor: 'var(--card)', border: '1px solid #1f2937' }}
           >
             <DonutChart data={categoryData} brandColor={brandColor} total={feishuData.totalCost} />
           </div>
@@ -708,18 +708,18 @@ export default function CostPageOps() {
         <div className="flex items-center justify-center py-12">
           <div className="flex items-center gap-3">
             <RefreshCw className="w-5 h-5 animate-spin" style={{ color: brandColor }} />
-            <span className="text-sm" style={{ color: '#9CA3AF' }}>正在加载成本数据...</span>
+            <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>正在加载成本数据...</span>
           </div>
         </div>
       )}
 
       {/* ===== 4. Tab 切换 ===== */}
       <div className="relative">
-        <div className="flex items-center gap-1 border-b" style={{ borderColor: '#1f2937' }}>
+        <div className="flex items-center gap-1 border-b" style={{ borderColor: 'var(--border)' }}>
           <button
             onClick={() => setActiveTab('cost')}
             className="relative px-4 py-3 text-sm font-medium transition"
-            style={{ color: activeTab === 'cost' ? '#E5E7EB' : '#6B7280' }}
+            style={{ color: activeTab === 'cost' ? 'var(--foreground)' : 'var(--muted-foreground)' }}
           >
             成本明细
             {activeTab === 'cost' && (
@@ -732,7 +732,7 @@ export default function CostPageOps() {
           <button
             onClick={() => setActiveTab('kpi')}
             className="relative px-4 py-3 text-sm font-medium transition"
-            style={{ color: activeTab === 'kpi' ? '#E5E7EB' : '#6B7280' }}
+            style={{ color: activeTab === 'kpi' ? 'var(--foreground)' : 'var(--muted-foreground)' }}
           >
             KPI管理
             {activeTab === 'kpi' && (
@@ -751,14 +751,14 @@ export default function CostPageOps() {
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
               {/* 搜索框 */}
               <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6B7280' }} />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
                 <input
                   type="text"
                   placeholder="搜索姓名、类别..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border focus:outline-none"
-                  style={{ backgroundColor: '#111827', borderColor: '#374151', color: '#E5E7EB' }}
+                  style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
                 />
               </div>
               {/* 类别筛选 */}
@@ -766,7 +766,7 @@ export default function CostPageOps() {
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
                 className="px-3 py-2 text-sm rounded-lg border focus:outline-none"
-                style={{ backgroundColor: '#111827', borderColor: '#374151', color: '#E5E7EB' }}
+                style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
               >
                 <option value="all">全部类别</option>
                 {COST_CATEGORIES.map((cat) => (
@@ -789,12 +789,12 @@ export default function CostPageOps() {
             {/* 表格 */}
             <div
               className="rounded-xl overflow-hidden border"
-              style={{ borderColor: '#1f2937' }}
+              style={{ borderColor: 'var(--border)' }}
             >
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr style={{ backgroundColor: '#111827' }}>
+                    <tr style={{ backgroundColor: 'var(--card)' }}>
                       <th className="p-3 text-left w-10">
                         <input
                           type="checkbox"
@@ -804,18 +804,18 @@ export default function CostPageOps() {
                           style={{ accentColor: brandColor }}
                         />
                       </th>
-                      <th className="p-3 text-left text-xs font-medium" style={{ color: '#6B7280' }}>类别</th>
-                      <th className="p-3 text-left text-xs font-medium" style={{ color: '#6B7280' }}>姓名</th>
-                      <th className="p-3 text-right text-xs font-medium" style={{ color: '#6B7280' }}>金额</th>
-                      <th className="p-3 text-left text-xs font-medium hidden md:table-cell" style={{ color: '#6B7280' }}>占比</th>
-                      <th className="p-3 text-left text-xs font-medium hidden lg:table-cell" style={{ color: '#6B7280' }}>备注</th>
-                      <th className="p-3 text-center text-xs font-medium" style={{ color: '#6B7280' }}>操作</th>
+                      <th className="p-3 text-left text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>类别</th>
+                      <th className="p-3 text-left text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>姓名</th>
+                      <th className="p-3 text-right text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>金额</th>
+                      <th className="p-3 text-left text-xs font-medium hidden md:table-cell" style={{ color: 'var(--muted-foreground)' }}>占比</th>
+                      <th className="p-3 text-left text-xs font-medium hidden lg:table-cell" style={{ color: 'var(--muted-foreground)' }}>备注</th>
+                      <th className="p-3 text-center text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>操作</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredRows.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="text-center py-12 text-sm" style={{ color: '#6B7280' }}>
+                        <td colSpan={7} className="text-center py-12 text-sm" style={{ color: 'var(--muted-foreground)' }}>
                           暂无成本数据
                         </td>
                       </tr>
@@ -829,7 +829,7 @@ export default function CostPageOps() {
                           <tr
                             key={row.id}
                             className="border-t transition hover:bg-white/[0.02]"
-                            style={{ borderColor: '#1f2937' }}
+                            style={{ borderColor: 'var(--border)' }}
                           >
                             <td className="p-3">
                               <input
@@ -848,7 +848,7 @@ export default function CostPageOps() {
                                 {config.label}
                               </span>
                             </td>
-                            <td className="p-3 font-medium" style={{ color: '#E5E7EB' }}>
+                            <td className="p-3 font-medium" style={{ color: 'var(--foreground)' }}>
                               {row.name}
                               {row.id.startsWith('fulltime-') && (() => {
                                 const idx = parseInt(row.id.replace('fulltime-', ''));
@@ -866,23 +866,23 @@ export default function CostPageOps() {
                                 );
                               })()}
                             </td>
-                            <td className="p-3 text-right font-mono font-medium" style={{ color: '#E5E7EB' }}>
+                            <td className="p-3 text-right font-mono font-medium" style={{ color: 'var(--foreground)' }}>
                               {formatCurrency(row.amount)}
                             </td>
                             <td className="p-3 hidden md:table-cell">
                               <div className="flex items-center gap-2">
-                                <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: '#1f2937' }}>
+                                <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--border)' }}>
                                   <div
                                     className="h-full rounded-full"
                                     style={{ width: `${Math.min(ratio, 100)}%`, backgroundColor: config.text }}
                                   />
                                 </div>
-                                <span className="text-xs w-12 text-right" style={{ color: '#6B7280' }}>
+                                <span className="text-xs w-12 text-right" style={{ color: 'var(--muted-foreground)' }}>
                                   {ratio.toFixed(1)}%
                                 </span>
                               </div>
                             </td>
-                            <td className="p-3 text-xs hidden lg:table-cell" style={{ color: '#6B7280' }}>
+                            <td className="p-3 text-xs hidden lg:table-cell" style={{ color: 'var(--muted-foreground)' }}>
                               {row.remark || '—'}
                             </td>
                             <td className="p-3 text-center">
@@ -908,13 +908,13 @@ export default function CostPageOps() {
               {filteredRows.length > 0 && (
                 <div
                   className="flex items-center justify-between px-4 py-3 border-t"
-                  style={{ backgroundColor: '#111827', borderColor: '#1f2937' }}
+                  style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
                 >
-                  <span className="text-xs" style={{ color: '#6B7280' }}>
+                  <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
                     共 {filteredRows.length} 条记录
                     {selectedRows.size > 0 && ` · 已选 ${selectedRows.size} 条`}
                   </span>
-                  <span className="text-sm font-bold" style={{ color: '#E5E7EB' }}>
+                  <span className="text-sm font-bold" style={{ color: 'var(--foreground)' }}>
                     合计 {formatCurrency(filteredRows.reduce((s, r) => s + r.amount, 0))}
                   </span>
                 </div>
@@ -1051,10 +1051,10 @@ function DonutChart({
         {validData.map((item) => (
           <div key={item.key} className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.config.text }} />
-            <span className="text-xs" style={{ color: '#9CA3AF' }}>
+            <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
               {item.label}
             </span>
-            <span className="text-xs ml-auto" style={{ color: '#E5E7EB' }}>
+            <span className="text-xs ml-auto" style={{ color: 'var(--foreground)' }}>
               {((item.cost / total) * 100).toFixed(0)}%
             </span>
           </div>
@@ -1081,8 +1081,8 @@ function CategoryCard({
     <div
       className="rounded-xl p-4 transition-all hover:scale-[1.01]"
       style={{
-        backgroundColor: '#111827',
-        border: `1px solid ${isZero ? '#1f2937' : item.config.text + '30'}`,
+        backgroundColor: 'var(--card)',
+        border: isZero ? '1px solid var(--border)' : `1px solid ${item.config.text}30`,
       }}
     >
       <div className="flex items-center justify-between mb-3">
@@ -1093,7 +1093,7 @@ function CategoryCard({
           >
             {item.config.icon}
           </div>
-          <span className="text-sm font-medium" style={{ color: '#9CA3AF' }}>
+          <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>
             {item.label}
           </span>
         </div>
@@ -1101,19 +1101,19 @@ function CategoryCard({
           {pct.toFixed(1)}%
         </span>
       </div>
-      <div className="text-xl font-bold mb-1" style={{ color: isZero ? '#4B5563' : '#E5E7EB' }}>
+      <div className="text-xl font-bold mb-1" style={{ color: isZero ? 'var(--muted-foreground)' : 'var(--foreground)' }}>
         {isZero ? '—' : formatCurrency(item.cost)}
       </div>
-      <div className="text-xs mb-3" style={{ color: '#6B7280' }}>
+      <div className="text-xs mb-3" style={{ color: 'var(--muted-foreground)' }}>
         {isZero ? '暂无数据' : `${item.count} 人`}
       </div>
       {/* 进度条 */}
-      <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: '#1f2937' }}>
+      <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--border)' }}>
         <div
           className="h-full rounded-full transition-all duration-500"
           style={{
             width: `${Math.min(pct, 100)}%`,
-            backgroundColor: isZero ? '#374151' : brandColor,
+            backgroundColor: isZero ? 'var(--border)' : brandColor,
           }}
         />
       </div>
@@ -1136,11 +1136,11 @@ const KPITab = memo(function KPITab({
   if (kpis.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
-        <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: '#1f2937' }}>
-          <CheckCircle2 className="w-8 h-8" style={{ color: '#4B5563' }} />
+        <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: 'var(--border)' }}>
+          <CheckCircle2 className="w-8 h-8" style={{ color: 'var(--muted-foreground)' }} />
         </div>
-        <p className="text-sm" style={{ color: '#6B7280' }}>暂无KPI数据</p>
-        <p className="text-xs mt-1" style={{ color: '#4B5563' }}>请在系统中录入KPI指标数据</p>
+        <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>暂无KPI数据</p>
+        <p className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>请在系统中录入KPI指标数据</p>
       </div>
     );
   }
@@ -1161,12 +1161,12 @@ const KPITab = memo(function KPITab({
           <div
             key={kpi.id}
             className="rounded-xl p-5"
-            style={{ backgroundColor: '#111827', border: '1px solid #1f2937' }}
+            style={{ backgroundColor: 'var(--card)', border: '1px solid #1f2937' }}
           >
             {/* 头部 */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <span className="text-sm font-medium" style={{ color: '#E5E7EB' }}>
+                <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                   {account?.name || kpi.accountId}
                 </span>
                 {kpi.isDeducted ? (
@@ -1190,7 +1190,7 @@ const KPITab = memo(function KPITab({
               <button
                 onClick={() => onToggleDeduction(kpi)}
                 className="text-xs px-3 py-1.5 rounded-lg border transition hover:opacity-80"
-                style={{ borderColor: '#374151', color: '#9CA3AF' }}
+                style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
               >
                 切换达标状态
               </button>
@@ -1205,20 +1205,20 @@ const KPITab = memo(function KPITab({
                   <div
                     key={m.label}
                     className="rounded-lg p-3 text-center"
-                    style={{ backgroundColor: '#0B0F19' }}
+                    style={{ backgroundColor: 'var(--background)' }}
                   >
-                    <p className="text-[10px] mb-1" style={{ color: '#6B7280' }}>{m.label}</p>
+                    <p className="text-[10px] mb-1" style={{ color: 'var(--muted-foreground)' }}>{m.label}</p>
                     <p
                       className="text-lg font-bold"
                       style={{ color: passed ? '#10B981' : '#EF4444' }}
                     >
                       {m.actual}{m.unit}
                     </p>
-                    <p className="text-[10px] mt-0.5" style={{ color: '#4B5563' }}>
+                    <p className="text-[10px] mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
                       目标 {m.target}{m.unit}
                     </p>
                     {/* 微型进度条 */}
-                    <div className="mt-2 h-1 rounded-full overflow-hidden" style={{ backgroundColor: '#1f2937' }}>
+                    <div className="mt-2 h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--border)' }}>
                       <div
                         className="h-full rounded-full transition-all"
                         style={{
@@ -1241,11 +1241,11 @@ const KPITab = memo(function KPITab({
 function RulesSection({ rules }: { rules: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="mt-4 rounded-xl border" style={{ borderColor: '#1f2937', backgroundColor: '#0B0F19' }}>
+    <div className="mt-4 rounded-xl border" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--background)' }}>
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center gap-2 px-4 py-3 text-left"
-        style={{ color: '#9CA3AF' }}
+        style={{ color: 'var(--muted-foreground)' }}
       >
         <span style={{ fontSize: 12, transition: 'transform 0.2s', transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}>
           ▶
@@ -1257,7 +1257,7 @@ function RulesSection({ rules }: { rules: string }) {
           style={{
             padding: 12,
             fontSize: 13,
-            color: '#6B7280',
+            color: 'var(--muted-foreground)',
             lineHeight: 1.6,
             whiteSpace: 'pre-wrap',
             borderTop: '1px solid #1f2937',

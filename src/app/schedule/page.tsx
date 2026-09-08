@@ -228,14 +228,14 @@ export default function SchedulePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0B0F19] text-[#E5E7EB] p-6">
+    <div className="min-h-screen bg-background text-foreground p-6">
       {/* 标题行：标题 + 品牌Tab + 角色Toggle */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
         <h1 className="text-2xl font-bold">主播排班管理</h1>
         
         <div className="flex items-center gap-4">
           {/* 品牌切换 Tab */}
-          <div className="flex items-center bg-[#111827] rounded-lg p-1">
+          <div className="flex items-center bg-card rounded-lg p-1">
             {availableBrands.map((b) => (
               <button
                 key={b.id}
@@ -243,7 +243,7 @@ export default function SchedulePage() {
                 className={`px-4 py-1.5 text-sm rounded-md transition ${
                   brand === b.id
                     ? 'bg-[#4158D0] text-white'
-                    : 'text-[#9CA3AF] hover:text-white'
+                    : 'text-muted-foreground hover:text-white'
                 }`}
               >
                 {b.label}
@@ -252,13 +252,13 @@ export default function SchedulePage() {
           </div>
 
           {/* 角色切换 Toggle */}
-          <div className="flex items-center bg-[#111827] rounded-lg p-1">
+          <div className="flex items-center bg-card rounded-lg p-1">
             <button
               onClick={() => setRole('anchor')}
               className={`px-4 py-1.5 text-sm rounded-md transition ${
                 role === 'anchor'
                   ? 'bg-[#7B61FF] text-white'
-                  : 'text-[#9CA3AF] hover:text-white'
+                  : 'text-muted-foreground hover:text-white'
               }`}
             >
               主播
@@ -268,7 +268,7 @@ export default function SchedulePage() {
               className={`px-4 py-1.5 text-sm rounded-md transition ${
                 role === 'control'
                   ? 'bg-[#7B61FF] text-white'
-                  : 'text-[#9CA3AF] hover:text-white'
+                  : 'text-muted-foreground hover:text-white'
               }`}
             >
               中控
@@ -279,23 +279,23 @@ export default function SchedulePage() {
 
       {/* ===== 日期区间选择器 ===== */}
       <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <span className="text-sm text-[#9CA3AF]">日期范围</span>
+        <span className="text-sm text-muted-foreground">日期范围</span>
         <input
           type="date"
           value={startDate}
           onChange={e => setStartDate(e.target.value)}
-          className="bg-[#111827] border border-[#1F2937] rounded-lg px-3 py-2 text-sm text-[#E5E7EB] focus:border-[#4158D0] focus:outline-none"
+          className="bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-[#4158D0] focus:outline-none"
         />
-        <span className="text-[#9CA3AF]">~</span>
+        <span className="text-muted-foreground">~</span>
         <input
           type="date"
           value={endDate}
           onChange={e => setEndDate(e.target.value)}
-          className="bg-[#111827] border border-[#1F2937] rounded-lg px-3 py-2 text-sm text-[#E5E7EB] focus:border-[#4158D0] focus:outline-none"
+          className="bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-[#4158D0] focus:outline-none"
         />
         <button
           onClick={() => { setStartDate(getDaysAgo(6)); setEndDate(getToday()); }}
-          className="px-3 py-2 text-xs rounded-lg bg-[#111827] border border-[#1F2937] text-zinc-300 hover:bg-zinc-700 transition"
+          className="px-3 py-2 text-xs rounded-lg bg-card border border-border text-zinc-300 hover:bg-zinc-700 transition"
         >近7天</button>
         <button
           onClick={() => {
@@ -305,7 +305,7 @@ export default function SchedulePage() {
             setStartDate(`${y}-${String(m + 1).padStart(2, '0')}-01`);
             setEndDate(getToday());
           }}
-          className="px-3 py-2 text-xs rounded-lg bg-[#111827] border border-[#1F2937] text-zinc-300 hover:bg-zinc-700 transition"
+          className="px-3 py-2 text-xs rounded-lg bg-card border border-border text-zinc-300 hover:bg-zinc-700 transition"
         >本月</button>
         <button
           onClick={() => fetchSchedule(startDate, endDate, brand, role)}
@@ -314,11 +314,11 @@ export default function SchedulePage() {
 
         {/* 人员筛选 */}
         <div className="flex items-center gap-2 ml-4">
-          <span className="text-sm text-[#9CA3AF]">{roleLabel}筛选</span>
+          <span className="text-sm text-muted-foreground">{roleLabel}筛选</span>
           <select
             value={selectedPerson}
             onChange={e => setSelectedPerson(e.target.value)}
-            className="bg-[#111827] border border-[#1F2937] rounded-lg px-3 py-2 text-sm text-[#E5E7EB] focus:border-[#4158D0] focus:outline-none min-w-[140px]"
+            className="bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-[#4158D0] focus:outline-none min-w-[140px]"
           >
             <option value="全部">全部{roleLabel}</option>
             {allPersons.map((name: string) => (
@@ -363,7 +363,7 @@ export default function SchedulePage() {
       )}
 
       {/* ===== 页脚 ===== */}
-      <div className="text-center mt-8 text-xs text-[#4B5563]">
+      <div className="text-center mt-8 text-xs text-muted-foreground">
         © 2026 Blue直播 · 排班管理系统
       </div>
     </div>
@@ -373,14 +373,14 @@ export default function SchedulePage() {
 // ===== 汇总卡片 =====
 function StatCard({ label, value, suffix, color }: { label: string; value: number; suffix: string; color: string }) {
   return (
-    <div className="bg-[#111827] rounded-xl p-4 border border-[#1F2937] hover:border-zinc-600/50 transition">
-      <div className="flex items-center gap-1.5 text-xs text-[#9CA3AF] mb-1">
+    <div className="bg-card rounded-xl p-4 border border-border hover:border-zinc-600/50 transition">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
         <span className="inline-block w-2 h-2 rounded-full" style={{ background: color }} />
         <span>{label}</span>
       </div>
       <div className="flex items-baseline gap-1">
         <span className="text-2xl font-bold text-white">{value}</span>
-        <span className="text-xs text-[#9CA3AF]">{suffix}</span>
+        <span className="text-xs text-muted-foreground">{suffix}</span>
       </div>
     </div>
   );
@@ -414,12 +414,12 @@ function DateGroup({
   }) || dateItem.accounts.filter(a => (a.stats?.personCount || 0) > 0).length >= 3;
 
   return (
-    <article className="bg-[#111827] rounded-xl border border-[#1F2937] overflow-hidden">
+    <article className="bg-card rounded-xl border border-border overflow-hidden">
       {/* 标题行 */}
       <header className="px-5 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-lg font-semibold text-[#E5E7EB]">{month}月{day}日</span>
-          <span className="text-sm text-[#9CA3AF]">{weekDay}</span>
+          <span className="text-lg font-semibold text-foreground">{month}月{day}日</span>
+          <span className="text-sm text-muted-foreground">{weekDay}</span>
         </div>
         {totalEarly > 0 && (
           <span className="flex items-center gap-1 px-3 py-1 rounded-2xl bg-[rgba(245,158,11,0.15)] text-[#F59E0B] text-sm">
@@ -431,12 +431,12 @@ function DateGroup({
       {/* 汇总统计行（可点击折叠/展开） */}
       <button
         onClick={onToggleExpand}
-        className="w-full px-5 py-3 flex items-center justify-between border-t border-[#1F2937] hover:bg-white/[0.02] transition-colors"
+        className="w-full px-5 py-3 flex items-center justify-between border-t border-border hover:bg-white/[0.02] transition-colors"
         aria-expanded={isExpanded}
       >
         <div className="flex items-center gap-3 flex-wrap">
           {/* 当日统计 */}
-          <span className="text-sm text-[#E5E7EB]">
+          <span className="text-sm text-foreground">
             {totalPersons}人次 · {totalHours}小时
           </span>
           
@@ -462,7 +462,7 @@ function DateGroup({
 
         {/* 折叠箭头 */}
         <span
-          className={`text-[#9CA3AF] hover:text-[#E5E7EB] transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`}
+          className={`text-muted-foreground hover:text-foreground transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`}
           style={{ display: 'inline-block' }}
         >
           ▼
@@ -503,8 +503,8 @@ function DateGroup({
                     style={{ background: statusBarColor }}
                   />
                   <div className="pl-4">
-                    <span className="text-sm font-semibold text-[#E5E7EB]">{shortName}</span>
-                    <span className="text-sm text-[#9CA3AF] ml-2">· {personCount}人 · {accountTotalHours}H</span>
+                    <span className="text-sm font-semibold text-foreground">{shortName}</span>
+                    <span className="text-sm text-muted-foreground ml-2">· {personCount}人 · {accountTotalHours}H</span>
                   </div>
                 </div>
 
@@ -534,7 +534,7 @@ function PersonRow({ person, barColor }: { person: PersonSummary; barColor: stri
   return (
     <div className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-white/[0.03] transition-colors group">
       {/* 姓名 */}
-      <span className="text-sm text-[#E5E7EB] w-16 flex-shrink-0">{person.name}</span>
+      <span className="text-sm text-foreground w-16 flex-shrink-0">{person.name}</span>
       
       {/* 时段色块条 */}
       <div className="flex-1 h-1.5 bg-[#1F2937] rounded-full overflow-hidden">
@@ -548,7 +548,7 @@ function PersonRow({ person, barColor }: { person: PersonSummary; barColor: stri
       </div>
       
       {/* 时段文字 */}
-      <span className="text-xs text-[#9CA3AF] w-24 flex-shrink-0">
+      <span className="text-xs text-muted-foreground w-24 flex-shrink-0">
         {person.timeSlots.length > 0 ? formatTimeSlots(person.timeSlots) : ''}
       </span>
       
