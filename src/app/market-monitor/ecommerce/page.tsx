@@ -180,6 +180,9 @@ function filterViewByMonthRange(data: any[], from?: string, to?: string): any[] 
 /* ========== 图表配色（真实数据视图使用） ========== */
 const CHART_COLORS = ['#4158D0', '#FF6B35', '#FF4D4F', '#FAAD14', '#52C41A', '#1890FF', '#722ED1', '#13C2C2'];
 
+// 久谦 MCP 脏数据：京东渠道把商品属性/筛选项标签名误当热词统计（同月这些词频次/销售额完全相同），前端过滤
+const HOTWORD_BLOCKLIST = ['品牌', '价格', '报价', '图片'];
+
 /* ========== KPI Calculation ========== */
 /**
  * 基于大盘趋势原始数据计算 KPI，按月份区间过滤
@@ -1068,10 +1071,12 @@ export default function EcommercePage() {
         }));
 
       case '热词频次':
-        return raw.map((item) => ({
-          word: item['热词'] || item['关键词'] || item['词汇'] || '-',
-          count: Number(item['频次'] || item['出现次数']) || 0,
-        }));
+        return raw
+          .map((item) => ({
+            word: item['热词'] || item['关键词'] || item['词汇'] || '-',
+            count: Number(item['频次'] || item['出现次数']) || 0,
+          }))
+          .filter((item) => !HOTWORD_BLOCKLIST.includes(item.word.trim()));
 
       default:
         return raw;

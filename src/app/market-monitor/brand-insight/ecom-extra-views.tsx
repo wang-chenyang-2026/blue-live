@@ -146,6 +146,9 @@ function platformLabel(p: string): string {
   return PLATFORM_LABEL[k] || str(p) || '—';
 }
 
+// 久谦 MCP 脏数据：京东渠道把商品属性/筛选项标签名误当热词统计（同月这些词频次/销售额完全相同），前端过滤
+const HOTWORD_BLOCKLIST = ['品牌', '价格', '报价', '图片'];
+
 /* ---------------- 解析器 ---------------- */
 
 interface SalesPoint {
@@ -316,6 +319,7 @@ function parseHotwords(result: CrawlerResult | undefined): { platforms: string[]
     const plat = platformLabel(str(cell(row, kPlat)));
     const word = str(cell(row, kWord));
     if (!word) continue;
+    if (HOTWORD_BLOCKLIST.includes(word.trim())) continue;
     if (!platWord.has(plat)) {
       platWord.set(plat, new Map());
       platforms.push(plat);
