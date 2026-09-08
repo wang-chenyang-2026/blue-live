@@ -1231,10 +1231,10 @@ function DonutChartV2({
             {segments.map((seg, i) => (
               <path key={i} d={seg.d} fill={seg.color} />
             ))}
-            <text x={cx} y={cy - 6} textAnchor="middle" fill="#E5E7EB" fontSize="16" fontWeight="bold" fontFamily='"SF Mono", "Fira Code", monospace'>
+            <text x={cx} y={cy - 6} textAnchor="middle" fill="#9CA3AF" fontSize="16" fontWeight="bold" fontFamily='"SF Mono", "Fira Code", monospace'>
               {formatCurrency(total)}
             </text>
-            <text x={cx} y={cy + 14} textAnchor="middle" fill="#6B7280" fontSize="11">
+            <text x={cx} y={cy + 14} textAnchor="middle" fill="#9CA3AF" fontSize="11">
               总成本
             </text>
           </svg>

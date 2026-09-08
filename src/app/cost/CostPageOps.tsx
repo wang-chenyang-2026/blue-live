@@ -599,7 +599,7 @@ export default function CostPageOps() {
       <div
         className="relative rounded-2xl overflow-hidden p-6 md:p-8"
         style={{
-          background: `linear-gradient(135deg, #111827 0%, ${brandColor}15 50%, #111827 100%)`,
+          background: `linear-gradient(135deg, var(--card) 0%, ${brandColor}15 50%, var(--card) 100%)`,
           border: `1px solid ${brandColor}30`,
         }}
       >
@@ -687,7 +687,7 @@ export default function CostPageOps() {
           {/* 左栏：SVG 环形图 */}
           <div
             className="lg:col-span-2 rounded-2xl p-6 flex flex-col items-center justify-center"
-            style={{ backgroundColor: 'var(--card)', border: '1px solid #1f2937' }}
+            style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
           >
             <DonutChart data={categoryData} brandColor={brandColor} total={feishuData.totalCost} />
           </div>
@@ -976,8 +976,8 @@ function MiniTrendChart({ data, color }: { data: typeof MOCK_TREND; color: strin
       {points.map((p, i) => (
         <g key={i}>
           <circle cx={p.x} cy={p.y} r="3" fill={color} />
-          <circle cx={p.x} cy={p.y} r="1.5" fill="#111827" />
-          <text x={p.x} y={height + 12} textAnchor="middle" fill="#6B7280" fontSize="10">
+          <circle cx={p.x} cy={p.y} r="1.5" fill="#9CA3AF" />
+          <text x={p.x} y={height + 12} textAnchor="middle" fill="#9CA3AF" fontSize="10">
             {data[i].week}
           </text>
         </g>
@@ -1039,10 +1039,10 @@ function DonutChart({
           <path key={i} d={seg.d} fill={seg.color} opacity="0.85" />
         ))}
         {/* 中心文字 */}
-        <text x={cx} y={cy - 8} textAnchor="middle" fill="#E5E7EB" fontSize="14" fontWeight="bold">
+        <text x={cx} y={cy - 8} textAnchor="middle" fill="#9CA3AF" fontSize="14" fontWeight="bold">
           {formatCurrency(total)}
         </text>
-        <text x={cx} y={cy + 12} textAnchor="middle" fill="#6B7280" fontSize="10">
+        <text x={cx} y={cy + 12} textAnchor="middle" fill="#9CA3AF" fontSize="10">
           总成本
         </text>
       </svg>
@@ -1161,7 +1161,7 @@ const KPITab = memo(function KPITab({
           <div
             key={kpi.id}
             className="rounded-xl p-5"
-            style={{ backgroundColor: 'var(--card)', border: '1px solid #1f2937' }}
+            style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
           >
             {/* 头部 */}
             <div className="flex items-center justify-between mb-4">
@@ -1260,7 +1260,7 @@ function RulesSection({ rules }: { rules: string }) {
             color: 'var(--muted-foreground)',
             lineHeight: 1.6,
             whiteSpace: 'pre-wrap',
-            borderTop: '1px solid #1f2937',
+            borderTop: '1px solid var(--border)',
           }}
         >
           {rules}

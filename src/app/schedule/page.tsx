@@ -443,7 +443,7 @@ function DateGroup({
           {/* 渠道胶囊标签 */}
           <div className="flex items-center gap-2 flex-wrap">
             {dateItem.accounts.map(account => {
-              const colors = CHANNEL_COLORS[account.accountName] || { bg: 'rgba(100,100,100,0.15)', text: '#9CA3AF', bar: '#666' };
+              const colors = CHANNEL_COLORS[account.accountName] || { bg: 'rgba(100,100,100,0.15)', text: 'var(--muted-foreground)', bar: 'var(--muted-foreground)' };
               const shortName = CHANNEL_SHORT_NAMES[account.accountName] || account.accountName;
               const personCount = account.stats?.personCount || 0;
               if (personCount === 0) return null;
@@ -479,7 +479,7 @@ function DateGroup({
             const personCount = account.stats?.personCount || 0;
             if (personCount === 0) return null;
             
-            const colors = CHANNEL_COLORS[account.accountName] || { bg: 'rgba(100,100,100,0.15)', text: '#9CA3AF', bar: '#666' };
+            const colors = CHANNEL_COLORS[account.accountName] || { bg: 'rgba(100,100,100,0.15)', text: 'var(--muted-foreground)', bar: 'var(--muted-foreground)' };
             const shortName = CHANNEL_SHORT_NAMES[account.accountName] || account.accountName;
             const accountTotalHours = account.stats?.totalHours || 0;
             const accountEarlyHours = account.stats?.earlyMorningHours || 0;
@@ -537,7 +537,7 @@ function PersonRow({ person, barColor }: { person: PersonSummary; barColor: stri
       <span className="text-sm text-foreground w-16 flex-shrink-0">{person.name}</span>
       
       {/* 时段色块条 */}
-      <div className="flex-1 h-1.5 bg-[#1F2937] rounded-full overflow-hidden">
+      <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
         <div
           className="h-full rounded-full transition-all duration-300"
           style={{ 
@@ -555,7 +555,7 @@ function PersonRow({ person, barColor }: { person: PersonSummary; barColor: stri
       {/* 时长 */}
       <span
         className="text-sm font-semibold w-10 text-right flex-shrink-0"
-        style={{ color: hasEarlyMorning ? '#F59E0B' : '#E5E7EB' }}
+        style={{ color: hasEarlyMorning ? '#F59E0B' : 'var(--foreground)' }}
       >
         {person.totalHours}h
       </span>
