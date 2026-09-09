@@ -257,6 +257,8 @@ async function handleCommonToolsQuery(
 }
 
 export async function POST(req: Request): Promise<NextResponse<ChatResponse>> {
+  const CHAT_TIMEOUT_MS = 90000;
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
   try {
     const body: ChatRequest = await req.json();
     const { message, category, brand, view, timeRange } = body;
@@ -272,26 +274,36 @@ export async function POST(req: Request): Promise<NextResponse<ChatResponse>> {
       intent.service = 'crawler-server';
     }
 
-    let result: { reply: string; data?: unknown; dataType?: string };
+    const processPromise = (async () => {
+      let result: { reply: string; data?: unknown; dataType?: string };
 
-    switch (intent.service) {
-      case 'new-media-monitoring':
-        result = await handleNewMediaQuery(intent);
-        break;
-      case 'douyin-kol-api-service':
-        result = await handleDouyinKOLQuery(intent);
-        break;
-      case 'dim-server':
-        result = await handleDimQuery(intent);
-        break;
-      case 'common-tools-server':
-        result = await handleCommonToolsQuery(intent);
-        break;
-      case 'crawler-server':
-      default:
-        result = await handleCrawlerQuery(intent, category, brand, view, req.signal);
-        break;
-    }
+      switch (intent.service) {
+        case 'new-media-monitoring':
+          result = await handleNewMediaQuery(intent);
+          break;
+        case 'douyin-kol-api-service':
+          result = await handleDouyinKOLQuery(intent);
+          break;
+        case 'dim-server':
+          result = await handleDimQuery(intent);
+          break;
+        case 'common-tools-server':
+          result = await handleCommonToolsQuery(intent);
+          break;
+        case 'crawler-server':
+        default:
+          result = await handleCrawlerQuery(intent, category, brand, view, req.signal);
+          break;
+      }
+
+      return result;
+    })();
+
+    const timeoutPromise = new Promise<never>((_resolve, reject) => {
+      timeoutHandle = setTimeout(() => reject(new Error('__CHAT_PROCESS_TIMEOUT__')), CHAT_TIMEOUT_MS);
+    });
+
+    const result = await Promise.race([processPromise, timeoutPromise]);
 
     return NextResponse.json({
       success: true,
@@ -304,6 +316,12 @@ export async function POST(req: Request): Promise<NextResponse<ChatResponse>> {
       },
     });
   } catch (err) {
+    if (err instanceof Error && err.message === '__CHAT_PROCESS_TIMEOUT__') {
+      return NextResponse.json(
+        { success: false, error: '数据服务繁忙，请稍后重试（处理超时）' },
+        { status: 504 },
+      );
+    }
     return NextResponse.json(
       {
         success: false,
@@ -311,5 +329,7 @@ export async function POST(req: Request): Promise<NextResponse<ChatResponse>> {
       },
       { status: 500 },
     );
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
   }
 }

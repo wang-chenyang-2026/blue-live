@@ -388,7 +388,13 @@ async function callToolInternal(
   forceNewSession = false,
 ): Promise<MCPToolResult> {
   if (!sessionId || forceNewSession) {
-    const session = await initializeServer(serverName, forceNewSession);
+    // callToolInternal 已在 callTool 的 withQueue 锁内运行（含 forceNewSession 递归），
+    // 禁止再调带 withQueue 的 initializeServer，否则同 server 嵌套加锁自死锁、队列永久挂起。
+    if (forceNewSession) sessions.delete(serverName);
+    let session = sessions.get(serverName);
+    if (!session) {
+      session = await initializeServerInternal(serverName);
+    }
     sessionId = session.sessionId;
   }
 
