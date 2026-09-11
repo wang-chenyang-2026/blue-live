@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { maskExternalBusiness } from '@/lib/api-permission';
 import { kolGetRouteTaskResult, parseKolExcel } from '@/lib/kol-mcp';
 import { getTaskByProjectId, updateTask } from '@/lib/kol-task-store';
 
 export async function GET(req: NextRequest) {
+  const externalMask = maskExternalBusiness(req);
+  if (externalMask) return externalMask;
   try {
     const { searchParams } = new URL(req.url);
     const projectIdStr = searchParams.get('projectId');

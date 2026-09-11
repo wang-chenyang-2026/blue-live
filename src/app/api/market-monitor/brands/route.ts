@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { callTool, initializeServer } from '@/lib/mcp-client';
 import { buildCacheKey, getCached, setCached, TTL } from '@/lib/mcp-cache';
+import { maskExternalBusiness } from '@/lib/api-permission';
 
 export async function GET(req: Request) {
+  const externalMask = maskExternalBusiness(req);
+  if (externalMask) return externalMask;
   const { searchParams } = new URL(req.url);
   const categoryStr = searchParams.get('category');
 

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { maskExternalBusiness } from '@/lib/api-permission';
 import {
   callTool,
   initializeServer,
@@ -259,6 +260,8 @@ async function handleCommonToolsQuery(
 export async function POST(req: Request): Promise<NextResponse<ChatResponse>> {
   const CHAT_TIMEOUT_MS = 90000;
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const externalMask = maskExternalBusiness(req);
+  if (externalMask) return externalMask as NextResponse<ChatResponse>;
   try {
     const body: ChatRequest = await req.json();
     const { message, category, brand, view, timeRange } = body;

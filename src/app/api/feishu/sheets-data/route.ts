@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isExternalRoleRequest } from '@/lib/api-permission';
 
 /* ========== Spreadsheet Tokens ========== */
 const VIVO_TOKEN = 'LdEIsmpHUhzGrXttf6gcYjWBnEN';
@@ -502,6 +503,26 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const brand = searchParams.get('brand') || 'vivo';
+
+    // 外部合作角色：可见维度布局，但业务数据一律空
+    if (isExternalRoleRequest(request)) {
+      if (brand === 'all') {
+        const brandKeys = ['vivo', 'iQOO', 'IOT'] as const;
+        const results: Record<string, Awaited<ReturnType<typeof fetchBrandData>>> = {};
+        for (const bk of brandKeys) {
+          results[bk] = emptyBrandData(bk) as Awaited<ReturnType<typeof fetchBrandData>>;
+        }
+        return NextResponse.json({ success: true, mode: 'all', data: results });
+      }
+      const emptyData = emptyBrandData(brand);
+      if (!emptyData) {
+        return NextResponse.json(
+          { success: false, error: `Unknown brand: ${brand}` },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json({ success: true, mode: 'single', brand, data: emptyData });
+    }
 
     if (brand === 'all') {
       const accessToken = await getTenantAccessToken();

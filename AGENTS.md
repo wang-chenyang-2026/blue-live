@@ -62,6 +62,7 @@ src/
 - 成本六大项 + 收入(时长×小时费) + KPI扣减5% → 利润率
 - 考勤支持钉钉Excel导入，排班对比功能
 - 角色权限控制侧边栏可见模块
+- 「外部合作」角色：可见全部业务模块页面布局/维度，但业务数据为空。服务端由 `src/lib/api-permission.ts` 的 `getRequestRole`/`isExternalRoleRequest`/`maskExternalBusiness` 门控（middleware 注入的 `x-user-role` 为 URL 编码中文），对 8 个业务数据 API 返回空版本（列表 []/数值 0），纯字典枚举接口（如 /api/market-monitor/categories）放行；/api/users* 对外部合作返回 403。workstation 用 localStorage 数据源，在页面内按 `currentRole==='外部合作'` 置空。新加业务数据接口需同步注入门控。
 
 ## 常见问题修复
 - Hydration Error → 确保 localStorage/Date 在 useEffect 中调用，SSR 返回固定占位

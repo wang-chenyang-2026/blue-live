@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listTasks, resolveUserId } from '@/lib/brand-task-store';
+import { maskExternalBusiness } from '@/lib/api-permission';
 
 export async function GET(req: NextRequest) {
+  const externalMask = maskExternalBusiness(req);
+  if (externalMask) return externalMask;
   try {
     const userId = resolveUserId(req);
     const tasks = await listTasks(userId);

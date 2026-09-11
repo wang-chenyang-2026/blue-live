@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ctsGetVoiceTaskResult } from '@/lib/social-mcp';
 import { getTaskById, updateTask } from '@/lib/brand-task-store';
+import { maskExternalBusiness } from '@/lib/api-permission';
 
 export async function GET(req: NextRequest) {
+  const externalMask = maskExternalBusiness(req);
+  if (externalMask) return externalMask;
   try {
     const { searchParams } = new URL(req.url);
     const taskId = searchParams.get('taskId');

@@ -5,6 +5,7 @@ import {
   resolveScheduleSheet,
   type SheetRole,
 } from "@/lib/feishu-sheets";
+import { maskExternalBusiness } from "@/lib/api-permission";
 
 // Salary management table for nickname → real name mapping
 const NICKNAME_SHEET_TOKEN = "QmESw57otiab5WkLVqdcblCmnue";
@@ -1010,6 +1011,8 @@ function parseDateParam(s: string | null, endOfDay = false): Date | null {
 }
 
 export async function GET(request: NextRequest) {
+  const externalMask = maskExternalBusiness(request);
+  if (externalMask) return externalMask;
   const { searchParams } = new URL(request.url);
   const month = searchParams.get("month") || new Date().toISOString().substring(0, 7);
   const rawBrand = searchParams.get("brand") || "all";

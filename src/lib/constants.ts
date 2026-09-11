@@ -166,9 +166,10 @@ export const ROLES: Role[] = [
   {
     key: '外部合作',
     label: '外部合作',
-    modules: ['market-monitor', 'problem-feedback'],
+    modules: ['dashboard', 'schedule', 'data-overview', 'market-monitor', 'cost', 'visual', 'sop', 'workstation', 'problem-feedback'],
     brandScopedModules: [],
-    // 仅有市场监测、问题反馈；项目固定为"公共功能"
+    // 外部合作可查看全部业务模块的页面布局与数据维度，但服务端数据门控（maskExternalBusiness）返回空版本；
+    // 不含注册人员管理、用户审批。项目固定为"公共功能"
   },
 ];
 

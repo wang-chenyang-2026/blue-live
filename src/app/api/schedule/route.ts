@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveScheduleSheet } from '@/lib/feishu-sheets';
+import { maskExternalBusiness } from '@/lib/api-permission';
 
 // 多品牌排班表格配置（sheet ID 运行时动态解析，不再硬编码）
 interface TableAccount {
@@ -261,6 +262,8 @@ function formatDateDisplay(dateStr: string): string {
 
 export async function GET(request: NextRequest) {
   try {
+    const externalMask = maskExternalBusiness(request);
+    if (externalMask) return externalMask;
     const { searchParams } = new URL(request.url);
     const start = searchParams.get('start') || searchParams.get('startDate');
     const end = searchParams.get('end') || searchParams.get('endDate');

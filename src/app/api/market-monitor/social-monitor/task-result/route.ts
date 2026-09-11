@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { maskExternalBusiness } from '@/lib/api-permission';
 import { nmmGetTaskResult, ctsGetMediaTaskResult } from '@/lib/social-mcp';
 import {
   getTaskById,
@@ -6,6 +7,8 @@ import {
 } from '@/lib/social-task-store';
 
 export async function GET(req: NextRequest) {
+  const externalMask = maskExternalBusiness(req);
+  if (externalMask) return externalMask;
   try {
     const { searchParams } = new URL(req.url);
     const taskId = searchParams.get('taskId');

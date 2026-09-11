@@ -42,7 +42,7 @@ import { cn } from '@/lib/utils';
 const SCRIPT_CATEGORIES = ['开场', '产品介绍', '互动', '逼单', '收尾'] as const;
 
 export default function WorkstationPage() {
-  const { currentBrand, isClient } = useApp();
+  const { currentBrand, isClient, currentRole } = useApp();
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [scripts, setScripts] = useState<ScriptTemplate[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<string>(currentBrand !== 'all' ? currentBrand : BRANDS[0].id);
@@ -66,10 +66,13 @@ export default function WorkstationPage() {
   const [sProductId, setSProductId] = useState('');
   const [sContent, setSContent] = useState('');
 
+  const isExternal = currentRole === '外部合作';
+
   useEffect(() => {
-    setProducts(getProductList());
-    setScripts(getScriptList());
-  }, []);
+    // 外部合作角色：可见页面布局与维度，但产品/话术业务数据一律为空
+    setProducts(isExternal ? [] : getProductList());
+    setScripts(isExternal ? [] : getScriptList());
+  }, [isExternal]);
 
   useEffect(() => {
     if (currentBrand !== 'all') setSelectedBrand(currentBrand);

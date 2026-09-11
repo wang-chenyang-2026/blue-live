@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { maskExternalBusiness } from '@/lib/api-permission';
 import { listTasks, resolveUserId } from '@/lib/social-task-store';
 import type { SocialTaskType } from '@/lib/social-task-store';
 
 export async function GET(req: NextRequest) {
+  const externalMask = maskExternalBusiness(req);
+  if (externalMask) return externalMask;
   try {
     const userId = resolveUserId(req);
     const { searchParams } = new URL(req.url);

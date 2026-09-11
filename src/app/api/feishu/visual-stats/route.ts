@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { maskExternalBusiness } from '@/lib/api-permission';
 
 /* ========== Feishu Config ========== */
 const VISUAL_SPREADSHEET_TOKEN = 'EvixwxYM8i2cvpkZmSTcqOMYnph';
@@ -162,6 +163,8 @@ function parseRow(row: unknown[]): VisualItem {
 /* ========== API Route ========== */
 export async function GET(request: NextRequest) {
   try {
+    const externalMask = maskExternalBusiness(request);
+    if (externalMask) return externalMask;
     const { searchParams } = new URL(request.url);
     const brandFilter = searchParams.get('brand');
     const categoryFilter = searchParams.get('category');

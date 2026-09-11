@@ -4,6 +4,7 @@ import {
   readSheet,
   resolveScheduleSheet,
 } from "@/lib/feishu-sheets";
+import { maskExternalBusiness } from "@/lib/api-permission";
 
 const NICKNAME_SHEET_TOKEN = "QmESw57otiab5WkLVqdcblCmnue";
 const NICKNAME_SHEETS = {
@@ -371,6 +372,8 @@ async function calcBrand(
 }
 
 export async function GET(request: NextRequest) {
+  const externalMask = maskExternalBusiness(request);
+  if (externalMask) return externalMask;
   const { searchParams } = new URL(request.url);
   const today = new Date();
   const month = searchParams.get("month") || `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { maskExternalBusiness } from '@/lib/api-permission';
 import {
   crawlerDownloadData,
   normalizeDownloadResult,
@@ -51,6 +52,8 @@ function resolveView(v: string | null): CategoryView | null {
 }
 
 export async function GET(req: NextRequest) {
+  const externalMask = maskExternalBusiness(req);
+  if (externalMask) return externalMask;
   const sp = req.nextUrl.searchParams;
   const l1 = sp.get('l1') || '';
   const l2 = sp.get('l2') || '';
