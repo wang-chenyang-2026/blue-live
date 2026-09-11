@@ -40,7 +40,40 @@ export async function POST(request: NextRequest) {
       const s = (existing as { status: string }).status;
       if (s === 'pending') return NextResponse.json({ error: '该手机号已注册，等待审核中' }, { status: 409 });
       if (s === 'approved') return NextResponse.json({ error: '该手机号已注册，请直接登录' }, { status: 409 });
-      return NextResponse.json({ error: '该手机号注册已被拒绝，请联系管理员' }, { status: 409 });
+
+      // 被拒绝（rejected）的手机号：允许重新提交注册申请。
+      // 更新原账号资料并把状态重置为 pending，重新进入审批流程，不产生重复账号。
+      if (s === 'rejected') {
+        const reapplyHash = hashPassword(password);
+        const { data: reapplied, error: updateError } = await client
+          .from('users')
+          .update({
+            name,
+            password_hash: reapplyHash,
+            role,
+            brand: projectScope,
+            status: 'pending',
+            remark: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', (existing as { id: string }).id)
+          .select('id, name, phone, role, brand, status, created_at')
+          .single();
+        if (updateError) throw new Error(`重新提交失败: ${updateError.message}`);
+
+        // 重新提交也通知管理员审批
+        notifyNewRegistration({
+          name: (reapplied as any)?.name || name,
+          phone: (reapplied as any)?.phone || phone,
+          role: (reapplied as any)?.role || role,
+          brand: (reapplied as any)?.brand || projectScope,
+        }).catch(() => {});
+
+        return NextResponse.json({ success: true, user: reapplied, reapplied: true });
+      }
+
+      // terminated（已停用）等其他状态：不允许自助注册
+      return NextResponse.json({ error: '该账号状态异常，请联系管理员' }, { status: 409 });
     }
 
     const password_hash = hashPassword(password);

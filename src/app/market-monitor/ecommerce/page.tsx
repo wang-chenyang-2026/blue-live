@@ -187,7 +187,7 @@ const HOTWORD_BLOCKLIST = ['品牌', '价格', '报价', '图片'];
 /**
  * 基于大盘趋势原始数据计算 KPI，按月份区间过滤
  */
-function buildKpiFromTrend(raw: any[], realBrandCount: number, monthFrom?: string, monthTo?: string, brand?: string, platform?: string): KpiCard[] {
+function buildKpiFromTrend(raw: any[], realBrandCount: number, monthFrom?: string, monthTo?: string, brand?: string, platform?: string, specificBrand = false): KpiCard[] {
   // Apply platform filter first (only if data has platform column)
   let platformFiltered = raw;
   if (platform && Array.isArray(raw) && raw.some((r) => r['平台'])) {
@@ -207,7 +207,7 @@ function buildKpiFromTrend(raw: any[], realBrandCount: number, monthFrom?: strin
       { label: '总销售额', value: '—', change: 0, icon: <DollarSign className="h-5 w-5" />, color: '#4158D0' },
       { label: '总销量', value: '—', change: 0, icon: <Package className="h-5 w-5" />, color: '#C850C0' },
       { label: '平均价格', value: '—', change: 0, icon: <Tag className="h-5 w-5" />, color: '#10B981' },
-      { label: '品牌数', value: realBrandCount > 0 ? `${realBrandCount}个` : '—', change: 0, icon: <Building2 className="h-5 w-5" />, color: '#F59E0B' },
+      { label: '品牌数', value: specificBrand ? '1个' : (realBrandCount > 0 ? `${realBrandCount}个` : '—'), change: 0, icon: <Building2 className="h-5 w-5" />, color: '#F59E0B' },
     ];
   }
 
@@ -269,7 +269,7 @@ function buildKpiFromTrend(raw: any[], realBrandCount: number, monthFrom?: strin
     { label: '总销售额', value: formatSales(totalSales), change: salesMom, icon: <DollarSign className="h-5 w-5" />, color: '#4158D0' },
     { label: '总销量', value: formatVolume(totalVolume), change: volumeMom, icon: <Package className="h-5 w-5" />, color: '#C850C0' },
     { label: '平均价格', value: `¥${Math.round(avgPrice).toLocaleString()}`, change: priceMom, icon: <Tag className="h-5 w-5" />, color: '#10B981' },
-    { label: '品牌数', value: realBrandCount > 0 ? `${realBrandCount}个` : '—', change: 0, icon: <Building2 className="h-5 w-5" />, color: '#F59E0B' },
+    { label: '品牌数', value: specificBrand ? '1个' : (realBrandCount > 0 ? `${realBrandCount}个` : '—'), change: 0, icon: <Building2 className="h-5 w-5" />, color: '#F59E0B' },
   ];
 }
 
@@ -997,11 +997,26 @@ export default function EcommercePage() {
         return true;
       });
       const brandCount = new Set(filteredForBrandCount.map((r) => r['品牌']).filter(Boolean)).size || realBrands.length;
-      return buildKpiFromTrend(kpiSource, brandCount, from, to, debouncedFilters.brand, plat);
+      return buildKpiFromTrend(kpiSource, brandCount, from, to, debouncedFilters.brand, plat, !!isSpecificBrand);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [trendRaw, brandListRaw, realBrands.length, debouncedFilters.monthFrom, debouncedFilters.monthTo, debouncedFilters.brand, debouncedFilters.platform, availableMonths],
   );
+
+  const kpiCaliber = useMemo(() => {
+    const brand = debouncedFilters.brand;
+    const isBrand = brand && brand !== '全部品牌';
+    const plat = debouncedFilters.platform;
+    const platLabel = plat ? (PLATFORM_CODE_TO_LABEL[plat] || plat) : '';
+    if (isBrand) {
+      const platNote = plat ? `（已选「${platLabel}」，但上游品牌数据未按平台拆分，平台筛选对品牌口径暂不生效）` : '';
+      return `统计口径：品牌「${brand}」全平台合计销售额/销量/均价${platNote}；时间按所选区间。`;
+    }
+    if (plat) {
+      return `统计口径：${platLabel}平台合计销售额/销量/均价；时间按所选区间。`;
+    }
+    return '统计口径：全平台合计销售额/销量/均价；时间按所选区间。';
+  }, [debouncedFilters.brand, debouncedFilters.platform]);
 
   /* ---------- 3b. normalizeViewData: map Chinese field names to English ---------- */
   function normalizeViewData(viewKey: string, raw: any[]): any[] {
@@ -1662,6 +1677,14 @@ export default function EcommercePage() {
               <KpiCardComp key={i} {...card} />
             ))}
       </div>
+
+      {/* KPI 口径提示 */}
+      {!loading && trendRaw.length > 0 && (
+        <div className="text-xs text-muted-foreground flex items-start gap-1.5 rounded-md border border-border bg-muted/40 px-3 py-2">
+          <span>ℹ️</span>
+          <span>{kpiCaliber}</span>
+        </div>
+      )}
 
       {/* Error banner with retry */}
       {error && (

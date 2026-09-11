@@ -30,6 +30,7 @@ export default function RegisterPage() {
   const [position, setPosition] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [reapplied, setReapplied] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // 外部合作岗位固定使用"公共功能"项目
@@ -77,6 +78,7 @@ export default function RegisterPage() {
         setLoading(false);
         return;
       }
+      setReapplied(!!data.reapplied);
       setSuccess(true);
     } catch (err) {
       console.error('register error', err);
@@ -105,9 +107,11 @@ export default function RegisterPage() {
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/20 border border-primary/30">
             <MonitorPlay className="h-8 w-8 text-primary" />
           </div>
-          <h2 className="text-2xl font-bold text-foreground">注册成功</h2>
+          <h2 className="text-2xl font-bold text-foreground">{reapplied ? '重新提交成功' : '注册成功'}</h2>
           <p className="text-muted-foreground">
-            您的账号已提交，等待项目负责人审核通过后即可登录使用。
+            {reapplied
+              ? '您的资料已更新并重新提交，等待项目负责人再次审核通过后即可登录使用。'
+              : '您的账号已提交，等待项目负责人审核通过后即可登录使用。'}
           </p>
           <Button onClick={() => router.push('/login')} className="mt-4">
             前往登录
