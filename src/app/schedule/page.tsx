@@ -81,7 +81,8 @@ const CHANNEL_SHORT_NAMES: Record<string, string> = {
 
 // ===== 组件 =====
 export default function SchedulePage() {
-  const { getVisibleBrands } = useApp();
+  const { getVisibleBrands, currentRole } = useApp();
+  const isExternal = currentRole === '外部合作';
   // 品牌和角色状态
   const [brand, setBrand] = useState<'vivo' | 'iQOO'>('vivo');
   const [role, setRole] = useState<'anchor' | 'control'>('anchor');
@@ -359,7 +360,11 @@ export default function SchedulePage() {
       )}
 
       {!loading && !error && dates.length === 0 && scheduleData && (
-        <div className="text-center py-10 text-zinc-500">所选日期范围内暂无排班数据</div>
+        isExternal ? (
+          <ExternalScheduleSkeleton startDate={startDate} endDate={endDate} />
+        ) : (
+          <div className="text-center py-10 text-zinc-500">所选日期范围内暂无排班数据</div>
+        )
       )}
 
       {/* ===== 页脚 ===== */}
@@ -581,4 +586,58 @@ function formatTimeSlots(slots: string[]): string {
   }
   
   return slots.join(', ');
+}
+
+// ===== 外部合作视图：排班格式骨架（无真实数据） =====
+function ExternalScheduleSkeleton({ startDate, endDate }: { startDate: string; endDate: string }) {
+  const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+  const cols: { label: string; week: string }[] = [];
+  let cursor = new Date(startDate + 'T00:00:00');
+  const end = new Date(endDate + 'T00:00:00');
+  let guard = 0;
+  while (cursor <= end && guard < 31) {
+    cols.push({
+      label: `${cursor.getMonth() + 1}/${cursor.getDate()}`,
+      week: weekDays[cursor.getDay()],
+    });
+    cursor.setDate(cursor.getDate() + 1);
+    guard++;
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="text-xs text-muted-foreground flex items-start gap-1.5 rounded-md border border-border bg-muted/40 px-3 py-2">
+        <span>ℹ️</span>
+        <span>外部合作视图：仅展示页面格式，数据已隐藏</span>
+      </div>
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead>
+              <tr className="border-b border-border bg-white/[0.02]">
+                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground sticky left-0 bg-card whitespace-nowrap">主播</th>
+                {cols.map((c) => (
+                  <th key={c.label} className="px-3 py-2.5 text-center font-medium text-muted-foreground whitespace-nowrap">
+                    {c.label}<span className="ml-1 text-xs text-muted-foreground/70">{c.week}</span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[0, 1, 2].map((row) => (
+                <tr key={row} className="border-b border-border last:border-0 hover:bg-white/[0.02] transition-colors">
+                  <td className="px-4 py-3 text-muted-foreground sticky left-0 bg-card whitespace-nowrap">—</td>
+                  {cols.map((c) => (
+                    <td key={c.label} className="px-3 py-3 text-center">
+                      <span className="inline-block h-2 w-full max-w-[40px] rounded bg-secondary/70" />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
 }
