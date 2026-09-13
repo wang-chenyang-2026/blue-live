@@ -367,11 +367,12 @@ async function collectScheduleHours(
   role: SheetRole,
   range: DateRange,
   nicknameMapping: { nicknameToReal: Record<string, string>; allNames: Set<string> },
-): Promise<{ nameHours: Record<string, number>; nameDays: Record<string, Set<string>>; nameHolidayDays: Record<string, Set<string>>; nameNightHours: Record<string, number> }> {
+): Promise<{ nameHours: Record<string, number>; nameDays: Record<string, Set<string>>; nameHolidayDays: Record<string, Set<string>>; nameNightHours: Record<string, number>; nameDayHours: Record<string, Record<string, number>> }> {
   const nameHours: Record<string, number> = {};
   const nameDays: Record<string, Set<string>> = {};
   const nameHolidayDays: Record<string, Set<string>> = {};
   const nameNightHours: Record<string, number> = {};
+  const nameDayHours: Record<string, Record<string, number>> = {};
 
   // 选品牌 → 选择要扫的 (wikiToken, platform) 列表
   let targets: Array<{ wikiToken: string; platform?: string }> = [];
@@ -438,6 +439,8 @@ async function collectScheduleHours(
               if (!cleanName) continue;
               const resolvedName = resolveName(cleanName, nicknameMapping);
               nameHours[resolvedName] = (nameHours[resolvedName] || 0) + 1;
+              if (!nameDayHours[resolvedName]) nameDayHours[resolvedName] = {};
+              nameDayHours[resolvedName][dateKey] = (nameDayHours[resolvedName][dateKey] || 0) + 1;
               if (isNightShift && role === "anchor") {
                 nameNightHours[resolvedName] = (nameNightHours[resolvedName] || 0) + 1;
               }
@@ -454,7 +457,7 @@ async function collectScheduleHours(
     }
   }
 
-  return { nameHours, nameDays, nameHolidayDays, nameNightHours };
+  return { nameHours, nameDays, nameHolidayDays, nameNightHours, nameDayHours };
 }
 
 // Dimension A: 兼职主播成本
@@ -739,20 +742,32 @@ async function calcFulltimeCost(
   const year = primary.year;
   const monthNum = primary.month;
   const daysInMonth = new Date(year, monthNum, 0).getDate();
-  const { saturdays, sundays } = countWeekendDays(year, monthNum);
-  const legalHolidays = getLegalHolidayCount(year, monthNum);
-  const workDays = daysInMonth - saturdays - sundays - legalHolidays;
+
+  // 实时薪资统计截止日 = min(范围结束日, 今天)。历史月份截止日=范围结束日；未结束月份裁到今天。
+  const rangeEndDay = new Date(range.end.getFullYear(), range.end.getMonth(), range.end.getDate());
+  const todayRef = new Date();
+  const today = new Date(todayRef.getFullYear(), todayRef.getMonth(), todayRef.getDate());
+  const cutoff = rangeEndDay < today ? rangeEndDay : today;
+  const cutoffKey = localDateStr(cutoff);
+
+  // 整月工作日（周一到周五且非法定节假日），用于主播 90h 折算基数。
+  // 逐日遍历，避免旧逻辑 daysInMonth-sat-sun-legal 把周末上的法定重复扣减。
+  let workDays = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = new Date(year, monthNum - 1, d);
+    const dow = date.getDay();
+    if (dow >= 1 && dow <= 5 && !isLegalHoliday(date)) workDays++;
+  }
 
   // 统计所有排班表（主播+中控）里全职员工的出勤
   const anchorData = await collectScheduleHours(feishuToken, brand === "all" ? "all" : brand, "anchor", range, nicknameMapping);
   const controlData = await collectScheduleHours(feishuToken, brand === "all" ? "all" : brand, "control", range, nicknameMapping);
 
   // 合并
-  const nameHours: Record<string, number> = {};
   const nameDays: Record<string, Set<string>> = {};
   const nameHolidayDays: Record<string, Set<string>> = {};
+  const nameDayHours: Record<string, Record<string, number>> = {};
   for (const src of [anchorData, controlData]) {
-    for (const [n, h] of Object.entries(src.nameHours)) nameHours[n] = (nameHours[n] || 0) + h;
     for (const [n, set] of Object.entries(src.nameDays)) {
       if (!nameDays[n]) nameDays[n] = new Set();
       set.forEach((d) => nameDays[n].add(d));
@@ -760,6 +775,10 @@ async function calcFulltimeCost(
     for (const [n, set] of Object.entries(src.nameHolidayDays)) {
       if (!nameHolidayDays[n]) nameHolidayDays[n] = new Set();
       set.forEach((d) => nameHolidayDays[n].add(d));
+    }
+    for (const [n, m] of Object.entries(src.nameDayHours)) {
+      if (!nameDayHours[n]) nameDayHours[n] = {};
+      for (const [d, h] of Object.entries(m)) nameDayHours[n][d] = (nameDayHours[n][d] || 0) + h;
     }
   }
 
@@ -794,7 +813,8 @@ async function calcFulltimeCost(
     // 如果是周一到周五（getDay() 1-5）且不是法定节假日，计入 expectedDays
     let expectedDays = 0;
     const cursor = new Date(effectiveStart);
-    while (cursor <= effectiveEnd) {
+    const expectedEnd = effectiveEnd < cutoff ? effectiveEnd : cutoff;
+    while (cursor <= expectedEnd) {
       const dow = cursor.getDay();
       if (dow >= 1 && dow <= 5 && !isLegalHoliday(cursor)) {
         expectedDays++;
@@ -811,25 +831,32 @@ async function calcFulltimeCost(
       ? (90 / totalMonthWorkDays) * expectedDays
       : expectedDays * 8;
 
-    // 3.4 实际出勤裁剪：过滤掉入职前和离职后的出勤
+    // 3.4 实际出勤裁剪：先裁掉 cutoff(今天) 之后的未来排班，再过滤入职前/离职后的出勤。
+    //    每天工时映射 nameDayHours 按天求和，cutoff 之后的天剔除后得到真实已发生工时。
     const rawDays = nameDays[name] || new Set<string>();
-    const rawHours = nameHours[name] || 0;
-    let effectiveAttendanceDays = rawDays.size;
+    const dayHours = nameDayHours[name] || {};
+    let rawHours = 0;
+    const cutoffDays = new Set<string>();
+    rawDays.forEach((dayStr) => {
+      if (dayStr > cutoffKey) return; // 未来（cutoff 之后）排班不计入已发生
+      cutoffDays.add(dayStr);
+      rawHours += dayHours[dayStr] || 0;
+    });
+    let effectiveAttendanceDays = cutoffDays.size;
     let actualHours = rawHours;
 
     if (hireDate || leaveDate) {
       const validDays = new Set<string>();
-      let removedDayCount = 0;
-      rawDays.forEach((dayStr) => {
+      cutoffDays.forEach((dayStr) => {
         const dayDate = new Date(dayStr);
-        if (hireDate && dayDate < hireDate) { removedDayCount++; return; }
-        if (leaveDate && dayDate > leaveDate) { removedDayCount++; return; }
+        if (hireDate && dayDate < hireDate) return;
+        if (leaveDate && dayDate > leaveDate) return;
         validDays.add(dayStr);
       });
       effectiveAttendanceDays = validDays.size;
-      // 按出勤天数比例折算工时（因为nameHours无法按天拆分）
-      if (rawDays.size > 0) {
-        actualHours = Math.round(rawHours * (effectiveAttendanceDays / rawDays.size) * 100) / 100;
+      // 按出勤天数比例折算工时（比例折算仅用于入离职区间，不用于 cutoff）
+      if (cutoffDays.size > 0) {
+        actualHours = Math.round(rawHours * (effectiveAttendanceDays / cutoffDays.size) * 100) / 100;
       } else {
         actualHours = 0;
       }
@@ -886,7 +913,10 @@ async function calcFulltimeCost(
       continue;
     }
 
-    const holidayDays = nameHolidayDays[name]?.size || 0;
+    let holidayDays = 0;
+    (nameHolidayDays[name] || new Set<string>()).forEach((d) => {
+      if (d <= cutoffKey) holidayDays++; // 只计已在今天之前发生的节假日出勤
+    });
 
     // 主播加班费 170/h，中控加班费 35/h
     const otherSalary =
