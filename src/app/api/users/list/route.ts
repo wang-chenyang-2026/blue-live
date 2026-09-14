@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requireSuperAdmin } from '@/lib/api-permission';
 
 /**
  * GET /api/users/list?brand=vivo          按品牌筛选
@@ -7,6 +8,9 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
  * brand 支持: all, vivo, iqoo_douyin, iqoo_kuaishou, iot
  */
 export async function GET(request: NextRequest) {
+  const forbidden = requireSuperAdmin(request);
+  if (forbidden) return forbidden;
+
   try {
     const { searchParams } = new URL(request.url);
     const brand = searchParams.get('brand') || '';

@@ -7,15 +7,12 @@ import { requireSuperAdmin } from '@/lib/api-permission';
  * GET /api/users                 查询全部用户
  */
 export async function GET(request: NextRequest) {
+  const forbidden = requireSuperAdmin(request);
+  if (forbidden) return forbidden;
+
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
-
-    // 待审核用户列表仅超级管理员可查询
-    if (status === 'pending') {
-      const forbidden = requireSuperAdmin(request);
-      if (forbidden) return forbidden;
-    }
 
     const client = getSupabaseClient();
     let query = client
