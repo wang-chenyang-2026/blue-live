@@ -20,7 +20,7 @@ let tokenCache: TenantTokenCache | null = null;
 /**
  * 获取 tenant_access_token（带缓存，过期前 5 分钟刷新）
  */
-async function getTenantToken(): Promise<string> {
+export async function getTenantToken(): Promise<string> {
   if (tokenCache && tokenCache.expiresAt > Date.now() + 300_000) {
     return tokenCache.token;
   }

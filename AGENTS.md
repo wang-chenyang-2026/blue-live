@@ -69,6 +69,14 @@ src/
 - Turbopack 缓存损坏 → `rm -rf .next` 后重启 dev server
 - dark class 不生效 → 检查 ThemeSetter 是否正确注入
 
+## SOP管理板块（第二期：分级+上传+AI提炼）
+- 两级分类（应用层常量，见 `src/lib/sop-taxonomy.ts`，旧表 sop_categories 保留不删、页面不再以它为主）：一级 scope=general/vivo/iqoo_douyin/iqoo_kuaishou；二级 sub_category=product/culture/management/live_standard/other（旧 category 列保留）。
+- sop_documents 新增列：scope、sub_category、source_type(feishu/tencent/manual)、ai_summary、ai_keypoints、ai_status(pending/processing/done/failed)、ai_error、uploaded_by/uploader_name、is_active、remark。已读表 `sop_read_logs(doc_id,user_id,read_at, unique)`。
+- 接口：GET list（按角色+users.brand 做 scope 过滤，回传 scopes/canUpload/read）、GET detail、POST create（仅 PM/运营，403 其他角色）、PATCH（仅 PM/运营，重置提炼）、POST /[id]/read（幂等已读）。
+- 上传仅 PM/运营；链接限 feishu.cn/larksuite.com 或 docs.qq.com，create 校验 http(s) 与域名；上传/编辑后异步 `runSopRefine`（`src/lib/sop-refine.ts`）：飞书可读则抓正文（复用 feishu-notify 的 getTenantToken，见 `src/lib/sop-ai.ts`），腾讯读不到正文走手动要点。
+- **AI 提炼红线**：只读 `process.env.BLUEAI_API_KEY`；缺失或网关无文本工具→稳定落 ai_status=failed 并写 ai_error，绝不伪造（当前 preview 环境密钥未注入，实测落 failed）。飞书 app 凭证仅存在于 feishu-notify.ts，新代码不得硬编码密钥。
+- 权限：middleware 注入 x-user-id/phone/role/name（**不注入 brand**），SOP scope 过滤需按 phone 查 users.brand；可见域=PM/运营/超管全部 4 域，其他内部角色=general+自身 brand 域，外部合作列表空/详情404。服务端角色判定复用 `src/lib/api-permission.ts` 的 isExternalRoleRequest/getRequestRole。
+
 ## SOP管理板块（第一期：制度+培训文档库 查阅/检索/权限）
 - 库：sop_documents（制度/培训统一表：doc_type=management|training、category、applicable_post/applicable_brand 为 jsonb 数组、visibility=internal|general、needs_quiz、status、version）与字典表 sop_categories（type=category/post/brand、label、sort_order）。
 - 页面：`/sop`（文档库：全部/制度/培训分页签 + category/brand 下拉 + 关键词，卡片显示 标题/分类/品牌/来源状态/需考核；来源有 external_url 显示"查看文档"，无则"资料待补充"）、`/sop/doc/[id]` 详情页（全字段；external_url 新标签打开，无则占位）。
