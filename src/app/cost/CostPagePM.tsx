@@ -1181,10 +1181,11 @@ function DonutChartV2({
   // 蓝色系渐变色
   const blueGradientColors = ['#1e3a8a', '#3b5bdb', '#4158D0', '#6B7FE8', '#9B85FF', '#C4B5FD'];
 
-  let startAngle = -Math.PI / 2;
+  const segmentAngles = validData.map((item) => (total > 0 ? (item.cost / total) * Math.PI * 2 : 0));
 
   const segments = validData.map((item, index) => {
-    const angle = total > 0 ? (item.cost / total) * Math.PI * 2 : 0;
+    const startAngle = -Math.PI / 2 + segmentAngles.slice(0, index).reduce((sum, a) => sum + a, 0);
+    const angle = segmentAngles[index];
     const endAngle = startAngle + angle;
 
     const x1o = cx + outerR * Math.cos(startAngle);
@@ -1208,7 +1209,6 @@ function DonutChartV2({
 
     const color = blueGradientColors[index % blueGradientColors.length];
     const result = { d, color, label: item.label, cost: item.cost, key: item.key, pct: total > 0 ? (item.cost / total * 100).toFixed(1) : '0' };
-    startAngle = endAngle;
     return result;
   });
 

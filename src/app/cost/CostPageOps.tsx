@@ -1002,10 +1002,11 @@ function DonutChart({
   const outerR = 85;
   const innerR = 55;
 
-  let startAngle = -Math.PI / 2;
+  const segmentAngles = validData.map((item) => (item.cost / total) * Math.PI * 2);
 
-  const segments = validData.map((item) => {
-    const angle = (item.cost / total) * Math.PI * 2;
+  const segments = validData.map((item, index) => {
+    const startAngle = -Math.PI / 2 + segmentAngles.slice(0, index).reduce((sum, a) => sum + a, 0);
+    const angle = segmentAngles[index];
     const endAngle = startAngle + angle;
 
     const x1o = cx + outerR * Math.cos(startAngle);
@@ -1028,7 +1029,6 @@ function DonutChart({
     ].join(' ');
 
     const result = { d, color: item.config.text, label: item.label, cost: item.cost };
-    startAngle = endAngle;
     return result;
   });
 
