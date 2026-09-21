@@ -1,0 +1,68 @@
+/* SOP 双主题 Token：默认=日间（飞书指令文档浅色），.dark 覆盖=夜间（复用平台深色变量）
+ * 仅作用于 .sop-scope 子树，不改 :root/全局变量/blue-theme；切换即生效（CSS 变量随 .dark 重算） */
+.sop-scope {
+  --sop-bg: #f5f7fa;
+  --sop-panel: #ffffff;
+  --sop-border: #e5e6eb;
+  --sop-line: #d6e4ff;
+  --sop-card-border: #bedaff;
+  --sop-primary: #165dff;
+  --sop-primary-soft: #e8f1ff;
+  --sop-primary-bg: #e8f3ff;
+  --sop-flow-bg: #f0f5ff;
+  --sop-card-active: #f7faff;
+  --sop-t1: #1d2129;
+  --sop-t2: #4e5969;
+  --sop-t3: #86909c;
+  --sop-t4: #c9cdd4;
+  --sop-muted: #f2f3f5;
+  --sop-success: #00b42a;
+  --sop-success-bg: #e8ffea;
+  --sop-warn: #ff7d00;
+  --sop-warn-bg: #fff7e8;
+  --sop-danger: #f53f3f;
+  --sop-danger-bg: #ffece8;
+  --sop-danger-soft: #fff7f5;
+  --sop-danger-line: #fadbda;
+  --sop-flow-arrow: #a3c6ff;
+  --sop-ai-grad: linear-gradient(160deg, #f5f9ff 0%, #fdfeff 100%);
+  --sop-overlay: rgba(0, 0, 0, 0.3);
+}
+.dark .sop-scope {
+  --sop-bg: var(--background);
+  --sop-panel: var(--card);
+  --sop-border: var(--border);
+  --sop-line: oklch(0.68 0.16 260 / 0.38);
+  --sop-card-border: oklch(0.68 0.16 260 / 0.5);
+  --sop-primary: var(--primary);
+  --sop-primary-soft: oklch(0.68 0.16 260 / 0.16);
+  --sop-primary-bg: oklch(0.68 0.16 260 / 0.18);
+  --sop-flow-bg: oklch(0.68 0.16 260 / 0.14);
+  --sop-card-active: oklch(0.68 0.16 260 / 0.09);
+  --sop-t1: var(--foreground);
+  --sop-t2: var(--muted-foreground);
+  --sop-t3: oklch(0.66 0 0);
+  --sop-t4: oklch(0.5 0 0);
+  --sop-muted: var(--muted);
+  --sop-success: oklch(0.76 0.17 155);
+  --sop-success-bg: oklch(0.76 0.17 155 / 0.16);
+  --sop-warn: oklch(0.8 0.14 70);
+  --sop-warn-bg: oklch(0.8 0.14 70 / 0.15);
+  --sop-danger: oklch(0.7 0.2 25);
+  --sop-danger-bg: oklch(0.7 0.2 25 / 0.16);
+  --sop-danger-soft: oklch(0.7 0.2 25 / 0.1);
+  --sop-danger-line: oklch(0.7 0.2 25 / 0.32);
+  --sop-flow-arrow: oklch(0.72 0.18 260);
+  --sop-ai-grad: linear-gradient(160deg, rgba(22, 93, 255, 0.12) 0%, rgba(22, 93, 255, 0.05) 100%);
+  --sop-overlay: rgba(0, 0, 0, 0.55);
+}
+
+/* 业务线圆点（日/夜各一套，保持品牌识别） */
+.sop-scope .dot-general { background-color: #86909c; }
+.sop-scope .dot-vivo { background-color: #4e5fff; }
+.sop-scope .dot-iqoo_douyin { background-color: #fe2c55; }
+.sop-scope .dot-iqoo_kuaishou { background-color: #ff7d00; }
+.dark .sop-scope .dot-general { background-color: oklch(0.66 0 0); }
+.dark .sop-scope .dot-vivo { background-color: #6a8cff; }
+.dark .sop-scope .dot-iqoo_douyin { background-color: #ff4d6a; }
+.dark .sop-scope .dot-iqoo_kuaishou { background-color: #ff9a3c; }
