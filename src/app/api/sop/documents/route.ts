@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getSopUserContext } from '@/lib/sop-context';
 import { SCOPE_OPTIONS, SUB_CATEGORY_OPTIONS, detectSourceType } from '@/lib/sop-taxonomy';
 import { runSopRefine } from '@/lib/sop-refine';
+import { getScopeSyncStats, formatSyncDetail, syncStatusLabel, ScopeSyncStats } from '@/lib/sop-sync';
 
 const LIST_SELECT = [
   'id',
@@ -22,12 +23,15 @@ const LIST_SELECT = [
   'ai_summary',
   'ai_keypoints',
   'ai_status',
+  'ai_error',
+  'content_excerpt',
   'uploaded_by',
   'uploader_name',
   'is_active',
   'remark',
   'created_at',
   'updated_at',
+  'prev_version_at',
 ].join(',');
 
 // GET /api/sop/documents?scope=&sub_category=&doc_type=&keyword=
@@ -61,7 +65,7 @@ export async function GET(request: NextRequest) {
 
     if (subCategory) query = query.eq('sub_category', subCategory);
     if (docType && docType !== 'all') query = query.eq('doc_type', docType);
-    if (keyword) query = query.ilike('title', `%${keyword}%`);
+    if (keyword) query = query.or(`title.ilike.%${keyword}%,ai_summary.ilike.%${keyword}%`);
 
     const { data: docs, error } = await query;
     if (error) throw new Error(`查询失败: ${error.message}`);
@@ -76,8 +80,23 @@ export async function GET(request: NextRequest) {
       (logs ?? []).forEach((l) => readSet.add(l.doc_id as string));
     }
 
-    const rows = (docs ?? []) as unknown as Array<{ id: string } & Record<string, unknown>>;
-    const result = rows.map((d) => ({ ...d, read: readSet.has(d.id) }));
+    const rows = (docs ?? []) as unknown as Array<{ id: string; scope: string } & Record<string, unknown>>;
+
+    // 按业务线实时计算分发统计（每个 scope 算一次）
+    const syncMap = new Map<string, ScopeSyncStats>();
+    const sync = await getScopeSyncStats(rows.map((d) => d.scope));
+    sync.forEach((s, k) => syncMap.set(k, s));
+
+    const result = rows.map((d) => {
+      const stats = syncMap.get(d.scope) ?? { total: 0, anchor: 0, ops: 0, pm: 0, mid: 0 };
+      return {
+        ...d,
+        read: readSet.has(d.id),
+        synced_count: stats.total,
+        sync_detail: formatSyncDetail(stats),
+        sync_status: syncStatusLabel(d.ai_status as string | null, stats),
+      };
+    });
 
     return NextResponse.json({
       success: true,
@@ -111,6 +130,8 @@ export async function POST(request: NextRequest) {
         ? body.manualKeypoints
         : []) as string[];
     const remark = String(body.remark || '').trim();
+    const needsQuiz = !!body.needs_quiz;
+    const contentExcerpt = String(body.content_excerpt || '').trim();
 
     if (!title) return NextResponse.json({ error: '标题不能为空' }, { status: 400 });
     if (!externalUrl) return NextResponse.json({ error: '请提供飞书或腾讯文档链接' }, { status: 400 });
@@ -135,12 +156,13 @@ export async function POST(request: NextRequest) {
         external_url: externalUrl,
         visibility: 'internal',
         status: 'published',
-        needs_quiz: false,
+        needs_quiz: needsQuiz,
         ai_status: 'pending',
         is_active: true,
         uploaded_by: ctx.userId,
         uploader_name: ctx.name,
         remark,
+        content_excerpt: contentExcerpt || null,
         applicable_brand: ['vivo&iQOO'],
         applicable_post: null,
         category: null,

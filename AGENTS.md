@@ -77,6 +77,15 @@ src/
 - **AI 提炼红线**：只读 `process.env.BLUEAI_API_KEY`；缺失或网关无文本工具→稳定落 ai_status=failed 并写 ai_error，绝不伪造（当前 preview 环境密钥未注入，实测落 failed）。飞书 app 凭证仅存在于 feishu-notify.ts，新代码不得硬编码密钥。
 - 权限：middleware 注入 x-user-id/phone/role/name（**不注入 brand**），SOP scope 过滤需按 phone 查 users.brand；可见域=PM/运营/超管全部 4 域，其他内部角色=general+自身 brand 域，外部合作列表空/详情404。服务端角色判定复用 `src/lib/api-permission.ts` 的 isExternalRoleRequest/getRequestRole。
 
+## SOP管理板块（第二期升级·UI v2.5：三栏浅色 + 分发统计 + 删除）
+- **浅色仅限 SOP 页**：/sop 与 /sop/doc/[id] 用独立浅色样式（根容器 `sop-light-scope`，配色按飞书指令：背景 #F5F7FA/面板 #FFF/主色 #165DFF/文本四级 #1D2129:#4E5969:#86909C:#C9CDD4/绿 #00B42A/橙 #FF7D00/红 #F53F3F），完全用 Tailwind 任意值与内联样式，**不改 :root/全局 CSS 变量/blue-theme/通用组件**。
+- **三栏布局**：196 : 600 : 剩余。左栏一级业务线（圆点色：通用#86909C/vivo#4E5FFF/iQOO抖音#FE2C55/iQOO快手#FF7D00，徽标=真实文档数）；中栏分类 Tabs（全部/产品知识/企业文化/日常管理/直播标准/其它，灰色真实计数）；右栏内联详情（面包屑、标题+状态、元信息 chips、AI 提炼框、内容摘录、查看原文、删除）。共享详情体为 `src/components/sop/SopDocDetailBody.tsx`，/sop/doc/[id] 深链复用同一组件渲染。
+- **三态状态机（真实，不造假）**：done=已提炼(绿+已同步N人)、processing=提炼中(蓝，待提炼完成后分发)、其余(pending/failed/null)=资料待补充(灰，未分发)。存量 17 条未跑过提炼 → ai_status=pending 展示为资料待补充（不要误判为提炼中）。
+- **分发人数实时统计**：`src/lib/sop-sync.ts` 按业务线查 users（status=approved、role∈PM/运营/中控/主播、排除外部合作）；general=全部内部；品牌线=brand 匹配者 + 品牌为空或 'all' 的 PM/运营计全业务线。提供 computeScopeSync/getScopeSyncStats/formatSyncDetail(主播X·运营Y·中控Z，PM 计入运营)/syncStatusLabel。**不落库、不凑数**。
+- **删除**：仅 PM/运营（服务端 DELETE /api/sop/documents/[id] 强制 403），同时级联删 sop_read_logs（eq doc_id）。前端 SopDocDetailBody 内二次确认。
+- **版本流转**：sop_documents 新增列 content_excerpt text、prev_version_at timestamptz、remark；runSopRefine 支持 bumpVersion=true（PATCH 内容变更时 version+1 并记 prev_version_at）；POST 触发后 version 保持 1。
+- 关键词搜索匹配 title 与 ai_summary（supabase `.or('title.ilike.%..%,ai_summary.ilike.%..%')`）。测试 JWT 可用 node:crypto 手工 HS256 签名（secret 见 src/lib/auth-token.ts，不硬编码进产物）。
+
 ## SOP管理板块（第一期：制度+培训文档库 查阅/检索/权限）
 - 库：sop_documents（制度/培训统一表：doc_type=management|training、category、applicable_post/applicable_brand 为 jsonb 数组、visibility=internal|general、needs_quiz、status、version）与字典表 sop_categories（type=category/post/brand、label、sort_order）。
 - 页面：`/sop`（文档库：全部/制度/培训分页签 + category/brand 下拉 + 关键词，卡片显示 标题/分类/品牌/来源状态/需考核；来源有 external_url 显示"查看文档"，无则"资料待补充"）、`/sop/doc/[id]` 详情页（全字段；external_url 新标签打开，无则占位）。

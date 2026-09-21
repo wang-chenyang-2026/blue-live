@@ -78,6 +78,9 @@ export const sopDocuments = pgTable(
     // draft / published / archived（本期导入默认 published）
     status: varchar("status", { length: 20 }).notNull().default("published"),
     version: integer("version").notNull().default(1),
+    // v2.5 UI 重构：正文摘录（抓到的正文前段）、上一版本时间
+    content_excerpt: text("content_excerpt"),
+    prev_version_at: timestamp("prev_version_at", { withTimezone: true }),
     created_by: varchar("created_by", { length: 64 }),
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
