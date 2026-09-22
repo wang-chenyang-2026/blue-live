@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { PlusIcon, Search, Trash2 } from 'lucide-react';
+import { PlusIcon, Search, Trash2, X, Save, RefreshCw, FileText, File as FileIcon, UploadCloud } from 'lucide-react';
 import '@/components/sop/sop-theme.css';
 
 type SopListItem = {
@@ -60,6 +60,114 @@ const FILE_KIND: Record<string, string> = {
   gif: 'image', webp: 'image', bmp: 'image', svg: 'image',
 };
 
+// 批量上传草稿：文件项（File 句柄仅在内存会话内有效，刷新后需重新选择）
+export interface SopUploadFileItem {
+  uid: string;
+  file: File | null;
+  name: string;
+  size: number;
+  type: string;
+  lastModified: number;
+  title: string;
+  needsReselect: boolean;
+  status: 'pending' | 'uploading' | 'success' | 'failed';
+  error?: string;
+}
+
+export interface SopUploadDraft {
+  mode: 'link' | 'file';
+  title: string;
+  link: string;
+  scope: string;
+  subCategory: string;
+  needsQuiz: boolean;
+  remark: string;
+  manualKeypoints: string;
+  files: SopUploadFileItem[];
+}
+
+const DRAFT_KEY = 'blue_sop_upload_draft';
+const MAX_FILES = 20;
+
+// localStorage 仅持久化可序列化元数据（File 对象无法序列化）
+interface SopUploadDraftMeta {
+  mode: 'link' | 'file';
+  title: string;
+  link: string;
+  scope: string;
+  subCategory: string;
+  needsQuiz: boolean;
+  remark: string;
+  manualKeypoints: string;
+  files: Array<Pick<SopUploadFileItem, 'uid' | 'name' | 'size' | 'type' | 'lastModified' | 'title'>>;
+}
+
+function stripToMeta(d: SopUploadDraft): SopUploadDraftMeta {
+  return {
+    mode: d.mode,
+    title: d.title,
+    link: d.link,
+    scope: d.scope,
+    subCategory: d.subCategory,
+    needsQuiz: d.needsQuiz,
+    remark: d.remark,
+    manualKeypoints: d.manualKeypoints,
+    files: d.files.map((f) => ({ uid: f.uid, name: f.name, size: f.size, type: f.type, lastModified: f.lastModified, title: f.title })),
+  };
+}
+
+function metaToDraft(m: SopUploadDraftMeta): SopUploadDraft {
+  return {
+    ...m,
+    files: m.files.map((f) => ({ ...f, file: null, needsReselect: true, status: 'pending' as const })),
+  };
+}
+
+function saveDraftMeta(d: SopUploadDraft) {
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(stripToMeta(d)));
+  } catch {
+    /* 忽略存储失败 */
+  }
+}
+
+function loadDraftMeta(): SopUploadDraftMeta | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as SopUploadDraftMeta;
+    if (typeof parsed.mode !== 'string') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function clearDraftMeta() {
+  try {
+    localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+let uidCounter = 0;
+function genUid(): string {
+  uidCounter += 1;
+  return `${Date.now().toString(36)}-${uidCounter}`;
+}
+
+function stripExt(name: string): string {
+  const i = name.lastIndexOf('.');
+  return i > 0 ? name.slice(0, i) : name;
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
 function fmtTime(iso: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -81,6 +189,63 @@ function SopPageInner() {
   const [deleteTarget, setDeleteTarget] = useState<SopListItem | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  // 上传草稿：持于父级以便同会话关闭/重开完整恢复（File 句柄随内存保留）
+  const [uploadDraft, setUploadDraft] = useState<SopUploadDraft | null>(null);
+  const draftSavedRef = useRef(false);
+
+  const notify = (msg: string) => {
+    setToast(msg);
+    window.setTimeout(() => setToast(null), 2600);
+  };
+
+  // 初始打开：若内存无草稿，尝试从 localStorage 恢复（刷新后 File 丢失 → 需重选）
+  const openUpload = () => {
+    if (!uploadDraft) {
+      const meta = loadDraftMeta();
+      if (meta) {
+        draftSavedRef.current = true;
+        setUploadDraft(metaToDraft(meta));
+      } else {
+        setUploadDraft({
+          mode: 'file',
+          title: '',
+          link: '',
+          scope: visibleScopes[0] ?? 'general',
+          subCategory: 'product',
+          needsQuiz: false,
+          remark: '',
+          manualKeypoints: '',
+          files: [],
+        });
+      }
+    }
+    setShowUpload(true);
+  };
+
+  const closeUpload = () => setShowUpload(false);
+
+  const discardDraft = () => {
+    clearDraftMeta();
+    draftSavedRef.current = false;
+    setUploadDraft(null);
+    setShowUpload(false);
+  };
+
+  const saveDraft = (d: SopUploadDraft) => {
+    setUploadDraft(d);
+    draftSavedRef.current = true;
+    saveDraftMeta(d);
+    notify('已保存，可随时继续');
+  };
+
+  const handleCreated = async () => {
+    clearDraftMeta();
+    draftSavedRef.current = false;
+    setUploadDraft(null);
+    setShowUpload(false);
+    await load();
+    notify('已提交，正在后台提炼');
+  };
 
   const load = async () => {
     setLoading(true);
@@ -204,7 +369,7 @@ function SopPageInner() {
             {canUpload ? (
               <button
                 type="button"
-                onClick={() => setShowUpload(true)}
+                onClick={openUpload}
                 className="flex h-9 items-center gap-1.5 rounded-md px-4 text-sm font-medium text-white"
                 style={{ backgroundColor: 'var(--sop-primary)' }}
               >
@@ -326,16 +491,16 @@ function SopPageInner() {
         </div>
       </div>
 
-      {showUpload && canUpload && (
+      {showUpload && canUpload && uploadDraft && (
         <UploadModal
-          onClose={() => setShowUpload(false)}
+          draft={uploadDraft}
+          onDraftChange={setUploadDraft}
+          onSave={saveDraft}
+          onClose={closeUpload}
+          onDiscard={discardDraft}
+          onCreated={handleCreated}
           scopes={visibleScopes}
-          onCreated={async () => {
-            setShowUpload(false);
-            await load();
-            setToast('已提交，正在后台提炼');
-            setTimeout(() => setToast(null), 2500);
-          }}
+          draftSaved={draftSavedRef.current}
         />
       )}
 
@@ -503,111 +668,337 @@ function SopCard({
   );
 }
 
+function FileThumb({ it, onPreview, className }: { it: SopUploadFileItem; onPreview: () => void; className?: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const ext = (it.name.split('.').pop() || '').toLowerCase();
+  const isImage = FILE_KIND[ext] === 'image';
+  useEffect(() => {
+    if (it.file && isImage) {
+      const u = URL.createObjectURL(it.file);
+      setUrl(u);
+      return () => URL.revokeObjectURL(u);
+    }
+    setUrl(null);
+  }, [it.file, isImage]);
+  if (url && it.file) {
+    return (
+      <img
+        src={url}
+        alt={it.name}
+        className={className ?? 'h-10 w-10 shrink-0 cursor-zoom-in rounded border object-cover'}
+        style={{ borderColor: 'var(--sop-border)' }}
+        onClick={(e) => { e.stopPropagation(); onPreview(); }}
+      />
+    );
+  }
+  return (
+    <span
+      className="flex h-10 w-10 shrink-0 items-center justify-center rounded border"
+      style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-primary)', backgroundColor: isImage ? 'var(--sop-primary-bg)' : 'var(--sop-muted)' }}
+    >
+      {ext === 'pdf' ? <FileText size={20} /> : <FileIcon size={20} />}
+    </span>
+  );
+}
+
 function UploadModal({
+  draft,
+  onDraftChange,
+  onSave,
   onClose,
-  scopes,
+  onDiscard,
   onCreated,
+  scopes,
+  draftSaved,
 }: {
+  draft: SopUploadDraft;
+  onDraftChange: (d: SopUploadDraft) => void;
+  onSave: (d: SopUploadDraft) => void;
   onClose: () => void;
-  scopes: string[];
+  onDiscard: () => void;
   onCreated: () => Promise<void>;
+  scopes: string[];
+  draftSaved: boolean;
 }) {
-  const [title, setTitle] = useState('');
-  const [link, setLink] = useState('');
-  const [mode, setMode] = useState<'link' | 'file'>('link');
-  const [file, setFile] = useState<File | null>(null);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [scope, setScope] = useState(scopes[0] ?? 'general');
-  const [subCategory, setSubCategory] = useState('product');
-  const [needsQuiz, setNeedsQuiz] = useState(false);
-  const [remark, setRemark] = useState('');
-  const [manualKeypoints, setManualKeypoints] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [confirmClose, setConfirmClose] = useState(false);
+  const [showPreview, setShowPreview] = useState<SopUploadFileItem | null>(null);
 
-  const pickFile = (f: File) => {
+  const mode = draft.mode;
+  const files = draft.files;
+  const multi = mode === 'file' && files.length > 1;
+  const hasContent =
+    mode === 'file'
+      ? files.length > 0 || !!draft.title.trim() || !!draft.remark.trim() || !!draft.manualKeypoints.trim() || draft.needsQuiz
+      : !!(draft.title.trim() || draft.link.trim() || draft.remark.trim() || draft.manualKeypoints.trim());
+  const restored = useState(() => files.length > 0)[0]; // 仅当打开时已有草稿文件才提示「已恢复」
+  const anyNeedsReselect = files.some((f) => f.needsReselect && !f.file);
+  const doneCount = files.filter((f) => f.status === 'success' || f.status === 'failed').length;
+  const canSubmit =
+    mode === 'file'
+      ? files.length > 0 && !anyNeedsReselect && !submitting
+      : !!draft.title.trim() && !!draft.link.trim() && !submitting;
+
+  const setMode = (m: 'link' | 'file') => {
     setError(null);
-    if (!/\.(pdf|doc|docx|ppt|pptx|txt|md|png|jpe?g|gif|webp|bmp|svg)$/i.test(f.name)) {
-      setError('不支持的文件类型：支持 PDF / Word / PPT / txt / md 及常见图片');
-      return;
-    }
-    const ext = (f.name.split('.').pop() || 'txt').toLowerCase();
-    const isImage = (FILE_KIND[ext] || '') === 'image';
-    const limit = isImage ? MAX_IMAGE_BYTES : MAX_FILE_BYTES;
-    if (f.size > limit) {
-      setError(`文件过大：${isImage ? '图片不超过 10MB' : '文档不超过 30MB'}（当前 ${(f.size / (1024 * 1024)).toFixed(1)}MB）`);
-      return;
-    }
-    setFile(f);
-    if (!title) setTitle(f.name);
+    setNotice(null);
+    onDraftChange({ ...draftRef.current, mode: m });
   };
 
-  const submit = async () => {
-    setSubmitting(true);
+  const update = (patch: Partial<SopUploadDraft>) => {
+    const next = { ...draftRef.current, ...patch };
+    draftRef.current = next;
+    onDraftChange(next);
+  };
+
+  const setItemStatus = (uid: string, status: SopUploadFileItem['status'], err?: string) => {
+    const cur = draftRef.current;
+    const next = { ...cur, files: cur.files.map((f) => (f.uid === uid ? { ...f, status, error: err } : f)) };
+    draftRef.current = next;
+    onDraftChange(next);
+  };
+
+  const addFiles = (incoming: File[]) => {
+    if (!incoming.length) return;
     setError(null);
-    try {
-      if (mode === 'file') {
-        if (!file) {
-          setError('请选择要上传的文件');
-          return;
-        }
-        const fd = new FormData();
-        fd.append('title', title);
-        fd.append('scope', scope);
-        fd.append('sub_category', subCategory);
-        fd.append('needs_quiz', needsQuiz ? 'true' : 'false');
-        fd.append('remark', remark);
-        fd.append('doc_type', 'training');
-        fd.append('file', file);
-        const res = await fetch('/api/sop/documents', { method: 'POST', body: fd });
-        const json = await res.json().catch(() => ({ success: false }));
-        if (res.status >= 400 || !json.success) {
-          setError(json.error || '上传失败');
-          return;
-        }
-      } else {
-        const body = {
-          title,
-          external_url: link,
-          scope,
-          sub_category: subCategory,
-          needs_quiz: needsQuiz,
-          remark,
-          manual_keypoints: manualKeypoints.split('\n').map((s) => s.trim()).filter(Boolean),
-          doc_type: 'training',
-        };
-        const res = await fetch('/api/sop/documents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        const json = await res.json().catch(() => ({ success: false }));
-        if (res.status >= 400 || !json.success) {
-          setError(json.error || '上传失败');
-          return;
-        }
+    const skips: string[] = [];
+    const cur = draftRef.current;
+    const items = [...cur.files];
+    for (const f of incoming) {
+      if (items.length >= MAX_FILES) {
+        skips.push(`单次最多 ${MAX_FILES} 个文件，已达上限，其余已忽略`);
+        break;
       }
-      await onCreated();
-    } catch (e) {
-      console.error(e);
-    } finally {
+      const dup = items.some(
+        (i) => i.name === f.name && i.size === f.size && i.lastModified === f.lastModified,
+      );
+      if (dup) {
+        skips.push(`「${f.name}」重复，已忽略`);
+        continue;
+      }
+      if (!/\.(pdf|doc|docx|ppt|pptx|txt|md|png|jpe?g|gif|webp|bmp|svg)$/i.test(f.name)) {
+        skips.push(`「${f.name}」类型不支持，已忽略`);
+        continue;
+      }
+      const ext = (f.name.split('.').pop() || 'txt').toLowerCase();
+      const isImage = FILE_KIND[ext] === 'image';
+      const limit = isImage ? MAX_IMAGE_BYTES : MAX_FILE_BYTES;
+      if (f.size > limit) {
+        skips.push(`「${f.name}」超限（${isImage ? '图片 ≤10MB' : '文档 ≤30MB'}），已忽略`);
+        continue;
+      }
+      items.push({
+        uid: genUid(),
+        file: f,
+        name: f.name,
+        size: f.size,
+        type: f.type,
+        lastModified: f.lastModified,
+        title: stripExt(f.name),
+        needsReselect: false,
+        status: 'pending',
+      });
+    }
+    const next = { ...cur, files: items };
+    // 单文件时回填主标题
+    if (items.length === 1 && !cur.title.trim()) next.title = stripExt(items[0].name);
+    draftRef.current = next;
+    onDraftChange(next);
+    if (skips.length) setNotice(skips.join('；'));
+  };
+
+  const removeItem = (uid: string) => {
+    const cur = draftRef.current;
+    const filesNext = cur.files.filter((f) => f.uid !== uid);
+    const next = { ...cur, files: filesNext };
+    draftRef.current = next;
+    onDraftChange(next);
+  };
+
+  const reselectItem = (uid: string, f: File) => {
+    if (!/\.(pdf|doc|docx|ppt|pptx|txt|md|png|jpe?g|gif|webp|bmp|svg)$/i.test(f.name)) {
+      setError(`「${f.name}」类型不支持`);
+      return;
+    }
+    const cur = draftRef.current;
+    const next = {
+      ...cur,
+      files: cur.files.map((it) =>
+        it.uid === uid
+          ? { ...it, file: f, name: f.name, size: f.size, type: f.type, lastModified: f.lastModified, needsReselect: false, error: undefined }
+          : it,
+      ),
+    };
+    draftRef.current = next;
+    onDraftChange(next);
+  };
+
+  // 逐文件并发上传（保留进度与单项状态，失败可重试，不中断其余）
+  const submit = async () => {
+    setError(null);
+    setSubmitting(true);
+    const cur = draftRef.current;
+    if (mode === 'file') {
+      const queue = cur.files.filter((f) => f.status !== 'success');
+      setItemStatusAll(queue.map((f) => ({ uid: f.uid, status: 'pending' as const })));
+      const CONCURRENCY = 3;
+      let idx = 0;
+      const runOne = async (item: SopUploadFileItem) => {
+        setItemStatus(item.uid, 'uploading');
+        try {
+          if (!item.file) {
+            setItemStatus(item.uid, 'failed', 'File 已丢失，需重新选择');
+            return;
+          }
+          const fd = new FormData();
+          fd.append('title', item.title && item.title.trim() ? item.title.trim() : item.name);
+          fd.append('scope', cur.scope);
+          fd.append('sub_category', cur.subCategory);
+          fd.append('needs_quiz', cur.needsQuiz ? 'true' : 'false');
+          fd.append('remark', cur.remark);
+          fd.append('doc_type', 'training');
+          fd.append('file', item.file);
+          const res = await fetch('/api/sop/documents', { method: 'POST', body: fd });
+          const json = (await res.json().catch(() => ({ success: false }))) as { success?: boolean; error?: string };
+          if (res.status >= 400 || !json.success) throw new Error(json.error || '上传失败');
+          setItemStatus(item.uid, 'success');
+        } catch (e) {
+          setItemStatus(item.uid, 'failed', e instanceof Error ? e.message : '上传失败');
+        }
+      };
+      const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }).map(async () => {
+        while (idx < queue.length) {
+          const item = queue[idx];
+          idx += 1;
+          await runOne(item);
+        }
+      });
+      await Promise.all(workers);
       setSubmitting(false);
+      const final = draftRef.current;
+      if (final.files.length > 0 && final.files.every((f) => f.status === 'success')) {
+        await onCreated();
+      }
+    } else {
+      const body = {
+        title: draft.title,
+        external_url: draft.link,
+        scope: draft.scope,
+        sub_category: draft.subCategory,
+        needs_quiz: draft.needsQuiz,
+        remark: draft.remark,
+        manual_keypoints: draft.manualKeypoints.split('\n').map((s) => s.trim()).filter(Boolean),
+        doc_type: 'training',
+      };
+      try {
+        const res = await fetch('/api/sop/documents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const json = (await res.json().catch(() => ({ success: false }))) as { success?: boolean; error?: string };
+        if (res.status >= 400 || !json.success) {
+          setError(json.error || '上传失败');
+        } else {
+          await onCreated();
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : '上传失败');
+      } finally {
+        setSubmitting(false);
+      }
     }
   };
+
+  const setItemStatusAll = (list: Array<{ uid: string; status: SopUploadFileItem['status'] }>) => {
+    const cur = draftRef.current;
+    const next = { ...cur, files: cur.files.map((f) => (list.find((x) => x.uid === f.uid) ? { ...f, status: list.find((x) => x.uid === f.uid)!.status } : f)) };
+    draftRef.current = next;
+    onDraftChange(next);
+  };
+
+  const requestClose = () => {
+    if (hasContent) setConfirmClose(true);
+    else closeFinalize();
+  };
+
+  const closeFinalize = () => {
+    setConfirmClose(false);
+    if (draftSaved) onClose();
+    else onDiscard();
+  };
+
+  // Esc 不关闭；仅主动关闭按钮可用
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') e.stopPropagation();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
+
+  const ext = (name: string) => (name.split('.').pop() || '').toLowerCase();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" style={{ backgroundColor: 'rgba(0,0,0,0.30)' }} onClick={onClose}>
-      <div className="w-[560px] max-h-[86vh] overflow-y-auto rounded-lg p-6" style={{ backgroundColor: 'var(--sop-panel)', border: '1px solid var(--sop-border)' }} onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ backgroundColor: 'rgba(0,0,0,0.30)' }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div
+        className="relative w-[608px] max-h-[88vh] overflow-y-auto rounded-lg p-6"
+        style={{ backgroundColor: 'var(--sop-panel)', border: '1px solid var(--sop-border)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 右上角关闭 X（主动关闭） */}
+        <button
+          type="button"
+          aria-label="关闭"
+          onClick={requestClose}
+          className="absolute right-3 top-3 rounded p-1.5 transition-colors"
+          style={{ color: 'var(--sop-t3)' }}
+          title="关闭"
+        >
+          <X size={18} />
+        </button>
+
         <h3 className="text-[16px] font-bold" style={{ color: 'var(--sop-t1)' }}>
           上传 SOP 文档
         </h3>
         <p className="mt-1 text-xs" style={{ color: 'var(--sop-t3)' }}>
-          支持在线链接（飞书 / 腾讯文档）或本地文件上传（PDF / Word / PPT / txt / md / 图片）
+          支持在线链接（飞书 / 腾讯文档）或本地文件批量上传（PDF / Word / PPT / txt / md / 图片）
         </p>
+
+        {/* 恢复草稿提示 */}
+        {restored && (
+          <div
+            className="mt-3 flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-xs"
+            style={{ borderColor: 'var(--sop-primary-line, var(--sop-border))', backgroundColor: 'var(--sop-primary-bg)' }}
+          >
+            <span style={{ color: 'var(--sop-t2)' }}>
+              已恢复上次未完成的上传（{files.length} 个文件）
+              {anyNeedsReselect ? ' · 部分文件需重新选择' : ''}
+            </span>
+            <button
+              type="button"
+              onClick={onDiscard}
+              className="shrink-0 rounded px-2 py-0.5 text-xs font-medium transition-colors"
+              style={{ border: '1px solid var(--sop-danger)', color: 'var(--sop-danger)' }}
+            >
+              放弃草稿
+            </button>
+          </div>
+        )}
 
         <div className="mt-3 flex gap-1 rounded-md p-1" style={{ backgroundColor: 'var(--sop-muted)' }}>
           {(['link', 'file'] as const).map((m) => (
             <button
               key={m}
               type="button"
-              onClick={() => { setMode(m); setError(null); }}
+              onClick={() => setMode(m)}
               className="flex-1 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors"
               style={
                 mode === m
@@ -620,19 +1011,50 @@ function UploadModal({
           ))}
         </div>
 
-        <label className="mt-4 block text-[13px] font-medium" style={{ color: 'var(--sop-t2)' }}>
-          标题 <span style={{ color: 'var(--sop-danger)' }}>*</span>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-[13px] outline-none" style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t1)', backgroundColor: 'var(--sop-panel)' }} />
-        </label>
-
         {mode === 'link' ? (
-          <label className="mt-3 block text-[13px] font-medium" style={{ color: 'var(--sop-t2)' }}>
-            文档链接 <span style={{ color: 'var(--sop-danger)' }}>*</span>
-            <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://xxx.feishu.cn/… 或 https://docs.qq.com/…" className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-[13px] outline-none" style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t1)', backgroundColor: 'var(--sop-panel)' }} />
+          <>
+            <label className="mt-4 block text-[13px] font-medium" style={{ color: 'var(--sop-t2)' }}>
+              标题 <span style={{ color: 'var(--sop-danger)' }}>*</span>
+              <input
+                value={draft.title}
+                onChange={(e) => update({ title: e.target.value })}
+                className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-[13px] outline-none"
+                style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t1)', backgroundColor: 'var(--sop-panel)' }}
+              />
+            </label>
+            <label className="mt-3 block text-[13px] font-medium" style={{ color: 'var(--sop-t2)' }}>
+              文档链接 <span style={{ color: 'var(--sop-danger)' }}>*</span>
+              <input
+                value={draft.link}
+                onChange={(e) => update({ link: e.target.value })}
+                placeholder="https://xxx.feishu.cn/… 或 https://docs.qq.com/…"
+                className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-[13px] outline-none"
+                style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t1)', backgroundColor: 'var(--sop-panel)' }}
+              />
+            </label>
+          </>
+        ) : multi ? (
+          <p className="mt-4 text-[13px]" style={{ color: 'var(--sop-t3)' }}>
+            将分别创建 <b style={{ color: 'var(--sop-primary)' }}>{files.length}</b> 条文档，标题可在下方逐个修改，公共信息批量应用。
+          </p>
+        ) : files.length === 1 ? (
+          <label className="mt-4 block text-[13px] font-medium" style={{ color: 'var(--sop-t2)' }}>
+            标题 <span style={{ color: 'var(--sop-danger)' }}>*</span>
+            <input
+              value={draft.title}
+              onChange={(e) => update({ title: e.target.value })}
+              className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-[13px] outline-none"
+              style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t1)', backgroundColor: 'var(--sop-panel)' }}
+            />
           </label>
         ) : (
+          <div className="mt-4" />
+        )}
+
+        {/* 文件选择 / 拖拽追加 */}
+        {(mode === 'file' || files.length > 0) && (
           <div
-            className="mt-3 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed px-4 py-8 text-center transition-colors"
+            className="mt-3 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed px-4 py-6 text-center transition-colors"
             style={{
               borderColor: dragOver ? 'var(--sop-primary)' : 'var(--sop-border)',
               backgroundColor: dragOver ? 'var(--sop-primary-bg, var(--sop-muted))' : 'transparent',
@@ -641,42 +1063,106 @@ function UploadModal({
             onClick={() => fileInputRef.current?.click()}
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) pickFile(f); }}
+            onDrop={(e) => { e.preventDefault(); setDragOver(false); addFiles(Array.from(e.dataTransfer.files || [])); }}
           >
             <input
               ref={fileInputRef}
               type="file"
+              multiple
               accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.md,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg"
               className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) pickFile(f); }}
+              onChange={(e) => {
+                addFiles(Array.from(e.target.files || []));
+                e.target.value = '';
+              }}
             />
-            {file ? (
-              <div className="text-center">
-                <p className="text-[13px] font-medium" style={{ color: 'var(--sop-t1)' }}>{file.name}</p>
-                <p className="mt-1 text-xs" style={{ color: 'var(--sop-t3)' }}>
-                  {(file.size / 1024).toFixed(1)} KB · 点击更换
-                </p>
-              </div>
-            ) : (
-              <>
-                <p className="text-[13px] font-medium" style={{ color: 'var(--sop-t1)' }}>
-                  点击选择或拖拽文件到此处
-                </p>
-                <p className="text-xs" style={{ color: 'var(--sop-t3)' }}>
-                  PDF / Word / PPT / txt / md · 图片（png / jpg / gif / webp / bmp / svg）
-                </p>
-                <p className="text-xs" style={{ color: 'var(--sop-t3)' }}>
-                  文档 ≤ 30MB · 图片 ≤ 10MB
-                </p>
-              </>
-            )}
+            <UploadCloud size={22} style={{ color: 'var(--sop-primary)' }} />
+            <p className="text-[13px] font-medium" style={{ color: 'var(--sop-t1)' }}>
+              {files.length ? '点击或拖拽继续添加文件（可多选）' : '点击选择或拖拽文件到此处（可多选）'}
+            </p>
+            <p className="text-xs" style={{ color: 'var(--sop-t3)' }}>
+              PDF / Word / PPT / txt / md · 图片（png / jpg / gif / webp / bmp / svg）· 单次最多 {MAX_FILES} 个
+            </p>
           </div>
         )}
 
+        {/* 文件列表 */}
+        {mode === 'file' && files.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {files.map((it) => (
+              <div
+                key={it.uid}
+                className="flex items-center gap-2 rounded-md border px-2.5 py-2"
+                style={{ borderColor: it.status === 'failed' ? 'var(--sop-danger-line, var(--sop-border))' : 'var(--sop-border)', backgroundColor: 'var(--sop-muted-soft, var(--sop-panel))' }}
+              >
+                <FileThumb it={it} onPreview={() => setShowPreview(it)} />
+                <div className="min-w-0 flex-1">
+                  {it.needsReselect && !it.file ? (
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-[13px] font-medium" style={{ color: 'var(--sop-t1)' }}>
+                        {it.name}
+                      </span>
+                      <span className="rounded px-1.5 py-0.5 text-[11px]" style={{ backgroundColor: 'var(--sop-danger-bg)', color: 'var(--sop-danger)' }}>
+                        需重新选择
+                      </span>
+                      <label
+                        className="shrink-0 rounded px-2 py-0.5 text-[11px] font-medium"
+                        style={{ backgroundColor: 'var(--sop-primary-bg)', color: 'var(--sop-primary)', cursor: 'pointer' }}
+                      >
+                        选择文件
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept={it.name.split('.').pop() ? `.${ext(it.name)}` : undefined}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) reselectItem(it.uid, f);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <input
+                      value={it.title}
+                      onChange={(e) => {
+                        const next = { ...draftRef.current, files: draftRef.current.files.map((f) => (f.uid === it.uid ? { ...f, title: e.target.value } : f)) };
+                        draftRef.current = next;
+                        onDraftChange(next);
+                      }}
+                      placeholder={it.name}
+                      className="w-full truncate rounded border-none bg-transparent text-[13px] font-medium outline-none"
+                      style={{ color: 'var(--sop-t1)' }}
+                    />
+                  )}
+                  <div className="mt-0.5 flex items-center gap-2 text-[11px]" style={{ color: 'var(--sop-t3)' }}>
+                    <span className="truncate">{it.name}</span>
+                    <span>{formatBytes(it.size)}</span>
+                    {it.status === 'uploading' && <span style={{ color: 'var(--sop-primary)' }}>上传中…</span>}
+                    {it.status === 'success' && <span style={{ color: 'var(--sop-success)' }}>成功</span>}
+                    {it.status === 'failed' && <span style={{ color: 'var(--sop-danger)' }}>失败：{it.error || '未知错误'}</span>}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label={`移除 ${it.name}`}
+                  onClick={() => removeItem(it.uid)}
+                  className="shrink-0 rounded p-1 transition-colors"
+                  style={{ color: 'var(--sop-t3)' }}
+                  title="移除"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* 公共字段 */}
         <div className="mt-3 grid grid-cols-2 gap-3">
           <label className="block text-[13px] font-medium" style={{ color: 'var(--sop-t2)' }}>
             一级 · 业务线
-            <select value={scope} onChange={(e) => setScope(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1.5 text-[13px] outline-none" style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t1)', backgroundColor: 'var(--sop-panel)' }}>
+            <select value={draft.scope} onChange={(e) => update({ scope: e.target.value })} className="mt-1 w-full rounded-md border px-2 py-1.5 text-[13px] outline-none" style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t1)', backgroundColor: 'var(--sop-panel)' }}>
               {SCOPES.filter((s) => scopes.includes(s.value)).map((s) => (
                 <option key={s.value} value={s.value}>
                   {s.label}
@@ -686,7 +1172,7 @@ function UploadModal({
           </label>
           <label className="block text-[13px] font-medium" style={{ color: 'var(--sop-t2)' }}>
             二级 · 分类
-            <select value={subCategory} onChange={(e) => setSubCategory(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1.5 text-[13px] outline-none" style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t1)', backgroundColor: 'var(--sop-panel)' }}>
+            <select value={draft.subCategory} onChange={(e) => update({ subCategory: e.target.value })} className="mt-1 w-full rounded-md border px-2 py-1.5 text-[13px] outline-none" style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t1)', backgroundColor: 'var(--sop-panel)' }}>
               {SUBCATS.map((s) => (
                 <option key={s.value} value={s.value}>
                   {s.label}
@@ -697,37 +1183,88 @@ function UploadModal({
         </div>
 
         <label className="mt-3 flex items-center gap-2 text-[13px]" style={{ color: 'var(--sop-t2)' }}>
-          <input type="checkbox" checked={needsQuiz} onChange={(e) => setNeedsQuiz(e.target.checked)} />
+          <input type="checkbox" checked={draft.needsQuiz} onChange={(e) => update({ needsQuiz: e.target.checked })} />
           该文档后续需要考核
         </label>
 
         <label className="mt-3 block text-[13px] font-medium" style={{ color: 'var(--sop-t2)' }}>
-          备注（可选）
-          <textarea value={remark} onChange={(e) => setRemark(e.target.value)} rows={2} className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-[13px] outline-none" style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t1)', backgroundColor: 'var(--sop-panel)' }} />
+          备注（可选，批量应用）
+          <textarea value={draft.remark} onChange={(e) => update({ remark: e.target.value })} rows={2} className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-[13px] outline-none" style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t1)', backgroundColor: 'var(--sop-panel)' }} />
         </label>
 
         {mode === 'link' && (
           <label className="mt-3 block text-[13px] font-medium" style={{ color: 'var(--sop-t2)' }}>
             手动补充要点（可选，逐行一条，用于腾讯文档等抓不到正文的场景兜底）
-            <textarea value={manualKeypoints} onChange={(e) => setManualKeypoints(e.target.value)} rows={3} className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-[13px] outline-none" style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t1)', backgroundColor: 'var(--sop-panel)' }} />
+            <textarea value={draft.manualKeypoints} onChange={(e) => update({ manualKeypoints: e.target.value })} rows={3} className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-[13px] outline-none" style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t1)', backgroundColor: 'var(--sop-panel)' }} />
           </label>
         )}
 
+        {notice && (
+          <p className="mt-3 text-[13px]" style={{ color: 'var(--sop-warning, var(--sop-t2))' }}>
+            {notice}
+          </p>
+        )}
         {error && (
           <p className="mt-3 text-[13px]" style={{ color: 'var(--sop-danger)' }}>
             {error}
           </p>
         )}
 
-        <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-md px-4 py-1.5 text-sm" style={{ backgroundColor: 'var(--sop-muted)', color: 'var(--sop-t2)' }}>
+        {/* 底部：取消 ｜ 保存 ｜ 确认上传 */}
+        <div className="mt-5 flex items-center justify-end gap-2">
+          {mode === 'file' && files.length > 0 && !anyNeedsReselect && (
+            <span className="mr-auto text-xs" style={{ color: 'var(--sop-t3)' }}>
+              已完成 {doneCount}/{files.length}
+            </span>
+          )}
+          <button type="button" onClick={requestClose} className="rounded-md px-4 py-1.5 text-sm" style={{ backgroundColor: 'var(--sop-muted)', color: 'var(--sop-t2)' }}>
             取消
           </button>
-          <button type="button" disabled={submitting || !title || (mode === 'link' ? !link : !file)} onClick={submit} className="rounded-md px-4 py-1.5 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--sop-primary)' }}>
-            {submitting ? '提交中…' : '确认上传'}
+          <button type="button" onClick={() => onSave(draftRef.current)} className="inline-flex items-center gap-1.5 rounded-md border px-4 py-1.5 text-sm" style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t2)' }}>
+            <Save size={14} /> 保存
+          </button>
+          <button
+            type="button"
+            disabled={!canSubmit && !submitting}
+            onClick={submit}
+            className="inline-flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+            style={{ backgroundColor: 'var(--sop-primary)' }}
+          >
+            {submitting && <RefreshCw size={14} className="animate-spin" />}
+            {submitting ? '上传中…' : '确认上传'}
           </button>
         </div>
       </div>
+
+      {/* 二次确认关闭（有内容时） */}
+      {confirmClose && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.30)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="w-[420px] rounded-lg p-6" style={{ backgroundColor: 'var(--sop-panel)', border: '1px solid var(--sop-border)' }} onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-[15px] font-bold" style={{ color: 'var(--sop-t1)' }}>
+              还有未上传的内容
+            </h3>
+            <p className="mt-2 text-[13px] leading-relaxed" style={{ color: 'var(--sop-t2)' }}>
+              确定关闭吗？可先点「保存」保留进度，下次打开继续上传。
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setConfirmClose(false)} className="rounded-md px-4 py-1.5 text-sm" style={{ backgroundColor: 'var(--sop-muted)', color: 'var(--sop-t2)' }}>
+                继续编辑
+              </button>
+              <button type="button" onClick={closeFinalize} className="rounded-md px-4 py-1.5 text-sm font-medium text-white" style={{ backgroundColor: 'var(--sop-danger)' }}>
+                仍要关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 图片放大预览 */}
+      {showPreview && showPreview.file && (
+        <div className="fixed inset-0 z-[70] flex cursor-zoom-out flex-col items-center justify-center gap-3 p-8" style={{ backgroundColor: 'rgba(0,0,0,0.85)' }} onClick={() => setShowPreview(null)}>
+          <FileThumb it={showPreview} onPreview={() => {}} className="max-h-[84vh] max-w-[90vw] rounded-lg object-contain" />
+          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.85)' }}>{showPreview.name}</p>
+        </div>
+      )}
     </div>
   );
 }
