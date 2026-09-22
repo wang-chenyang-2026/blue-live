@@ -87,6 +87,18 @@ src/
 - **版本流转**：sop_documents 新增列 content_excerpt text、prev_version_at timestamptz、remark；runSopRefine 支持 bumpVersion=true（PATCH 内容变更时 version+1 并记 prev_version_at）；POST 触发后 version 保持 1。
 - 关键词搜索匹配 title 与 ai_summary（supabase `.or('title.ilike.%..%,ai_summary.ilike.%..%')`）。测试 JWT 可用 node:crypto 手工 HS256 签名（secret 见 src/lib/auth-token.ts，不硬编码进产物）。
 
+## SOP管理板块（v2.9：本地文件上传 + 对象存储 + 文本提取 + 文档页文件展示）
+- **sop_documents 新增列**（db upgrade 增量）：`file_url` text（对象存储 key）、`file_kind` text（pdf/word/ppt/text/image/other）、`mime_type` text、`file_size` bigint（字节）。`file_name` 用既有 varchar 列（勿重复加）。`source_type` 新增取值 `'file'`（原 feishu/tencent/manual 保持）。
+- **存储通道**：Supabase Storage 私有桶 `sop-files`（此项目环境实测可用；bucket 域名 supabase2.aidap-global.cn-beijing.volces.com）。对象 key=`randomUUID().slice(0,8)/安全文件名`，防穿越、防覆盖。`src/lib/sop-storage.ts`：ensureSopBucket/uploadSopFile/deleteSopFile/sopFileSignedUrl(key,expires)/sopFileDownloadUrl。
+- **类型与大小白名单**：`src/lib/file-extract.ts`：EXT_MAP（见下）+ 真实内容嗅探 sniffFile（PDF 魔数 %PDF、docx/pptx 魔数 PK、svg <svg）+ `MAX_DOC_BYTES=30MB`/`MAX_IMAGE_BYTES=10MB`。extractFileText：pdf 用 pdf-parse、docx 用 mammoth、pptx 用 jszip 抽 slide XML `<a:t>`、txt/md utf8、老 doc/ppt latin1 剥非可见字符尽力降级、图片不 OCR 返回空。normalize 剥 \r\0、压多行、截 200k。提取失败不阻断上传（content_body 留空）。
+- **上传接口**：POST /api/sop/documents 支持 `multipart/form-data`（`Content-Type` 含 multipart 即走 `handleFileUpload(request, ctx)`，否则原 JSON 链接模式不变）。仅 PM/运营（403 其他角色）；文件 insert 后用 `content_body` 作为正文来源 `void runSopRefine(newId)`（改 `src/lib/sop-refine.ts`：source_type='file' 时 body=content_body，否则 feishu 才 fetch，见 v2.8）。失败清理已写对象（防半截对象残留）。
+- **详情 GET**：返回 file_* 字段；source_type='file' 且 file_url 时给可见用户签发 `file_signed_url`（createSignedUrl 900s），失败置 null。
+- **DELETE**：仅 PM/运营；级联删 sop_read_logs + 同步 `deleteSopFile(file_url)`（先查行取 file_url 再删对象；对象删除失败不影响元数据删除）。
+- **前端上传弹窗**（src/app/sop/page.tsx UploadModal）：「在线链接 / 本地文件」互斥切换；文件模式拖拽+点击、展示文件名/大小、前端按扩展名+大小预校验（服务端兜底）、隐藏链接输入框与手动要点；提交用 FormData。SOP 卡片来源标签 SOURCE_LABEL 增 `file: 本地上传`。
+- **文档页文件展示**（SopDocDetailBody）：图片内联 `<img>`（签名 URL，点击放大预览，SVG 不内联仅下载）；PDF 内嵌 iframe + content_body 文本（details 折叠「展示提取文本」）；Word/PPT/txt/md 内联 content_body；无文本/无法预览显示友好降级文案。顶部唯一入口=文件类显示「下载原文件」，链接类维持「查看原文」。保持"顶部唯一外链、底部无大按钮"红线。
+- **自动摘要联动**：in-repo 提炼入口即 runSopRefine（覆盖 source_type='file' 且 content_body 非空）。`codeact/scripts/sop_auto_summary.py` 为外部定时任务、不在本仓库；如外部脚本需覆盖文件类选取，改外部 codeact 并重新注册（不改本仓库 Calendar/每日任务）。BLUEAI_API_KEY 缺失→ai_status=failed，不编造。
+- **验收口径**：每类文件上传=对象落桶+落库+content_body 有文本（图片除外）；非法类型/超限无残留对象；非 PM/运营上传与删除 403；签名 URL 仅可见用户可取；老 doc/抽文本失败优雅降级不报错；测完恢复 dev 库原状（当前基准：sop_documents=4 真实、sop_categories=14、users=1、sop_read_logs=0）。
+
 ## SOP管理板块（第一期：制度+培训文档库 查阅/检索/权限）
 - 库：sop_documents（制度/培训统一表：doc_type=management|training、category、applicable_post/applicable_brand 为 jsonb 数组、visibility=internal|general、needs_quiz、status、version）与字典表 sop_categories（type=category/post/brand、label、sort_order）。
 - 页面：`/sop`（文档库：全部/制度/培训分页签 + category/brand 下拉 + 关键词，卡片显示 标题/分类/品牌/来源状态/需考核；来源有 external_url 显示"查看文档"，无则"资料待补充"）、`/sop/doc/[id]` 详情页（全字段；external_url 新标签打开，无则占位）。

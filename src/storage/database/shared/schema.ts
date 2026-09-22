@@ -1,4 +1,4 @@
-import { pgTable, serial, timestamp, varchar, integer, boolean, jsonb, text, index, unique } from "drizzle-orm/pg-core"
+import { pgTable, serial, timestamp, varchar, integer, bigint, boolean, jsonb, text, index, unique } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 
@@ -82,6 +82,11 @@ export const sopDocuments = pgTable(
     content_excerpt: text("content_excerpt"),
     // v2.8 原文内联展示：已抓取的飞书正文全量
     content_body: text("content_body"),
+    // v2.9 本地文件上传：对象存储路径 + 类型/字节 + 备注
+    file_url: text("file_url"),
+    file_kind: text("file_kind"),
+    mime_type: text("mime_type"),
+    file_size: bigint("file_size", { mode: "bigint" }),
     prev_version_at: timestamp("prev_version_at", { withTimezone: true }),
     created_by: varchar("created_by", { length: 64 }),
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

@@ -25,6 +25,12 @@ export interface SopDetailDoc {
   synced_count: number;
   sync_detail: string;
   sync_status: string;
+  // 本地文件字段
+  file_kind?: string | null;
+  file_name?: string | null;
+  mime_type?: string | null;
+  file_size?: number | null;
+  file_signed_url?: string | null;
 }
 
 const SCOPES: Record<string, { label: string }> = {
@@ -83,11 +89,16 @@ export default function SopDocDetailBody({
 }) {
   const [deleting, setDeleting] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const scope = SCOPES[doc.scope] ?? { label: doc.scope };
-  const sourceLabel = doc.source_type === 'feishu' ? '飞书文档' : doc.source_type === 'tencent' ? '腾讯文档' : '文档来源';
+  const sourceLabel = doc.source_type === 'feishu' ? '飞书文档' : doc.source_type === 'tencent' ? '腾讯文档' : doc.source_type === 'file' ? '本地文件' : '文档来源';
   const subCatLabel = doc.sub_category ? SUBCATS[doc.sub_category] ?? doc.sub_category : '';
   const sourceUrl = doc.external_url;
+  const isFile = doc.source_type === 'file';
+  const fileKind = doc.file_kind ?? 'other';
+  const isImageFile = isFile && fileKind === 'image';
+  const isPdfFile = isFile && fileKind === 'pdf';
 
   const handleDelete = async () => {
     if (!onDelete) return;
@@ -121,15 +132,26 @@ export default function SopDocDetailBody({
 
       {/* 元信息 chips */}
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <a
-          href={sourceUrl ?? '#'}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium"
-          style={{ backgroundColor: 'var(--sop-primary-bg)', color: 'var(--sop-primary)' }}
-        >
-          <ExternalLink size={12} /> 查看{sourceLabel === '腾讯文档' ? '腾讯文档原文' : '飞书原文'}
-        </a>
+        {isFile ? (
+          <a
+            href={doc.file_signed_url ?? '#'}
+            download={doc.file_name ?? undefined}
+            className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium"
+            style={{ backgroundColor: 'var(--sop-primary-bg)', color: 'var(--sop-primary)' }}
+          >
+            <ExternalLink size={12} /> 下载原文件{doc.file_name ? `（${doc.file_name}）` : ''}
+          </a>
+        ) : (
+          <a
+            href={sourceUrl ?? '#'}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium"
+            style={{ backgroundColor: 'var(--sop-primary-bg)', color: 'var(--sop-primary)' }}
+          >
+            <ExternalLink size={12} /> 查看{sourceLabel === '腾讯文档' ? '腾讯文档原文' : '飞书原文'}
+          </a>
+        )}
         <span
           className="inline-flex items-center rounded px-2 py-0.5 text-xs"
           style={{ backgroundColor: 'var(--sop-muted)', color: 'var(--sop-t2)' }}
@@ -217,18 +239,54 @@ export default function SopDocDetailBody({
         )}
       </div>
 
-      {/* 正式内容 / 原文：服务端抓取的飞书正文全文（无则降级提示） */}
+      {/* 正式内容 / 原文：飞书正文全文；本地文件则内联展示文件/文本 */}
       <div className="mt-4 text-[13px] font-semibold" style={{ color: 'var(--sop-t1)' }}>
         正式内容
         <span className="ml-2 text-xs font-normal" style={{ color: 'var(--sop-t3)' }}>
-          完整内容以来源文档为准
+          {isFile ? `本地上传 · ${doc.file_name ?? ''}${doc.file_size ? ` · ${(doc.file_size / 1024 / 1024).toFixed(1)}MB` : ''}` : '完整内容以来源文档为准'}
         </span>
       </div>
       <div
         className="rounded-lg border p-4"
         style={{ borderColor: 'var(--sop-border)', backgroundColor: 'var(--sop-panel)' }}
       >
-        {doc.content_body ? (
+        {isImageFile ? (
+          doc.file_signed_url && !/\.svg$/i.test(doc.file_name ?? '') ? (
+            <img
+              src={doc.file_signed_url}
+              alt={doc.file_name ?? '图片'}
+              onClick={() => setPreviewUrl(doc.file_signed_url ?? null)}
+              className="max-w-full cursor-zoom-in rounded-md border"
+              style={{ borderColor: 'var(--sop-border)' }}
+            />
+          ) : (
+            <p className="text-[13px]" style={{ color: 'var(--sop-t3)' }}>
+              图片为 SVG 或暂无法在线预览，请点击顶部「下载原文件」查看。
+            </p>
+          )
+        ) : isPdfFile && doc.file_signed_url ? (
+          <div>
+            <iframe
+              src={doc.file_signed_url}
+              title={doc.file_name ?? 'PDF'}
+              className="w-full rounded-md border"
+              style={{ height: 560, borderColor: 'var(--sop-border)' }}
+            />
+            {doc.content_body && (
+              <details className="mt-3">
+                <summary className="cursor-pointer text-[13px] font-medium" style={{ color: 'var(--sop-primary)' }}>
+                  展示提取文本
+                </summary>
+                <p
+                  className="mt-2 whitespace-pre-wrap text-[13px] leading-[1.9]"
+                  style={{ color: 'var(--sop-t2)' }}
+                >
+                  {doc.content_body}
+                </p>
+              </details>
+            )}
+          </div>
+        ) : doc.content_body ? (
           <div
             className="max-h-[720px] overflow-auto whitespace-pre-wrap text-[13.5px] leading-[1.9]"
             style={{ color: 'var(--sop-t2)' }}
@@ -237,10 +295,21 @@ export default function SopDocDetailBody({
           </div>
         ) : (
           <p className="text-[13px]" style={{ color: 'var(--sop-t3)' }}>
-            原文内容暂无法直接展示，请点击顶部「查看原文」链接访问。
+            {isFile ? '原文件暂无法在线预览，请点击顶部「下载原文件」查看。' : '原文内容暂无法直接展示，请点击顶部「查看原文」链接访问。'}
           </p>
         )}
       </div>
+
+      {/* 图片放大预览 */}
+      {previewUrl && (
+        <div
+          className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/80 p-6"
+          style={{ backgroundColor: 'rgba(0,0,0,0.8)' }}
+          onClick={() => setPreviewUrl(null)}
+        >
+          <img src={previewUrl} alt="预览" className="max-h-full max-w-full rounded-lg" />
+        </div>
+      )}
 
       {/* 底部操作：仅保留删除（原文外链入口在顶部元信息行） */}
       <div className="mt-4 flex items-center gap-3">

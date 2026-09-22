@@ -5,6 +5,7 @@ import { SCOPE_OPTIONS, detectSourceType } from '@/lib/sop-taxonomy';
 import { runSopRefine } from '@/lib/sop-refine';
 import { fetchFeishuDocBody } from '@/lib/sop-ai';
 import { computeScopeSync, formatSyncDetail, syncStatusLabel } from '@/lib/sop-sync';
+import { sopFileSignedUrl } from '@/lib/sop-storage';
 
 // GET /api/sop/documents/[id]
 // 权限：外部合作→404；内部角色需落在其可见域内，否则 404。
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const cur = await client
       .from('sop_documents')
       .select(
-        'id, doc_type, title, category, sub_category, scope, applicable_post, applicable_brand, source_type, external_url, visibility, needs_quiz, status, version, content_excerpt, content_body, prev_version_at, ai_summary, ai_keypoints, ai_status, ai_error, uploaded_by, uploader_name, is_active, remark, created_at, updated_at'
+        'id, doc_type, title, category, sub_category, scope, applicable_post, applicable_brand, source_type, external_url, file_url, file_name, file_kind, mime_type, file_size, visibility, needs_quiz, status, version, content_excerpt, content_body, prev_version_at, ai_summary, ai_keypoints, ai_status, ai_error, uploaded_by, uploader_name, is_active, remark, created_at, updated_at'
       )
       .eq('id', id)
       .eq('status', 'published')
@@ -46,6 +47,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         }
       } catch {
         /* 抓取失败：保持 content_body 为空，前端显示降级提示 */
+      }
+    }
+
+    // 文件文档：签发短时签名 URL（仅已确认可见该文档的用户）
+    const isFile = data.source_type === 'file' && !!data.file_url;
+    if (isFile) {
+      try {
+        const signed = await sopFileSignedUrl(data.file_url as string, 900);
+        (data as Record<string, unknown>).file_signed_url = signed;
+      } catch {
+        (data as Record<string, unknown>).file_signed_url = null;
       }
     }
 
@@ -143,9 +155,19 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     }
 
     const client = getSupabaseClient();
+    // 先取 file_url，做存储对象清理
+    const { data: docRow } = await client
+      .from('sop_documents')
+      .select('file_url, source_type')
+      .eq('id', id)
+      .maybeSingle();
     await client.from('sop_read_logs').delete().eq('doc_id', id);
     const { error } = await client.from('sop_documents').delete().eq('id', id);
     if (error) throw new Error(`删除失败: ${error.message}`);
+    if (docRow?.source_type === 'file' && docRow.file_url) {
+      const { deleteSopFile } = await import('@/lib/sop-storage');
+      try { await deleteSopFile(docRow.file_url as string); } catch { /* 对象删除失败不影响元数据删除 */ }
+    }
 
     return NextResponse.json({ success: true });
   } catch (err) {

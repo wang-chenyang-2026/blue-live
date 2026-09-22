@@ -19,14 +19,17 @@ export async function runSopRefine(docId: string, manualKeypoints: string[] = []
 
     const { data: doc } = await client
       .from('sop_documents')
-      .select('title, external_url, source_type, version')
+      .select('title, external_url, source_type, version, content_body')
       .eq('id', docId)
       .maybeSingle();
     if (!doc) throw new Error('文档不存在');
 
     const url = doc.external_url || '';
     let body = '';
-    if (doc.source_type === 'feishu') {
+    if (doc.source_type === 'file') {
+      // 本地文件正文 = 上传时提取的 content_body 全文
+      body = (doc.content_body as string) || '';
+    } else if (doc.source_type === 'feishu') {
       try {
         body = await fetchFeishuDocBody(url);
       } catch {

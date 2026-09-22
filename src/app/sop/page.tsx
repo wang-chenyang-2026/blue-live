@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PlusIcon, Search, Trash2 } from 'lucide-react';
 import '@/components/sop/sop-theme.css';
@@ -23,6 +23,8 @@ type SopListItem = {
   sync_detail: string;
   sync_status: string;
   read: boolean;
+  file_kind?: string | null;
+  file_name?: string | null;
 };
 
 interface ListResp {
@@ -46,7 +48,17 @@ const SUBCATS: { value: string; label: string }[] = [
   { value: 'other', label: '其它' },
 ];
 
-const SOURCE_LABEL: Record<string, string> = { feishu: '飞书', tencent: '腾讯文档' };
+const SOURCE_LABEL: Record<string, string> = { feishu: '飞书', tencent: '腾讯文档', file: '本地上传' };
+
+// 上传文件白名单（扩展名）与大小限制（与服务端一致）
+const FILE_EXT_RE = /\.(pdf|doc|docx|ppt|pptx|txt|md|png|jpe?g|gif|webp|bmp|svg)$/i;
+const MAX_FILE_BYTES = 30 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const FILE_KIND: Record<string, string> = {
+  pdf: 'pdf', doc: 'word', docx: 'word', ppt: 'ppt', pptx: 'ppt',
+  txt: 'text', md: 'text', png: 'image', jpg: 'image', jpeg: 'image',
+  gif: 'image', webp: 'image', bmp: 'image', svg: 'image',
+};
 
 function fmtTime(iso: string | null): string {
   if (!iso) return '—';
@@ -502,6 +514,10 @@ function UploadModal({
 }) {
   const [title, setTitle] = useState('');
   const [link, setLink] = useState('');
+  const [mode, setMode] = useState<'link' | 'file'>('link');
+  const [file, setFile] = useState<File | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [scope, setScope] = useState(scopes[0] ?? 'general');
   const [subCategory, setSubCategory] = useState('product');
   const [needsQuiz, setNeedsQuiz] = useState(false);
@@ -510,27 +526,67 @@ function UploadModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const pickFile = (f: File) => {
+    setError(null);
+    if (!/\.(pdf|doc|docx|ppt|pptx|txt|md|png|jpe?g|gif|webp|bmp|svg)$/i.test(f.name)) {
+      setError('不支持的文件类型：支持 PDF / Word / PPT / txt / md 及常见图片');
+      return;
+    }
+    const ext = (f.name.split('.').pop() || 'txt').toLowerCase();
+    const isImage = (FILE_KIND[ext] || '') === 'image';
+    const limit = isImage ? MAX_IMAGE_BYTES : MAX_FILE_BYTES;
+    if (f.size > limit) {
+      setError(`文件过大：${isImage ? '图片不超过 10MB' : '文档不超过 30MB'}（当前 ${(f.size / (1024 * 1024)).toFixed(1)}MB）`);
+      return;
+    }
+    setFile(f);
+    if (!title) setTitle(f.name);
+  };
+
   const submit = async () => {
     setSubmitting(true);
     setError(null);
-    const body = {
-      title,
-      external_url: link,
-      scope,
-      sub_category: subCategory,
-      needs_quiz: needsQuiz,
-      remark,
-      manual_keypoints: manualKeypoints.split('\n').map((s) => s.trim()).filter(Boolean),
-      doc_type: 'training',
-    };
     try {
-      const res = await fetch('/api/sop/documents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const json = await res.json().catch(() => ({ success: false }));
-      if (res.status >= 400 || !json.success) {
-        setError(json.error || '上传失败');
-        return;
+      if (mode === 'file') {
+        if (!file) {
+          setError('请选择要上传的文件');
+          return;
+        }
+        const fd = new FormData();
+        fd.append('title', title);
+        fd.append('scope', scope);
+        fd.append('sub_category', subCategory);
+        fd.append('needs_quiz', needsQuiz ? 'true' : 'false');
+        fd.append('remark', remark);
+        fd.append('doc_type', 'training');
+        fd.append('file', file);
+        const res = await fetch('/api/sop/documents', { method: 'POST', body: fd });
+        const json = await res.json().catch(() => ({ success: false }));
+        if (res.status >= 400 || !json.success) {
+          setError(json.error || '上传失败');
+          return;
+        }
+      } else {
+        const body = {
+          title,
+          external_url: link,
+          scope,
+          sub_category: subCategory,
+          needs_quiz: needsQuiz,
+          remark,
+          manual_keypoints: manualKeypoints.split('\n').map((s) => s.trim()).filter(Boolean),
+          doc_type: 'training',
+        };
+        const res = await fetch('/api/sop/documents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const json = await res.json().catch(() => ({ success: false }));
+        if (res.status >= 400 || !json.success) {
+          setError(json.error || '上传失败');
+          return;
+        }
       }
       await onCreated();
+    } catch (e) {
+      console.error(e);
     } finally {
       setSubmitting(false);
     }
@@ -543,18 +599,79 @@ function UploadModal({
           上传 SOP 文档
         </h3>
         <p className="mt-1 text-xs" style={{ color: 'var(--sop-t3)' }}>
-          仅支持飞书（feishu.cn / larksuite.com）或腾讯文档（docs.qq.com）链接
+          支持在线链接（飞书 / 腾讯文档）或本地文件上传（PDF / Word / PPT / txt / md / 图片）
         </p>
+
+        <div className="mt-3 flex gap-1 rounded-md p-1" style={{ backgroundColor: 'var(--sop-muted)' }}>
+          {(['link', 'file'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => { setMode(m); setError(null); }}
+              className="flex-1 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors"
+              style={
+                mode === m
+                  ? { backgroundColor: 'var(--sop-panel)', color: 'var(--sop-primary)', boxShadow: '0 0 0 1px var(--sop-border)' }
+                  : { color: 'var(--sop-t2)' }
+              }
+            >
+              {m === 'link' ? '在线链接' : '本地文件'}
+            </button>
+          ))}
+        </div>
 
         <label className="mt-4 block text-[13px] font-medium" style={{ color: 'var(--sop-t2)' }}>
           标题 <span style={{ color: 'var(--sop-danger)' }}>*</span>
           <input value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-[13px] outline-none" style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t1)', backgroundColor: 'var(--sop-panel)' }} />
         </label>
 
-        <label className="mt-3 block text-[13px] font-medium" style={{ color: 'var(--sop-t2)' }}>
-          文档链接 <span style={{ color: 'var(--sop-danger)' }}>*</span>
-          <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://xxx.feishu.cn/… 或 https://docs.qq.com/…" className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-[13px] outline-none" style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t1)', backgroundColor: 'var(--sop-panel)' }} />
-        </label>
+        {mode === 'link' ? (
+          <label className="mt-3 block text-[13px] font-medium" style={{ color: 'var(--sop-t2)' }}>
+            文档链接 <span style={{ color: 'var(--sop-danger)' }}>*</span>
+            <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://xxx.feishu.cn/… 或 https://docs.qq.com/…" className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-[13px] outline-none" style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t1)', backgroundColor: 'var(--sop-panel)' }} />
+          </label>
+        ) : (
+          <div
+            className="mt-3 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed px-4 py-8 text-center transition-colors"
+            style={{
+              borderColor: dragOver ? 'var(--sop-primary)' : 'var(--sop-border)',
+              backgroundColor: dragOver ? 'var(--sop-primary-bg, var(--sop-muted))' : 'transparent',
+              color: 'var(--sop-t2)',
+            }}
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) pickFile(f); }}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.md,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) pickFile(f); }}
+            />
+            {file ? (
+              <div className="text-center">
+                <p className="text-[13px] font-medium" style={{ color: 'var(--sop-t1)' }}>{file.name}</p>
+                <p className="mt-1 text-xs" style={{ color: 'var(--sop-t3)' }}>
+                  {(file.size / 1024).toFixed(1)} KB · 点击更换
+                </p>
+              </div>
+            ) : (
+              <>
+                <p className="text-[13px] font-medium" style={{ color: 'var(--sop-t1)' }}>
+                  点击选择或拖拽文件到此处
+                </p>
+                <p className="text-xs" style={{ color: 'var(--sop-t3)' }}>
+                  PDF / Word / PPT / txt / md · 图片（png / jpg / gif / webp / bmp / svg）
+                </p>
+                <p className="text-xs" style={{ color: 'var(--sop-t3)' }}>
+                  文档 ≤ 30MB · 图片 ≤ 10MB
+                </p>
+              </>
+            )}
+          </div>
+        )}
 
         <div className="mt-3 grid grid-cols-2 gap-3">
           <label className="block text-[13px] font-medium" style={{ color: 'var(--sop-t2)' }}>
@@ -589,10 +706,12 @@ function UploadModal({
           <textarea value={remark} onChange={(e) => setRemark(e.target.value)} rows={2} className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-[13px] outline-none" style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t1)', backgroundColor: 'var(--sop-panel)' }} />
         </label>
 
-        <label className="mt-3 block text-[13px] font-medium" style={{ color: 'var(--sop-t2)' }}>
-          手动补充要点（可选，逐行一条，用于腾讯文档等抓不到正文的场景兜底）
-          <textarea value={manualKeypoints} onChange={(e) => setManualKeypoints(e.target.value)} rows={3} className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-[13px] outline-none" style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t1)', backgroundColor: 'var(--sop-panel)' }} />
-        </label>
+        {mode === 'link' && (
+          <label className="mt-3 block text-[13px] font-medium" style={{ color: 'var(--sop-t2)' }}>
+            手动补充要点（可选，逐行一条，用于腾讯文档等抓不到正文的场景兜底）
+            <textarea value={manualKeypoints} onChange={(e) => setManualKeypoints(e.target.value)} rows={3} className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-[13px] outline-none" style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t1)', backgroundColor: 'var(--sop-panel)' }} />
+          </label>
+        )}
 
         {error && (
           <p className="mt-3 text-[13px]" style={{ color: 'var(--sop-danger)' }}>
@@ -604,7 +723,7 @@ function UploadModal({
           <button type="button" onClick={onClose} className="rounded-md px-4 py-1.5 text-sm" style={{ backgroundColor: 'var(--sop-muted)', color: 'var(--sop-t2)' }}>
             取消
           </button>
-          <button type="button" disabled={submitting || !title || !link} onClick={submit} className="rounded-md px-4 py-1.5 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--sop-primary)' }}>
+          <button type="button" disabled={submitting || !title || (mode === 'link' ? !link : !file)} onClick={submit} className="rounded-md px-4 py-1.5 text-sm font-medium text-white disabled:opacity-60" style={{ backgroundColor: 'var(--sop-primary)' }}>
             {submitting ? '提交中…' : '确认上传'}
           </button>
         </div>
