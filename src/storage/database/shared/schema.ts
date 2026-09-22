@@ -87,6 +87,8 @@ export const sopDocuments = pgTable(
     file_kind: text("file_kind"),
     mime_type: text("mime_type"),
     file_size: bigint("file_size", { mode: "bigint" }),
+    original_file_url: text("original_file_url"),
+    original_mime_type: text("original_mime_type"),
     prev_version_at: timestamp("prev_version_at", { withTimezone: true }),
     created_by: varchar("created_by", { length: 64 }),
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

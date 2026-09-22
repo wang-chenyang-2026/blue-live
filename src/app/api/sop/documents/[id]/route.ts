@@ -22,7 +22,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const cur = await client
       .from('sop_documents')
       .select(
-        'id, doc_type, title, category, sub_category, scope, applicable_post, applicable_brand, source_type, external_url, file_url, file_name, file_kind, mime_type, file_size, visibility, needs_quiz, status, version, content_excerpt, content_body, prev_version_at, ai_summary, ai_keypoints, ai_status, ai_error, uploaded_by, uploader_name, is_active, remark, created_at, updated_at'
+        'id, doc_type, title, category, sub_category, scope, applicable_post, applicable_brand, source_type, external_url, file_url, file_name, file_kind, mime_type, file_size, original_file_url, original_mime_type, visibility, needs_quiz, status, version, content_excerpt, content_body, prev_version_at, ai_summary, ai_keypoints, ai_status, ai_error, uploaded_by, uploader_name, is_active, remark, created_at, updated_at'
       )
       .eq('id', id)
       .eq('status', 'published')
@@ -58,6 +58,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         (data as Record<string, unknown>).file_signed_url = signed;
       } catch {
         (data as Record<string, unknown>).file_signed_url = null;
+      }
+    }
+
+    // 图片转 PDF 文档：原图各自签发短时签名 URL（供「查看原图」）
+    if (isFile && data.original_file_url) {
+      try {
+        const keys = JSON.parse(data.original_file_url as string) as string[];
+        const mimes = (JSON.parse(String(data.original_mime_type || '[]')) as string[]) || [];
+        const urls = await Promise.all(keys.map((k) => sopFileSignedUrl(k, 900)));
+        (data as Record<string, unknown>).original_signed_urls = keys.map((k, i) => ({ url: urls[i], mime: mimes[i] }));
+      } catch {
+        (data as Record<string, unknown>).original_signed_urls = [];
       }
     }
 
@@ -155,18 +167,30 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     }
 
     const client = getSupabaseClient();
-    // 先取 file_url，做存储对象清理
+    // 先取 file_url 与 original_file_url，做存储对象清理
     const { data: docRow } = await client
       .from('sop_documents')
-      .select('file_url, source_type')
+      .select('file_url, source_type, original_file_url')
       .eq('id', id)
       .maybeSingle();
     await client.from('sop_read_logs').delete().eq('doc_id', id);
     const { error } = await client.from('sop_documents').delete().eq('id', id);
     if (error) throw new Error(`删除失败: ${error.message}`);
-    if (docRow?.source_type === 'file' && docRow.file_url) {
+    if (docRow?.source_type === 'file') {
       const { deleteSopFile } = await import('@/lib/sop-storage');
-      try { await deleteSopFile(docRow.file_url as string); } catch { /* 对象删除失败不影响元数据删除 */ }
+      const keys: string[] = [];
+      if (docRow.file_url) keys.push(docRow.file_url as string);
+      if (docRow.original_file_url) {
+        try {
+          const parsed = JSON.parse(docRow.original_file_url as string) as string[];
+          keys.push(...parsed);
+        } catch {
+          /* 非 JSON 时忽略（兼容历史） */
+        }
+      }
+      for (const k of keys) {
+        try { await deleteSopFile(k); } catch { /* 对象删除失败不影响元数据删除 */ }
+      }
     }
 
     return NextResponse.json({ success: true });

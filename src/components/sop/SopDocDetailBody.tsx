@@ -31,6 +31,8 @@ export interface SopDetailDoc {
   mime_type?: string | null;
   file_size?: number | null;
   file_signed_url?: string | null;
+  original_file_url?: string | null;
+  original_signed_urls?: Array<{ url: string | null; mime?: string | null }> | null;
 }
 
 const SCOPES: Record<string, { label: string }> = {
@@ -99,6 +101,9 @@ export default function SopDocDetailBody({
   const fileKind = doc.file_kind ?? 'other';
   const isImageFile = isFile && fileKind === 'image';
   const isPdfFile = isFile && fileKind === 'pdf';
+  // 图片转 PDF 文档：主文件为 PDF，另有原图（original_signed_urls）
+  const hasOriginals = isFile && Array.isArray(doc.original_signed_urls) && doc.original_signed_urls.length > 0;
+  const firstOriginal = hasOriginals ? doc.original_signed_urls![0] : null;
 
   const handleDelete = async () => {
     if (!onDelete) return;
@@ -133,14 +138,29 @@ export default function SopDocDetailBody({
       {/* 元信息 chips */}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {isFile ? (
-          <a
-            href={doc.file_signed_url ?? '#'}
-            download={doc.file_name ?? undefined}
-            className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium"
-            style={{ backgroundColor: 'var(--sop-primary-bg)', color: 'var(--sop-primary)' }}
-          >
-            <ExternalLink size={12} /> 下载原文件{doc.file_name ? `（${doc.file_name}）` : ''}
-          </a>
+          <>
+            <a
+              href={doc.file_signed_url ?? '#'}
+              download={doc.file_name ?? undefined}
+              className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium"
+              style={{ backgroundColor: 'var(--sop-primary-bg)', color: 'var(--sop-primary)' }}
+              title={doc.file_kind === 'pdf' ? '下载 PDF' : '下载原文件'}
+            >
+              <ExternalLink size={12} /> {doc.file_kind === 'pdf' ? '下载 PDF' : '下载原文件'}
+              {doc.file_name ? `（${doc.file_name}）` : ''}
+            </a>
+            {hasOriginals && firstOriginal?.url && (
+              <a
+                href={firstOriginal.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium"
+                style={{ backgroundColor: 'var(--sop-muted)', color: 'var(--sop-t2)' }}
+              >
+                <ExternalLink size={12} /> 查看原图{hasOriginals && doc.original_signed_urls!.length > 1 ? `（${doc.original_signed_urls!.length} 张）` : ''}
+              </a>
+            )}
+          </>
         ) : (
           <a
             href={sourceUrl ?? '#'}

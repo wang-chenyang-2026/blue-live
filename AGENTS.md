@@ -98,7 +98,18 @@ src/
 - **上传弹窗增强（批量+防误关+草稿，本轮）**：UploadModal 改为受控组件，草稿持有于父级 `uploadDraft` 状态（SopUploadFileItem[] 内存句柄）→同页面会话关闭/重开时 File 完整保留。多文件：`<input multiple>`+拖拽均**追加**（不替换），按 name+size+lastModified 去重，单次上限 20，逐项校验（文档≤30MB/图片≤10MB），文件列表含缩略图（FileThumb 组件管理 createObjectURL 生命周期）/逐项可编辑标题；单文件保留顶部标题框（默认=去扩展名），多文件隐藏顶部标题改为逐项标题。提交逐文件并发（CONCURRENCY=3）复用 POST multipart，有整体进度 n/总数、单项状态（等待/上传中/成功/失败），失败不中断、可整体再次提交仅补发未成功项；全部成功才 onCreated（清草稿+关弹窗+刷列表）。弹窗**仅主动关闭**：遮罩与 Esc 均不关闭（keydown capture 拦截），右上角 X + 底部“取消”为主动关闭；有内容（文件或标题/备注等改动）关闭时二次确认（“继续编辑/仍要关闭”），已保存草稿→保留、未保存→清空。底部按钮：取消 | 保存 | 确认上传；保存仅持久化**序列化元数据**到 localStorage（key `blue_sop_upload_draft`，File 无法序列化故刷新后丢失）、同页面会话内存句柄保留完整恢复；刷新后重开恢复文字字段+文件清单并标“需重新选择”、补齐前“确认上传”置灰；“放弃草稿”清本机+内存（文件不落库无孤儿）。本轮“保存”仅本机浏览器暂存，非跨设备正式草稿。
 - **文档页文件展示**（SopDocDetailBody）：图片内联 `<img>`（签名 URL，点击放大预览，SVG 不内联仅下载）；PDF 内嵌 iframe + content_body 文本（details 折叠「展示提取文本」）；Word/PPT/txt/md 内联 content_body；无文本/无法预览显示友好降级文案。顶部唯一入口=文件类显示「下载原文件」，链接类维持「查看原文」。保持"顶部唯一外链、底部无大按钮"红线。
 - **自动摘要联动**：in-repo 提炼入口即 runSopRefine（覆盖 source_type='file' 且 content_body 非空）。`codeact/scripts/sop_auto_summary.py` 为外部定时任务、不在本仓库；如外部脚本需覆盖文件类选取，改外部 codeact 并重新注册（不改本仓库 Calendar/每日任务）。BLUEAI_API_KEY 缺失→ai_status=failed，不编造。
-- **验收口径**：每类文件上传=对象落桶+落库+content_body 有文本（图片除外）；非法类型/超限无残留对象；非 PM/运营上传与删除 403；签名 URL 仅可见用户可取；老 doc/抽文本失败优雅降级不报错；测完恢复 dev 库原状（当前基准：sop_documents=4 真实、sop_categories=14、users=1、sop_read_logs=0）。
+- **验收口径**：每类文件上传=对象落桶+落库+content_body 有文本（图片除外）；非法类型/超限无残留对象；非 PM/运营上传与删除 403；签名 URL 仅可见用户可取；老 doc/抽文本失败优雅降级不报错；测完恢复 dev 库原状（当前基线：sop_documents=4 真实、sop_categories=14、users=1、sop_read_logs=0）。
+
+## SOP管理板块（v2.10：图片上传自动转 PDF 展示）
+- **sop_documents 新增列**（db upgrade 增量）：`original_file_url` text（JSON 数组=原图对象 keys）、`original_mime_type` text（JSON 数组=原图 mimes，与 keys 一一对应）。
+- **转换范围（如实限缩）**：仅 `jpg/jpeg/png` 用 `pdf-lib` 转 PDF（`src/lib/img-to-pdf.ts`：`PDF_EMBED_EXTS`、`isEmbeddableImageExt(ext)`、`buildImagesPdf(images)`，embedPng/embedJpg，页面尺寸=像素×0.75pt（72dpi）铺满不留白）。**不引入 sharp**，故 gif/webp/bmp/svg 不解码，仍走原图内联展示（不转 PDF、不报错）。
+- **合并模式**：前端勾选「合并为一个 PDF」→ 单次 FormData 提交多个 file + `merge_images=true`。route.ts `handleFileUpload`：`form.getAll('file')` 多文件；可转图片集合→`buildImagesPdf` 合成**一个多页 PDF（页面顺序=提交顺序）→ 仅 1 条记录**；merge 分支里**不可转文件（others）各自独立落库**（本轮修复点：不能只处理 convertible 丢弃 others）。
+- **单图/非合并**：每张可转图片各自生成**单页 PDF**→各 1 条记录（原图保留）。
+- **落库要点**：图片转 PDF 时 `file_kind='pdf'`、`mime_type='application/pdf'`、`file_name=标题/去扩展名+'.pdf'`、`file_size=生成 PDF 字节`、`content_body=null`（图片无文字层，不 OCR）、**跳过 runSopRefine（无 AI 摘要）**、`ai_status='pending'`；`original_file_url/original_mime_type=JSON.stringify(keys/mimes 数组)`。非图片文件维持 v2.9 行为（写 content_body 抽取文本并如常触发 refine）。`src/app/api/sop/documents/route.ts` 内 `createFileRecord(p, baseTitle, {titleFallback})` 复用处；失败用 `writtenKeys`/`trackWrite` 统一清理已写对象。
+- **详情 GET**（`[id]/route.ts`）：返回 original_file_url/original_mime_type/original_signed_urls（逐 original key 签发签名 URL，对象形如 `{url, mime}`）；PDF 的 file_signed_url 仍签发。
+- **文档页展示**（SopDocDetailBody）：file_kind='pdf' 时顶部 chip 文案改「下载 PDF」并内嵌/下载该 PDF；`hasOriginals` 时显示次级「查看原图」链接（多个显示数量），点击打开首张原图签名 URL。
+- **删除联动**：DELETE 先 select 取 file_url + original_file_url，解析 JSON 数组→`deleteSopFile` 逐个清 PDF 与全部原图对象（对象删除失败不影响元数据删除）+ 级联删 sop_read_logs；非 PM/运营 403。实测删除后 PDF 与全部原图对象均 "Object not found"（无残留）。
+- **验收口径（实测通过）**：单张 jpg/png→单页 PDF 且 PDF 字节以 `%PDF` 开头、原图 bytes 与原文件一致；gif 保留原图不转 PDF；多图合并→1 条多页 PDF 记录+2 原图顺序=提交序；非合并 2 图→2 条记录；混合(png+jpg+gif)合并→1 条图片 PDF + 1 条 gif；content_body=null 且 ai_status 非 done；非 PM 上传/删除 403；删除后无残留对象。测完恢复 dev 库原状（基准同上）。
 
 ## SOP管理板块（第一期：制度+培训文档库 查阅/检索/权限）
 - 库：sop_documents（制度/培训统一表：doc_type=management|training、category、applicable_post/applicable_brand 为 jsonb 数组、visibility=internal|general、needs_quiz、status、version）与字典表 sop_categories（type=category/post/brand、label、sort_order）。

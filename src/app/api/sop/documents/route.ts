@@ -7,6 +7,7 @@ import { runSopRefine } from '@/lib/sop-refine';
 import { getScopeSyncStats, formatSyncDetail, syncStatusLabel, ScopeSyncStats } from '@/lib/sop-sync';
 import { sniffFile, extractFileText, MAX_DOC_BYTES, MAX_IMAGE_BYTES } from '@/lib/file-extract';
 import { ensureSopBucket, uploadSopFile, deleteSopFile } from '@/lib/sop-storage';
+import { buildImagesPdf, isEmbeddableImageExt } from '@/lib/img-to-pdf';
 
 const LIST_SELECT = [
   'id',
@@ -199,9 +200,48 @@ export async function POST(request: NextRequest) {
 
 type SopUserContextForUpload = SopUserContext;
 
+interface ParsedMultipart {
+  title: string;
+  scope: string;
+  subCategory: string;
+  docType: string;
+  needsQuiz: boolean;
+  remark: string;
+  mergeImages: boolean;
+  files: File[];
+}
+
+interface PreparedFile {
+  file: File;
+  name: string;
+  buf: Buffer;
+  sniff: ReturnType<typeof sniffFile>;
+}
+
+interface UploadResult {
+  id: string;
+  title: string;
+}
+
+// 把单个文件对象写入存储并返回 key（失败会抛错，由外层清理）
+async function uploadObject(buf: Buffer, name: string, mime: string): Promise<string> {
+  const key = await uploadSopFile(buf, name, mime);
+  return key;
+}
+
+// 生成多页/单页 PDF（由 jpg/jpeg/png 图片合成，页面贴合图片尺寸、不留白边）
+async function buildPdfFromImages(images: PreparedFile[]): Promise<Buffer> {
+  return buildImagesPdf(
+    images.map((i) => ({ buffer: i.buf, mime: i.sniff.mime as string })),
+  );
+}
+
 async function handleFileUpload(request: NextRequest, ctx: SopUserContextForUpload) {
-  // 参数在 try 内校验，失败时清理已写对象
-  let objectKey: string | null = null;
+  // 本轮会写入多个对象（PDF + 若干原图），任何一步失败都统一清理
+  const writtenKeys: string[] = [];
+  // 登记已写入对象 key，供失败统一清理
+  const trackWrite = (k: string) => { writtenKeys.push(k); return k; };
+
   try {
     const form = await request.formData();
     const title = String(form.get('title') || '').trim();
@@ -210,79 +250,185 @@ async function handleFileUpload(request: NextRequest, ctx: SopUserContextForUplo
     const docType = [String(form.get('doc_type') || 'training')].includes('management') ? 'management' : 'training';
     const needsQuiz = ['true', '1', 'on'].includes(String(form.get('needs_quiz') || ''));
     const remark = String(form.get('remark') || '').trim();
-    const file = form.get('file');
+    const mergeImages = ['true', '1', 'on'].includes(String(form.get('merge_images') || ''));
+    const rawFiles = form.getAll('file') as unknown[];
 
-    if (!title) return NextResponse.json({ error: '标题不能为空' }, { status: 400 });
-    if (!file || typeof file !== 'object' || !('arrayBuffer' in (file as File))) {
-      return NextResponse.json({ error: '请选择要上传的文件' }, { status: 400 });
-    }
-    const f = file as File;
+    const files = rawFiles.filter((x): x is File => !!x && typeof x === 'object' && 'arrayBuffer' in (x as File));
+    if (files.length === 0) return NextResponse.json({ error: '请选择要上传的文件' }, { status: 400 });
     if (!SCOPE_OPTIONS.some((s) => s.value === scope)) return NextResponse.json({ error: '一级业务域不合法' }, { status: 400 });
     if (!SUB_CATEGORY_OPTIONS.some((s) => s.value === subCategory)) return NextResponse.json({ error: '二级类目不合法' }, { status: 400 });
 
-    const name = f.name || 'upload';
-    const buf = Buffer.from(await f.arrayBuffer());
-    const sniff = sniffFile(name, f.type, buf.subarray(0, 512));
-    if (!sniff.ok) return NextResponse.json({ error: sniff.reason }, { status: 400 });
-
-    const max = sniff.kind === 'image' ? MAX_IMAGE_BYTES : MAX_DOC_BYTES;
-    if (buf.length > max) {
-      return NextResponse.json({
-        error: `文件大小超限：${sniff.kind === 'image' ? '图片不超过 10MB' : '文档不超过 30MB'}（当前 ${(buf.length / (1024 * 1024)).toFixed(1)}MB）`,
-      }, { status: 400 });
+    // 逐文件预处理：嗅探 + 大小校验（白名单 + 魔数）
+    const prepared: PreparedFile[] = [];
+    for (const f of files) {
+      const name = (f.name || 'upload').replace(/[\\/]/g, '_');
+      const buf = Buffer.from(await f.arrayBuffer());
+      const sniff = sniffFile(name, f.type, buf.subarray(0, 512));
+      if (!sniff.ok) return NextResponse.json({ error: `${name}: ${sniff.reason}` }, { status: 400 });
+      const max = sniff.kind === 'image' ? MAX_IMAGE_BYTES : MAX_DOC_BYTES;
+      if (buf.length > max) {
+        return NextResponse.json({
+          error: `${name}: 文件大小超限（${sniff.kind === 'image' ? '图片不超过 10MB' : '文档不超过 30MB'}）`,
+        }, { status: 400 });
+      }
+      prepared.push({ file: f, name, buf, sniff });
     }
 
     await ensureSopBucket();
-    objectKey = await uploadSopFile(buf, name, sniff.mime as string);
-
-    let contentBody = '';
-    try {
-      contentBody = await extractFileText(sniff.kind as string, buf);
-    } catch {
-      contentBody = '';
-    }
 
     const client = getSupabaseClient();
-    const { data: inserted, error } = await client
-      .from('sop_documents')
-      .insert({
-        title,
-        doc_type: docType,
-        scope,
-        sub_category: subCategory,
-        source_type: 'file',
-        file_url: objectKey,
-        file_name: name,
-        file_kind: sniff.kind,
-        mime_type: sniff.mime,
-        file_size: buf.length,
-        content_body: contentBody || null,
-        visibility: 'internal',
-        status: 'published',
-        needs_quiz: needsQuiz,
-        ai_status: 'pending',
-        is_active: true,
-        uploaded_by: ctx.userId,
-        uploader_name: ctx.name,
-        remark: remark || null,
-        applicable_brand: ['vivo&iQOO'],
-      })
-      .select('id')
-      .single();
-    if (error) throw new Error(`写入失败: ${error.message}`);
-    if (!inserted) throw new Error('写入后未返回文档');
+    const results: UploadResult[] = [];
 
-    const newId = inserted.id as string;
-    // 文件文档正文 = content_body，提炼服务按 source_type=file 取正文（无 BLUEAI key 时稳定降级）
-    void runSopRefine(newId);
+    // 图片是否可转（仅 jpg/jpeg/png）
+    const isImg = (p: PreparedFile) => p.sniff.kind === 'image' && isEmbeddableImageExt(p.sniff.ext);
 
-    return NextResponse.json({ success: true, id: newId }, { status: 201 });
+    // 合并模式：把所有可转图片合成为一个多页 PDF → 仅 1 条文档；不可转文件各自独立创建
+    const convertible = prepared.filter(isImg);
+    const others = prepared.filter((p) => !isImg(p));
+
+    // 把单个已预处理文件落库为一条记录（可转图片→单页 PDF+原图；否则原样入库）
+    async function createFileRecord(
+      p: PreparedFile,
+      baseTitle: string,
+      o: { titleFallback: string },
+    ): Promise<UploadResult> {
+      const useTitle = (baseTitle && baseTitle.trim()) || o.titleFallback;
+      let fileUrl = '';
+      let fileName = p.name;
+      let fileKind = p.sniff.kind as string;
+      let mime = p.sniff.mime as string;
+      let fileSize = p.buf.length;
+      let contentBody = '';
+      let originalKeys: string[] = [];
+      let originalMimes: string[] = [];
+      let skipRefine = false;
+
+      if (isImg(p)) {
+        // 单张可转图片 → 单页 PDF（原图保留）
+        const pdfBuf = await buildPdfFromImages([p]);
+        const pdfKey = trackWrite(await uploadObject(pdfBuf, `${stripExt(p.name) || 'image'}.pdf`, 'application/pdf'));
+        const ok = trackWrite(await uploadObject(p.buf, p.name, p.sniff.mime as string));
+        fileUrl = pdfKey;
+        fileName = `${stripExt(p.name)}.pdf`;
+        fileKind = 'pdf';
+        mime = 'application/pdf';
+        fileSize = pdfBuf.length;
+        originalKeys = [ok];
+        originalMimes = [p.sniff.mime as string];
+        skipRefine = true; // 图片 PDF 无文字层，不触发 AI 摘要
+      } else {
+        fileUrl = trackWrite(await uploadObject(p.buf, p.name, p.sniff.mime as string));
+        try {
+          contentBody = await extractFileText(p.sniff.kind as string, p.buf);
+        } catch {
+          contentBody = '';
+        }
+      }
+
+      const { data: inserted, error } = await client
+        .from('sop_documents')
+        .insert({
+          title: useTitle,
+          doc_type: docType,
+          scope,
+          sub_category: subCategory,
+          source_type: 'file',
+          file_url: fileUrl,
+          file_name: fileName,
+          file_kind: fileKind,
+          mime_type: mime,
+          file_size: fileSize,
+          content_body: contentBody || null,
+          ...(originalKeys.length ? {
+            original_file_url: JSON.stringify(originalKeys),
+            original_mime_type: JSON.stringify(originalMimes),
+          } : {}),
+          visibility: 'internal',
+          status: 'published',
+          needs_quiz: needsQuiz,
+          ai_status: 'pending',
+          is_active: true,
+          uploaded_by: ctx.userId,
+          uploader_name: ctx.name,
+          remark: remark || null,
+          applicable_brand: ['vivo&iQOO'],
+        })
+        .select('id')
+        .single();
+      if (error) throw new Error(`写入失败: ${error.message}`);
+      if (!inserted) throw new Error('写入后未返回文档');
+      const id = inserted.id as string;
+      if (contentBody && !skipRefine) void runSopRefine(id);
+      return { id, title: useTitle };
+    }
+
+    if (mergeImages && convertible.length > 0) {
+      // 合并模式：可转图片 → 一个多页 PDF（仅 1 条记录）；不可转文件各自独立创建
+      const baseTitle = title || '多图合并';
+      const pdfBuf = await buildPdfFromImages(convertible);
+      const pdfKey = trackWrite(await uploadObject(pdfBuf, `${stripExt(baseTitle) || 'images'}.pdf`, 'application/pdf'));
+      // 原图各自保留
+      const originalKeys: string[] = [];
+      const originalMimes: string[] = [];
+      for (const p of convertible) {
+        const k = trackWrite(await uploadObject(p.buf, p.name, p.sniff.mime as string));
+        originalKeys.push(k);
+        originalMimes.push(p.sniff.mime as string);
+      }
+      const { data: inserted, error } = await client
+        .from('sop_documents')
+        .insert({
+          title: baseTitle,
+          doc_type: docType,
+          scope,
+          sub_category: subCategory,
+          source_type: 'file',
+          file_url: pdfKey,
+          file_name: `${stripExt(baseTitle)}.pdf`,
+          file_kind: 'pdf',
+          mime_type: 'application/pdf',
+          file_size: pdfBuf.length,
+          content_body: null, // 图片 PDF 无文字层，不做 OCR
+          original_file_url: JSON.stringify(originalKeys),
+          original_mime_type: JSON.stringify(originalMimes),
+          visibility: 'internal',
+          status: 'published',
+          needs_quiz: needsQuiz,
+          ai_status: 'pending',
+          is_active: true,
+          uploaded_by: ctx.userId,
+          uploader_name: ctx.name,
+          remark: remark || null,
+          applicable_brand: ['vivo&iQOO'],
+        })
+        .select('id')
+        .single();
+      if (error) throw new Error(`写入失败: ${error.message}`);
+      if (!inserted) throw new Error('写入后未返回文档');
+      results.push({ id: inserted.id as string, title: baseTitle });
+      // 混合上传：不可转文件（gif/webp/bmp/svg/pdf/txt 等）逐一独立创建，互不干扰
+      for (const p of others) {
+        results.push(await createFileRecord(p, '', { titleFallback: stripExt(p.name) || '文件' }));
+      }
+    } else {
+      // 逐文件独立创建：可转图片各自生成单页 PDF，其它文件维持原样
+      for (const p of prepared) {
+        results.push(await createFileRecord(p, title, { titleFallback: stripExt(p.name) || '文件' }));
+      }
+    }
+
+    return NextResponse.json({ success: true, docs: results, count: results.length }, { status: 201 });
   } catch (err) {
-    // 失败清理已写入对象，避免半截对象残留
-    if (objectKey) {
-      try { await deleteSopFile(objectKey); } catch { /* ignore */ }
+    // 失败清理本轮已写对象，避免半截对象残留
+    for (const k of writtenKeys) {
+      try { await deleteSopFile(k); } catch { /* ignore */ }
     }
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
+}
+
+function stripExt(name: string): string {
+  const i = name.lastIndexOf('.');
+  return i > 0 ? name.slice(0, i) : name;
 }

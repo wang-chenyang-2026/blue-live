@@ -83,6 +83,7 @@ export interface SopUploadDraft {
   needsQuiz: boolean;
   remark: string;
   manualKeypoints: string;
+  mergeImages: boolean;
   files: SopUploadFileItem[];
 }
 
@@ -99,6 +100,7 @@ interface SopUploadDraftMeta {
   needsQuiz: boolean;
   remark: string;
   manualKeypoints: string;
+  mergeImages: boolean;
   files: Array<Pick<SopUploadFileItem, 'uid' | 'name' | 'size' | 'type' | 'lastModified' | 'title'>>;
 }
 
@@ -112,6 +114,7 @@ function stripToMeta(d: SopUploadDraft): SopUploadDraftMeta {
     needsQuiz: d.needsQuiz,
     remark: d.remark,
     manualKeypoints: d.manualKeypoints,
+    mergeImages: d.mergeImages,
     files: d.files.map((f) => ({ uid: f.uid, name: f.name, size: f.size, type: f.type, lastModified: f.lastModified, title: f.title })),
   };
 }
@@ -215,6 +218,7 @@ function SopPageInner() {
           needsQuiz: false,
           remark: '',
           manualKeypoints: '',
+          mergeImages: false,
           files: [],
         });
       }
@@ -743,7 +747,7 @@ function UploadModal({
   const doneCount = files.filter((f) => f.status === 'success' || f.status === 'failed').length;
   const canSubmit =
     mode === 'file'
-      ? files.length > 0 && !anyNeedsReselect && !submitting
+      ? files.length > 0 && !anyNeedsReselect && !submitting && (!draft.mergeImages || (files.some((f) => /\.(jpe?g|png)$/i.test(f.name)) ? !!draft.title.trim() : true))
       : !!draft.title.trim() && !!draft.link.trim() && !submitting;
 
   const setMode = (m: 'link' | 'file') => {
@@ -840,14 +844,24 @@ function UploadModal({
     onDraftChange(next);
   };
 
+  // 是否可转 PDF 的图片（jpg/jpeg/png）
+  const isImgConvertible = (name: string) => /\.(jpe?g|png)$/i.test(name);
+
   // 逐文件并发上传（保留进度与单项状态，失败可重试，不中断其余）
   const submit = async () => {
     setError(null);
     setSubmitting(true);
     const cur = draftRef.current;
     if (mode === 'file') {
-      const queue = cur.files.filter((f) => f.status !== 'success');
-      setItemStatusAll(queue.map((f) => ({ uid: f.uid, status: 'pending' as const })));
+      // 合并模式：把尚未成功的可转图片筛出，其余仍逐文件独立上传
+      const mergeImgs = cur.mergeImages
+        ? cur.files.filter((f) => f.status !== 'success' && isImgConvertible(f.name))
+        : [];
+      const queue = cur.files.filter((f) => f.status !== 'success' && !mergeImgs.some((m) => m.uid === f.uid));
+      setItemStatusAll([
+        ...queue.map((f) => ({ uid: f.uid, status: 'pending' as const })),
+        ...mergeImgs.map((f) => ({ uid: f.uid, status: 'pending' as const })),
+      ]);
       const CONCURRENCY = 3;
       let idx = 0;
       const runOne = async (item: SopUploadFileItem) => {
@@ -873,14 +887,42 @@ function UploadModal({
           setItemStatus(item.uid, 'failed', e instanceof Error ? e.message : '上传失败');
         }
       };
-      const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }).map(async () => {
-        while (idx < queue.length) {
-          const item = queue[idx];
-          idx += 1;
-          await runOne(item);
+      // 合并请求：所有可转图片放一个 FormData，merge_images=true，仅生成 1 条文档
+      const runMerge = async () => {
+        const ok = mergeImgs.filter((i) => i.file);
+        if (!ok.length) return;
+        ok.forEach((i) => setItemStatus(i.uid, 'uploading'));
+        try {
+          const fd = new FormData();
+          const baseTitle = cur.title && cur.title.trim() ? cur.title.trim() : `多图合并 ${ok.length}P`;
+          fd.append('title', baseTitle);
+          fd.append('scope', cur.scope);
+          fd.append('sub_category', cur.subCategory);
+          fd.append('needs_quiz', cur.needsQuiz ? 'true' : 'false');
+          fd.append('remark', cur.remark);
+          fd.append('doc_type', 'training');
+          fd.append('merge_images', 'true');
+          ok.forEach((i) => i.file && fd.append('file', i.file as File));
+          const res = await fetch('/api/sop/documents', { method: 'POST', body: fd });
+          const json = (await res.json().catch(() => ({ success: false }))) as { success?: boolean; error?: string };
+          if (res.status >= 400 || !json.success) throw new Error(json.error || '上传失败');
+          ok.forEach((i) => setItemStatus(i.uid, 'success'));
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : '上传失败';
+          ok.forEach((i) => setItemStatus(i.uid, 'failed', msg));
         }
-      });
-      await Promise.all(workers);
+      };
+      const jobs: Array<() => Promise<void>> = [
+        ...Array.from({ length: Math.min(CONCURRENCY, queue.length) }).map(() => async () => {
+          while (idx < queue.length) {
+            const item = queue[idx];
+            idx += 1;
+            await runOne(item);
+          }
+        }),
+        async () => { await runMerge(); },
+      ];
+      await Promise.all(jobs.map((j) => j()));
       setSubmitting(false);
       const final = draftRef.current;
       if (final.files.length > 0 && final.files.every((f) => f.status === 'success')) {
@@ -1034,9 +1076,40 @@ function UploadModal({
             </label>
           </>
         ) : multi ? (
-          <p className="mt-4 text-[13px]" style={{ color: 'var(--sop-t3)' }}>
-            将分别创建 <b style={{ color: 'var(--sop-primary)' }}>{files.length}</b> 条文档，标题可在下方逐个修改，公共信息批量应用。
-          </p>
+          <div className="mt-4 space-y-2">
+            <p className="text-[13px]" style={{ color: 'var(--sop-t3)' }}>
+              将分别创建 <b style={{ color: 'var(--sop-primary)' }}>{files.length}</b> 条文档，标题可在下方逐个修改，公共信息批量应用。
+            </p>
+            {/* 多图合并为一个 PDF 勾选（仅当有可转图片 jpg/jpeg/png 时才展示） */}
+            {files.some((f) => /\.(jpe?g|png)$/i.test(f.name)) ? (
+              <label
+                className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-[13px]"
+                style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t2)' }}
+              >
+                <input
+                  type="checkbox"
+                  checked={!!draft.mergeImages}
+                  onChange={(e) => update({ mergeImages: e.target.checked })}
+                  className="h-4 w-4 accent-[var(--sop-primary)]"
+                />
+                <span>
+                  将全部图片合并为一个 PDF（多页）：只生成 <b style={{ color: 'var(--sop-primary)' }}>1</b> 条文档
+                </span>
+              </label>
+            ) : null}
+            {draft.mergeImages ? (
+              <label className="block text-[13px] font-medium" style={{ color: 'var(--sop-t2)' }}>
+                合并文档标题 <span style={{ color: 'var(--sop-danger)' }}>*</span>
+                <input
+                  value={draft.title}
+                  onChange={(e) => update({ title: e.target.value })}
+                  placeholder="多图合并文档的标题"
+                  className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-[13px] outline-none"
+                  style={{ borderColor: 'var(--sop-border)', color: 'var(--sop-t1)', backgroundColor: 'var(--sop-panel)' }}
+                />
+              </label>
+            ) : null}
+          </div>
         ) : files.length === 1 ? (
           <label className="mt-4 block text-[13px] font-medium" style={{ color: 'var(--sop-t2)' }}>
             标题 <span style={{ color: 'var(--sop-danger)' }}>*</span>
