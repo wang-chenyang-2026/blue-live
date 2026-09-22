@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getSopUserContext } from '@/lib/sop-context';
 import { SCOPE_OPTIONS, detectSourceType } from '@/lib/sop-taxonomy';
 import { runSopRefine } from '@/lib/sop-refine';
+import { fetchFeishuDocBody } from '@/lib/sop-ai';
 import { computeScopeSync, formatSyncDetail, syncStatusLabel } from '@/lib/sop-sync';
 
 // GET /api/sop/documents/[id]
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const cur = await client
       .from('sop_documents')
       .select(
-        'id, doc_type, title, category, sub_category, scope, applicable_post, applicable_brand, source_type, external_url, visibility, needs_quiz, status, version, content_excerpt, prev_version_at, ai_summary, ai_keypoints, ai_status, ai_error, uploaded_by, uploader_name, is_active, remark, created_at, updated_at'
+        'id, doc_type, title, category, sub_category, scope, applicable_post, applicable_brand, source_type, external_url, visibility, needs_quiz, status, version, content_excerpt, content_body, prev_version_at, ai_summary, ai_keypoints, ai_status, ai_error, uploaded_by, uploader_name, is_active, remark, created_at, updated_at'
       )
       .eq('id', id)
       .eq('status', 'published')
@@ -33,6 +34,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const stats = await computeScopeSync(data.scope as string);
+
+    // 原文内联展示：飞书正文未落库时实时抓一次并回存（仅飞书；腾讯无开放接口、失败则降级，不向客户端抛错）
+    const isFeishu = data.source_type === 'feishu' && !!data.external_url;
+    if (isFeishu && !data.content_body) {
+      try {
+        const text = await fetchFeishuDocBody(data.external_url as string);
+        if (text) {
+          await client.from('sop_documents').update({ content_body: text }).eq('id', id);
+          data.content_body = text;
+        }
+      } catch {
+        /* 抓取失败：保持 content_body 为空，前端显示降级提示 */
+      }
+    }
 
     return NextResponse.json({
       success: true,

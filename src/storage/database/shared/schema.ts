@@ -80,6 +80,8 @@ export const sopDocuments = pgTable(
     version: integer("version").notNull().default(1),
     // v2.5 UI 重构：正文摘录（抓到的正文前段）、上一版本时间
     content_excerpt: text("content_excerpt"),
+    // v2.8 原文内联展示：已抓取的飞书正文全量
+    content_body: text("content_body"),
     prev_version_at: timestamp("prev_version_at", { withTimezone: true }),
     created_by: varchar("created_by", { length: 64 }),
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

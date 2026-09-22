@@ -17,6 +17,7 @@ export interface SopDetailDoc {
   ai_keypoints: string[] | null;
   ai_error: string | null;
   content_excerpt: string | null;
+  content_body: string | null;
   uploader_name: string | null;
   version: number;
   prev_version_at: string | null;
@@ -123,11 +124,11 @@ export default function SopDocDetailBody({
         <a
           href={sourceUrl ?? '#'}
           target="_blank"
-          rel="noreferrer"
+          rel="noopener noreferrer"
           className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium"
           style={{ backgroundColor: 'var(--sop-primary-bg)', color: 'var(--sop-primary)' }}
         >
-          <ExternalLink size={12} /> 来源：{sourceLabel}（点击查看原文）
+          <ExternalLink size={12} /> 查看{sourceLabel === '腾讯文档' ? '腾讯文档原文' : '飞书原文'}
         </a>
         <span
           className="inline-flex items-center rounded px-2 py-0.5 text-xs"
@@ -216,18 +217,33 @@ export default function SopDocDetailBody({
         )}
       </div>
 
-      {/* 底部操作 */}
+      {/* 正式内容 / 原文：服务端抓取的飞书正文全文（无则降级提示） */}
+      <div className="mt-4 text-[13px] font-semibold" style={{ color: 'var(--sop-t1)' }}>
+        正式内容
+        <span className="ml-2 text-xs font-normal" style={{ color: 'var(--sop-t3)' }}>
+          完整内容以来源文档为准
+        </span>
+      </div>
+      <div
+        className="rounded-lg border p-4"
+        style={{ borderColor: 'var(--sop-border)', backgroundColor: 'var(--sop-panel)' }}
+      >
+        {doc.content_body ? (
+          <div
+            className="max-h-[720px] overflow-auto whitespace-pre-wrap text-[13.5px] leading-[1.9]"
+            style={{ color: 'var(--sop-t2)' }}
+          >
+            {doc.content_body}
+          </div>
+        ) : (
+          <p className="text-[13px]" style={{ color: 'var(--sop-t3)' }}>
+            原文内容暂无法直接展示，请点击顶部「查看原文」链接访问。
+          </p>
+        )}
+      </div>
+
+      {/* 底部操作：仅保留删除（原文外链入口在顶部元信息行） */}
       <div className="mt-4 flex items-center gap-3">
-        <a
-          href={sourceUrl ?? '#'}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
-          style={{ border: '1px solid var(--sop-primary)', color: 'var(--sop-primary)', background: 'var(--sop-panel)' }}
-        >
-          <ExternalLink size={14} />
-          查看{sourceLabel === '腾讯文档' ? '腾讯文档原文' : '飞书原文'}
-        </a>
         {canUpload && onDelete && (
           <button
             type="button"

@@ -41,10 +41,18 @@ export async function fetchFeishuDocBody(url: string): Promise<string> {
   const token = await getTenantToken();
   let documentId = parsed.token;
 
+  const feishuFetch = async (input: string) => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 12000);
+    try {
+      return await fetch(input, { headers: { Authorization: `Bearer ${token}` }, signal: ctrl.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
   if (parsed.kind === 'wiki') {
-    const nodeRes = await fetch(`${FEISHU_BASE}/open-apis/wiki/v2/spaces/get_node?token=${parsed.token}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const nodeRes = await feishuFetch(`${FEISHU_BASE}/open-apis/wiki/v2/spaces/get_node?token=${parsed.token}`);
     const nodeData = await nodeRes.json();
     if (nodeData.code !== 0) {
       throw new Error(`飞书获取文档节点失败: ${nodeData.msg ?? nodeData.code}`);
@@ -52,9 +60,7 @@ export async function fetchFeishuDocBody(url: string): Promise<string> {
     documentId = nodeData.data.node.obj_token;
   }
 
-  const res = await fetch(`${FEISHU_BASE}/open-apis/docx/v1/documents/${documentId}/raw_content`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const res = await feishuFetch(`${FEISHU_BASE}/open-apis/docx/v1/documents/${documentId}/raw_content`);
   const data = await res.json();
   if (data.code !== 0) {
     throw new Error(`飞书读取文档失败: ${data.msg ?? data.code}`);
