@@ -123,6 +123,12 @@ src/
 - 清理因删框而不再使用的接口字段：`ai_summary`、`ai_keypoints`、`ai_error` 从 `SopDetailDoc` 移除；**保留 `ai_status`**（顶部状态徽章"资料待补充/已提炼"仍用，勿动）。未改 PdfViewer、「PDF · N页 · 由N张图片生成」、查看原图、上传逻辑与后端。
 - 验收口径（实测通过）：SSR 渲染组件验证「AI 提炼」出现 0 次、摘要区计数=1、有 content_excerpt 正常显示、无 excerpt 的图片/PDF 文档显示新中性空态、iframe「下载 PDF」/「PDF · N页」信息横向无回归；ts-check / lint（改动文件 0 告警）/ 生产 build 全绿；无需造数据，dev 库原状未动（同 v2.11）。
 
+## SOP管理板块（v2.13：详情页 PDF 简洁展示——关闭左侧导航窗格 + 竖版按宽铺满）
+- 仅改 `SopDocDetailBody.tsx` 前端 PdfViewer：新增本地 helper `withPdfViewerParams(url)`，在签名 URL 后追加 PDFium 展示 fragment（`#navpanes=0&view=FitH`：关闭左侧导航/大纲窗格 + 竖版页按宽度适配横向铺满、消除左右大块留白）。fragment 不参与签名、不影响签名 URL 鉴权；原址已有 fragment 则先用 `URLSearchParams` 解析后 `set` 覆盖同名参数再拼接，无则直接追加。iframe `src={viewerSrc}`（`const viewerSrc = withPdfViewerParams(url)`），下载/重新加载按钮仍用原始 `url`（不带 fragment）。
+- **参数选定依据（浏览器实测，非拍脑袋）**：用 playwright-core + 缓存 Chromium（`/root/.cache/ms-playwright/chromium-*`）`page.setContent('<iframe src=签名URL>')` 截图 + PIL 像素分析（bright=页面空白区>200 luminance、dark=留白/窗格<80）：X500 合并 PDF 页为 841.5pt×5877pt 超长竖版（aspect≈0.14）。实测 `navpanes=0` 移除左导航会话面板（左 dark 96px→≈10 已验证）；`view=FitH` 与 `zoom=page-width` 效果等同、页面填充率随容器宽度提升（900 容器 76%→87%，1200→91%，1400→96%）→ 按工单偏好选 `view=FitH`。
+- **铁律不变**：`file_kind=pdf` 详情页只能由 PDF 阅读器（iframe 渲染 `file_signed_url`）展示，绝不退回 `<img>` 原图画廊；未改 PdfViewer 的加载骨架/onError/25s 超时兜底/「重新加载」/「下载 PDF」；未动图片论文（`file_kind=image` 仍 img）、上传、后端、`.coze`/`.preview`。
+- 验收口径（已过）：ts-check 0 错、lint 改动文件 0 新增告警（仅继承的既有 `<img>` warning 2 条在图片内联展示处）、生产 build 全绿、test_run pipeline（lint/ts-check/service_probe=localhost:5000 ready）pass；dev server 重启后监听 5000。dev 库原状未动。
+
 ## SOP管理板块（第一期：制度+培训文档库 查阅/检索/权限）
 - 库：sop_documents（制度/培训统一表：doc_type=management|training、category、applicable_post/applicable_brand 为 jsonb 数组、visibility=internal|general、needs_quiz、status、version）与字典表 sop_categories（type=category/post/brand、label、sort_order）。
 - 页面：`/sop`（文档库：全部/制度/培训分页签 + category/brand 下拉 + 关键词，卡片显示 标题/分类/品牌/来源状态/需考核；来源有 external_url 显示"查看文档"，无则"资料待补充"）、`/sop/doc/[id]` 详情页（全字段；external_url 新标签打开，无则占位）。

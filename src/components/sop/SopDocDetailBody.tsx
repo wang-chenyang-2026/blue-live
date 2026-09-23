@@ -83,6 +83,21 @@ const PDF_LOAD_TIMEOUT_MS = 25000;
 // 提供加载骨架、onError/超时兜底（重新加载 → 重新拉详情刷新签名 URL；下载 PDF）。
 type PdfStatus = 'loading' | 'ready' | 'error';
 
+// fragment 不参与签名、不影响鉴权；在签名 URL 后追加 PDF 阅读器展示参数：
+// navpanes=0 关闭左侧导航/大纲窗格，view=FitH 按宽度适配（竖版页横向铺满，消除左右大块留白）。
+// 仅在原址无 fragment 时追加；已有 fragment 则合并覆盖同名参数（若已存在）。
+function withPdfViewerParams(url: string): string {
+  if (!url) return url;
+  const hashIdx = url.indexOf('#');
+  const base = hashIdx >= 0 ? url.slice(0, hashIdx) : url;
+  const raw = hashIdx >= 0 ? url.slice(hashIdx + 1) : '';
+  const params = new URLSearchParams(raw);
+  params.set('navpanes', '0');
+  params.set('view', 'FitH');
+  const q = params.toString();
+  return q ? `${base}#${q}` : base;
+}
+
 function PdfViewer({
   url,
   fileName,
@@ -94,6 +109,7 @@ function PdfViewer({
 }) {
   const [status, setStatus] = useState<PdfStatus>(() => (url ? 'loading' : 'error'));
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const viewerSrc = withPdfViewerParams(url); // 关闭左侧窗格 + 按宽适配
 
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -158,7 +174,7 @@ function PdfViewer({
             </div>
           )}
           <iframe
-            src={url}
+            src={viewerSrc}
             title={fileName ?? 'PDF'}
             onLoad={() => setStatus('ready')}
             className="w-full"
