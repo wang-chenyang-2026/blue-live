@@ -117,6 +117,12 @@ src/
 - **顶部信息**：图片生成的 PDF 显示 `PDF · N页 · 由 N 张图片生成`（N=original_signed_urls 长度，回退解析 original_file_url JSON）；「查看原图(N张)」保留次要小入口（打开首张原图）。未改动「AI 提炼」「内容摘录」区块结构，未改签名时长/桶策略。
 - **验收口径（实测通过）**：jpg/png 页贴合无白边、多图合并页序=提交序、PDF 头 `%PDF` 可读；SSR 渲染组件验证 pdf→iframe 且无 `<img>`、空 url→「PDF 暂无法在线预览/重新加载」兜底、file_kind=image 仍 img；非合并单图→单页 PDF；非 PM 上传/删除 403；删除后对象无残留；ts-check/lint(改动文件无新增告警)/生产 build 全绿。测完恢复 dev 库原状（当前 dev 真实记录=sop_documents 5：4 条 manual/feishu + 1 条 file/pdf「【产品】X500产品资料」[工单背景的真实合并 PDF]，sop-files 桶 4 对象=该 X500 的 pdf+3 原图）。
 
+## SOP管理板块（v2.12：移除详情页独立「AI 提炼」框，仅保留内容摘要区）
+- 仅改 `SopDocDetailBody.tsx` 前端：整段删除「✨ AI 提炼」边框框（done/processing/暂不可用的三态 JSX 全删）；只保留「内容摘要」区（读 content_excerpt）。
+- 空态文案改为全来源通用的中性提示：`暂无内容摘要。图片/文档的内容识别能力接入后将自动生成。`（不再写"若来源为飞书文档…"等单一来源措辞）。
+- 清理因删框而不再使用的接口字段：`ai_summary`、`ai_keypoints`、`ai_error` 从 `SopDetailDoc` 移除；**保留 `ai_status`**（顶部状态徽章"资料待补充/已提炼"仍用，勿动）。未改 PdfViewer、「PDF · N页 · 由N张图片生成」、查看原图、上传逻辑与后端。
+- 验收口径（实测通过）：SSR 渲染组件验证「AI 提炼」出现 0 次、摘要区计数=1、有 content_excerpt 正常显示、无 excerpt 的图片/PDF 文档显示新中性空态、iframe「下载 PDF」/「PDF · N页」信息横向无回归；ts-check / lint（改动文件 0 告警）/ 生产 build 全绿；无需造数据，dev 库原状未动（同 v2.11）。
+
 ## SOP管理板块（第一期：制度+培训文档库 查阅/检索/权限）
 - 库：sop_documents（制度/培训统一表：doc_type=management|training、category、applicable_post/applicable_brand 为 jsonb 数组、visibility=internal|general、needs_quiz、status、version）与字典表 sop_categories（type=category/post/brand、label、sort_order）。
 - 页面：`/sop`（文档库：全部/制度/培训分页签 + category/brand 下拉 + 关键词，卡片显示 标题/分类/品牌/来源状态/需考核；来源有 external_url 显示"查看文档"，无则"资料待补充"）、`/sop/doc/[id]` 详情页（全字段；external_url 新标签打开，无则占位）。

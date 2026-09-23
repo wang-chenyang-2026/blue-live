@@ -13,9 +13,6 @@ export interface SopDetailDoc {
   external_url: string | null;
   needs_quiz: boolean;
   ai_status: string | null;
-  ai_summary: string | null;
-  ai_keypoints: string[] | null;
-  ai_error: string | null;
   content_excerpt: string | null;
   content_body: string | null;
   uploader_name: string | null;
@@ -322,48 +319,9 @@ export default function SopDocDetailBody({
         )}
       </div>
 
-      {/* AI 提炼框 */}
-      <div
-        className="mt-4 rounded-lg border p-4"
-        style={{
-          borderColor: 'var(--sop-line)',
-          background: 'var(--sop-ai-grad)',
-        }}
-      >
-        <div className="mb-2 flex items-center gap-1.5 text-[15px] font-semibold" style={{ color: 'var(--sop-primary)' }}>
-          <span className="text-base leading-none">✨</span> AI 提炼
-        </div>
-        {doc.ai_status === 'done' && doc.ai_summary ? (
-          <>
-            <p className="text-sm" style={{ color: 'var(--sop-t1)' }}>
-              {doc.ai_summary}
-            </p>
-            {Array.isArray(doc.ai_keypoints) && doc.ai_keypoints.length > 0 && (
-              <ol className="mt-2 space-y-1">
-                {doc.ai_keypoints.map((k, i) => (
-                  <li key={i} className="flex gap-2 text-sm" style={{ color: 'var(--sop-t2)' }}>
-                    <span style={{ color: 'var(--sop-primary)' }}>{i + 1}.</span>
-                    <span>{k}</span>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </>
-        ) : doc.ai_status === 'processing' ? (
-          <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--sop-primary)' }}>
-            <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
-            AI 正在提炼正文内容，请稍候刷新…
-          </div>
-        ) : (
-          <div className="text-sm" style={{ color: 'var(--sop-t3)' }}>
-            AI 提炼暂不可用{doc.ai_error ? `（${doc.ai_error}）` : ''}，可直接查看原文或由上传人手动补充内容。
-          </div>
-        )}
-      </div>
-
-      {/* 正文摘录 */}
+      {/* 内容摘要 */}
       <div className="mt-4 mb-2 text-[13px] font-semibold" style={{ color: 'var(--sop-t1)' }}>
-        内容摘录
+        内容摘要
       </div>
       <div
         className="flex-1 rounded-lg border p-4"
@@ -378,7 +336,7 @@ export default function SopDocDetailBody({
           </p>
         ) : (
           <p className="text-[13px]" style={{ color: 'var(--sop-t4)' }}>
-            暂无正文摘录，若来源为飞书文档可在上传后自动提炼后补充。
+            暂无内容摘要。图片/文档的内容识别能力接入后将自动生成。
           </p>
         )}
       </div>
