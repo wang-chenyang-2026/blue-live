@@ -51,6 +51,26 @@ function SopDocDetailInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // 静默刷新详情：用于 PDF 签名 URL 失效后的「重新加载」→ 重新拉详情获取新签名 URL，不整页闪加载
+  const refreshDoc = async () => {
+    if (!id) return;
+    try {
+      const res = await fetch(`/api/sop/documents/${id}`, { headers: { 'Content-Type': 'application/json' } });
+      if (res.status === 404) {
+        setNotFound(true);
+        setDoc(null);
+        return;
+      }
+      const json = await res.json();
+      if (json?.success && json.doc) {
+        setDoc(json.doc as SopDetailDoc);
+        setNotFound(false);
+      }
+    } catch {
+      /* 静默：保持现状，等待用户再次操作 */
+    }
+  };
+
   return (
     <div className="sop-scope flex min-h-screen items-start justify-center" style={{ backgroundColor: 'var(--sop-bg)' }}>
       <div className="mt-6 w-full max-w-[1000px] px-6 pb-14">
@@ -67,7 +87,7 @@ function SopDocDetailInner() {
           ) : notFound || !doc ? (
             <p style={{ color: 'var(--sop-t3)' }}>文档不存在或您无权访问。</p>
           ) : (
-            <SopDocDetailBody doc={doc} canUpload={false} />
+            <SopDocDetailBody doc={doc} canUpload={false} onRefreshDoc={refreshDoc} />
           )}
         </div>
       </div>

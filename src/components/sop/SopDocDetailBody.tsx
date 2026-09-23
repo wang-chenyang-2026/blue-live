@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { ExternalLink, Trash2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ExternalLink, Loader2, Trash2 } from 'lucide-react';
 import './sop-theme.css';
 
 export interface SopDetailDoc {
@@ -80,14 +80,114 @@ function StatusBadge({ aiStatus, synced }: { aiStatus: string | null; synced: st
   );
 }
 
+const PDF_LOAD_TIMEOUT_MS = 25000;
+
+// 图片转 PDF 文档主展示：只走 PDF 阅读器（iframe）渲染签名 URL，绝不退回 <img> 原图画廊。
+// 提供加载骨架、onError/超时兜底（重新加载 → 重新拉详情刷新签名 URL；下载 PDF）。
+type PdfStatus = 'loading' | 'ready' | 'error';
+
+function PdfViewer({
+  url,
+  fileName,
+  onReload,
+}: {
+  url: string;
+  fileName?: string | null;
+  onReload: () => void;
+}) {
+  const [status, setStatus] = useState<PdfStatus>(() => (url ? 'loading' : 'error'));
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    if (!url) {
+      setStatus('error');
+      return;
+    }
+    setStatus('loading');
+    timer.current = setTimeout(() => {
+      setStatus((s) => (s === 'loading' ? 'error' : s));
+    }, PDF_LOAD_TIMEOUT_MS);
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
+    };
+  }, [url]);
+
+  return (
+    <div className="overflow-hidden rounded-md border" style={{ borderColor: 'var(--sop-border)', backgroundColor: 'var(--sop-panel)' }}>
+      {status === 'error' ? (
+        <div className="flex flex-col items-center justify-center gap-3 p-8 text-center" style={{ minHeight: 340 }}>
+          <p className="text-[13px]" style={{ color: 'var(--sop-t2)' }}>
+            {url ? 'PDF 加载失败：签名链接失效或网络异常。' : 'PDF 暂无法在线预览（链接未就绪）。'}
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setStatus('loading');
+                onReload();
+              }}
+              className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+              style={{ backgroundColor: 'var(--sop-primary-bg)', color: 'var(--sop-primary)' }}
+            >
+              <Loader2 size={14} className="animate-spin" /> 重新加载
+            </button>
+            {url && (
+              <a
+                href={url}
+                download={fileName ?? 'document.pdf'}
+                className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+                style={{ border: '1px solid var(--sop-border)', color: 'var(--sop-t2)', backgroundColor: 'var(--sop-panel)' }}
+              >
+                <ExternalLink size={14} /> 下载 PDF
+              </a>
+            )}
+          </div>
+        </div>
+      ) : (
+        <>
+          {status === 'loading' && (
+            <div
+              className="flex items-center justify-center gap-2 text-sm"
+              style={{ color: 'var(--sop-t3)', backgroundColor: 'var(--sop-panel)' }}
+            >
+              <span
+                className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"
+                style={{ color: 'var(--sop-primary)' }}
+              />
+              PDF 加载中…
+            </div>
+          )}
+          <iframe
+            src={url}
+            title={fileName ?? 'PDF'}
+            onLoad={() => setStatus('ready')}
+            className="w-full"
+            style={{
+              display: status === 'loading' ? 'none' : 'block',
+              height: 'clamp(440px, 62vh, 780px)',
+              border: 'none',
+              backgroundColor: 'var(--sop-panel)',
+            }}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function SopDocDetailBody({
   doc,
   canUpload,
   onDelete,
+  onRefreshDoc,
 }: {
   doc: SopDetailDoc;
   canUpload: boolean;
   onDelete?: (id: string) => Promise<void>;
+  onRefreshDoc?: () => void;
 }) {
   const [deleting, setDeleting] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -101,9 +201,25 @@ export default function SopDocDetailBody({
   const fileKind = doc.file_kind ?? 'other';
   const isImageFile = isFile && fileKind === 'image';
   const isPdfFile = isFile && fileKind === 'pdf';
-  // 图片转 PDF 文档：主文件为 PDF，另有原图（original_signed_urls）
+  // 图片转 PDF 文档：主文件为 PDF，另有原图（original_file_url / original_signed_urls）
   const hasOriginals = isFile && Array.isArray(doc.original_signed_urls) && doc.original_signed_urls.length > 0;
   const firstOriginal = hasOriginals ? doc.original_signed_urls![0] : null;
+  // 页数/生成图片数：优先取签名原图数组；不可见时回退解析 original_file_url JSON
+  const originalCount = isFile
+    ? (doc.original_signed_urls?.length ??
+        (() => {
+          try {
+            return (JSON.parse(doc.original_file_url ?? '[]') as string[]).length;
+          } catch {
+            return 0;
+          }
+        })())
+    : 0;
+
+  const handleReloadPdf = () => {
+    if (onRefreshDoc) onRefreshDoc();
+    else window.location.reload();
+  };
 
   const handleDelete = async () => {
     if (!onDelete) return;
@@ -149,6 +265,14 @@ export default function SopDocDetailBody({
               <ExternalLink size={12} /> {doc.file_kind === 'pdf' ? '下载 PDF' : '下载原文件'}
               {doc.file_name ? `（${doc.file_name}）` : ''}
             </a>
+            {isPdfFile && originalCount > 0 && (
+              <span
+                className="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium"
+                style={{ backgroundColor: 'var(--sop-primary-bg)', color: 'var(--sop-primary)' }}
+              >
+                PDF · {originalCount} 页 · 由 {originalCount} 张图片生成
+              </span>
+            )}
             {hasOriginals && firstOriginal?.url && (
               <a
                 href={firstOriginal.url}
@@ -157,7 +281,7 @@ export default function SopDocDetailBody({
                 className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium"
                 style={{ backgroundColor: 'var(--sop-muted)', color: 'var(--sop-t2)' }}
               >
-                <ExternalLink size={12} /> 查看原图{hasOriginals && doc.original_signed_urls!.length > 1 ? `（${doc.original_signed_urls!.length} 张）` : ''}
+                <ExternalLink size={12} /> 查看原图{originalCount > 1 ? `（${originalCount} 张）` : ''}
               </a>
             )}
           </>
@@ -284,28 +408,9 @@ export default function SopDocDetailBody({
               图片为 SVG 或暂无法在线预览，请点击顶部「下载原文件」查看。
             </p>
           )
-        ) : isPdfFile && doc.file_signed_url ? (
-          <div>
-            <iframe
-              src={doc.file_signed_url}
-              title={doc.file_name ?? 'PDF'}
-              className="w-full rounded-md border"
-              style={{ height: 560, borderColor: 'var(--sop-border)' }}
-            />
-            {doc.content_body && (
-              <details className="mt-3">
-                <summary className="cursor-pointer text-[13px] font-medium" style={{ color: 'var(--sop-primary)' }}>
-                  展示提取文本
-                </summary>
-                <p
-                  className="mt-2 whitespace-pre-wrap text-[13px] leading-[1.9]"
-                  style={{ color: 'var(--sop-t2)' }}
-                >
-                  {doc.content_body}
-                </p>
-              </details>
-            )}
-          </div>
+        ) : isPdfFile ? (
+          // 铁律：file_kind=pdf 只走 PDF 阅读器渲染签名 URL，空/失效时展示兜底，绝不 .replace 为 <img> 原图画廊
+          <PdfViewer url={doc.file_signed_url ?? ''} fileName={doc.file_name} onReload={handleReloadPdf} />
         ) : doc.content_body ? (
           <div
             className="max-h-[720px] overflow-auto whitespace-pre-wrap text-[13.5px] leading-[1.9]"

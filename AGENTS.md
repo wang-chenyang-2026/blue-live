@@ -111,6 +111,12 @@ src/
 - **删除联动**：DELETE 先 select 取 file_url + original_file_url，解析 JSON 数组→`deleteSopFile` 逐个清 PDF 与全部原图对象（对象删除失败不影响元数据删除）+ 级联删 sop_read_logs；非 PM/运营 403。实测删除后 PDF 与全部原图对象均 "Object not found"（无残留）。
 - **验收口径（实测通过）**：单张 jpg/png→单页 PDF 且 PDF 字节以 `%PDF` 开头、原图 bytes 与原文件一致；gif 保留原图不转 PDF；多图合并→1 条多页 PDF 记录+2 原图顺序=提交序；非合并 2 图→2 条记录；混合(png+jpg+gif)合并→1 条图片 PDF + 1 条 gif；content_body=null 且 ai_status 非 done；非 PM 上传/删除 403；删除后无残留对象。测完恢复 dev 库原状（基准同上）。
 
+## SOP管理板块（v2.11：图片 PDF 平台展示优化——不 OCR/不动 AI 区块）
+- **铁律**：`file_kind=pdf` 详情页只由 PDF 阅读器（`<iframe>` 渲染 `file_signed_url`）展示，任何情况不得退回 `<img>` 原图画廊（图片仍只在 `file_kind=image` 走 img）。
+- **`SopDocDetailBody.tsx` 新增 `PdfViewer` 子组件**：加载骨架「PDF 加载中…」；url 空 / iframe onError / 25s 超时 → 明确兜底（原因文案 + 「重新加载」 + 「下载 PDF」），不白屏不静默。「重新加载」调父级 `onRefreshDoc`（doc/[id]/page.tsx 的 `refreshDoc` 静默重拉详情刷新签名 URL，不整页闪 loading）；父级无回调则 `window.location.reload()`。iframe 高度 `clamp(440px, 62vh, 780px)` 自适应，dark/light 边框/背景用 var。
+- **顶部信息**：图片生成的 PDF 显示 `PDF · N页 · 由 N 张图片生成`（N=original_signed_urls 长度，回退解析 original_file_url JSON）；「查看原图(N张)」保留次要小入口（打开首张原图）。未改动「AI 提炼」「内容摘录」区块结构，未改签名时长/桶策略。
+- **验收口径（实测通过）**：jpg/png 页贴合无白边、多图合并页序=提交序、PDF 头 `%PDF` 可读；SSR 渲染组件验证 pdf→iframe 且无 `<img>`、空 url→「PDF 暂无法在线预览/重新加载」兜底、file_kind=image 仍 img；非合并单图→单页 PDF；非 PM 上传/删除 403；删除后对象无残留；ts-check/lint(改动文件无新增告警)/生产 build 全绿。测完恢复 dev 库原状（当前 dev 真实记录=sop_documents 5：4 条 manual/feishu + 1 条 file/pdf「【产品】X500产品资料」[工单背景的真实合并 PDF]，sop-files 桶 4 对象=该 X500 的 pdf+3 原图）。
+
 ## SOP管理板块（第一期：制度+培训文档库 查阅/检索/权限）
 - 库：sop_documents（制度/培训统一表：doc_type=management|training、category、applicable_post/applicable_brand 为 jsonb 数组、visibility=internal|general、needs_quiz、status、version）与字典表 sop_categories（type=category/post/brand、label、sort_order）。
 - 页面：`/sop`（文档库：全部/制度/培训分页签 + category/brand 下拉 + 关键词，卡片显示 标题/分类/品牌/来源状态/需考核；来源有 external_url 显示"查看文档"，无则"资料待补充"）、`/sop/doc/[id]` 详情页（全字段；external_url 新标签打开，无则占位）。
