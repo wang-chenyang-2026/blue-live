@@ -273,7 +273,7 @@ function MarkdownContent({ content }: { content: string }) {
   };
 
   return (
-    <div className="sop-md text-[13.5px] leading-[1.85]">
+    <div className="sop-md text-[13.5px] leading-[1.8]">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw, [rehypeSanitize, MD_SCHEMA]]}

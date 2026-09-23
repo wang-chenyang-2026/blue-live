@@ -69,7 +69,7 @@
 .dark .sop-scope .dot-iqoo_douyin { background-color: #ff4d6a; }
 .dark .sop-scope .dot-iqoo_kuaishou { background-color: #ff9a3c; }
 /* 在线正文 Markdown 长文排版（仅作用于 body，沿用双主题变量） */
-.sop-scope .sop-md { color: var(--sop-t2); }
+.sop-scope .sop-md { color: var(--sop-t2); overflow-wrap: anywhere; word-break: normal; }
 .sop-scope .sop-md > :first-child { margin-top: 0; }
 .sop-scope .sop-md > :last-child { margin-bottom: 0; }
 .sop-scope .sop-md p { margin: 0.6em 0; }
@@ -94,17 +94,40 @@
 .sop-scope .sop-md li > ul,
 .sop-scope .sop-md li > ol { margin: 0.15em 0; }
 .sop-scope .sop-md blockquote {
-  margin: 0.6em 0;
-  padding: 0.4em 0.8em;
-  border-left: 3px solid var(--sop-primary);
+  margin: 0.85em 0;
+  padding: 0.75em 1em;
+  border-left: 4px solid var(--sop-primary);
   background-color: var(--sop-primary-bg);
   color: var(--sop-t2);
-  border-radius: 0 6px 6px 0;
+  font-style: normal;
+  font-family: inherit;
+  border-radius: 0 8px 8px 0;
 }
-.sop-scope .sop-md blockquote p { margin: 0.3em 0; }
+.sop-scope .sop-md blockquote p { margin: 0.35em 0; }
+.sop-scope .sop-md blockquote h1,
+.sop-scope .sop-md blockquote h2,
+.sop-scope .sop-md blockquote h3,
+.sop-scope .sop-md blockquote h4 {
+  color: var(--sop-t1);
+  border-bottom: none;
+  margin: 0.5em 0 0.35em;
+}
+.sop-scope .sop-md blockquote ul,
+.sop-scope .sop-md blockquote ol { padding-left: 1.4em; }
+.sop-scope .sop-md blockquote > :first-child { margin-top: 0; }
+.sop-scope .sop-md blockquote > :last-child { margin-bottom: 0; }
 .sop-scope .sop-md hr { border: none; border-top: 1px solid var(--sop-border); margin: 1.2em 0; }
 .sop-scope .sop-md strong { color: var(--sop-t1); font-weight: 700; }
-.sop-scope .sop-md a { color: var(--sop-primary); text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
+.sop-scope .sop-md a {
+  color: var(--sop-primary);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.sop-scope .sop-md a:hover { text-decoration-thickness: 2px; }
+.sop-scope .sop-md blockquote a { color: var(--sop-primary); }
 .sop-scope .sop-md code {
   background-color: var(--sop-muted);
   color: var(--sop-t1);

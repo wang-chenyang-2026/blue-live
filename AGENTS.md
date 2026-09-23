@@ -165,3 +165,10 @@ src/
 - **安全红线**：token 只从 env 读、永不日志；授权 scope 仅单文档只读 `perm:'view'`；非提交人/PM/超管授权 403；凭据缺失返回 409 而非伪造成功。
 - **验收（实测）**：SSR probe 覆盖 待授权/已授权/grant 按钮/owner 申请话术/复制/重新检查/link-share + v2.15 markdown/sheet/pdf/image 无回归；live: retry d4f456c2 → `readable:false, perm_status:'pending', fetch_error:'...node permission denied, tenant needs read permission.'`；grant（本次 preview env 未配 FEISHU_USER_TOKENS/FEISHU_PLATFORM_MEMBER）→ `409 NEED_CREDENTIALS`（诚实，不伪造）；中控 grant → 403；detail GET 返回 perm_status='pending'/canGrant/feishuEnabled。**preview env 凭据限制**：真实一键授权全闭环需部署时注入 `FEISHU_USER_TOKENS`（phone→user token JSON）+ `FEISHU_PLATFORM_MEMBER`，缺失时 grant 必然 409。
 - **dev 库基线**：sop_documents 恢复 d4f456c2（content_body=NULL/perm/fetch 全 NULL）；外部后台抓取脚本会自行回填部分飞书正文（a59e7003 150k、9d7faf30 等），非本仓库产物、勿回滚。
+
+## SOP管理板块（v2.17：正文链接稳定可点 + callout 改 blockquote 高亮块 + 排版优化）
+- **仅前端**（`SopDocDetailBody.tsx` 的 MarkdownContent + `src/components/sop/sop-theme.css`）；服务端抓取脚本已配套把 callout 改为纯 markdown `>` 引用块、剥离 `<p>`（外部，不在本仓库）。
+- **链接可点**：`a` 自定义渲染保持二次校验 href（仅 http/https/mailto/tel 渲染 `<a target=_blank rel=noopener noreferrer>`，其余降级 `<span>`）；`javascript:` 等由 rehype-sanitize + a 组件双保险过滤。`remark-gfm` 自带 literal autolink，裸 URL（`https://…`）也会自动成 `<a>` 经同一过滤。`.sop-md a` 用 `word-break:break-word; overflow-wrap:anywhere` 长 URL 安全换行不撑破。
+- **blockquote 高亮块**（`.sop-md blockquote`）：左 4px 强调色竖条 + `--sop-primary-bg` 半透明强调底 + 圆角 `0 8px 8px 0` + `font-style:normal` 去斜体；块内 h1-h4 用 `--sop-t1` 无下边框、ul/ol 缩进、`> :first/last-child` 归零，块内 `a` 仍 `--sop-primary` 保证对比度。双主题自动（沿用 var）。**历史 `<callout>` div 兜底样式 `.sop-callout` 保留未删**。
+- **排版**：正文容器 `leading-[1.85]→1.8`；`.sop-md` 根加 `overflow-wrap:anywhere;word-break:normal` 防横向溢出（表格仍 .table-wrap 横向滚动例外）。
+- **验收（实测）**：生产 build EXIT=0/60 页/无错；ts-check 0 错、lint 0 新增告警、test_run(lint/ts-check/service_probe) pass；SSR probe 全 PASS——blockquote 渲染+块内链接(md+裸URL 均可点 target=_blank)、普通段落 md 链接、裸 URL autolink、`javascript:` 过滤为 span、块内 h3/ol、历史 callout div 兜底保留。dev server 重启监听 5000。不插数据、不改后端、不动 sheet/pdf/image。
