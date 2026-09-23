@@ -3,9 +3,21 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getSopUserContext } from '@/lib/sop-context';
 import { SCOPE_OPTIONS, detectSourceType } from '@/lib/sop-taxonomy';
 import { runSopRefine } from '@/lib/sop-refine';
-import { fetchFeishuDocBody } from '@/lib/sop-ai';
+import { fetchFeishuDoc } from '@/lib/sop-ai';
+import { resolveFeishuUserToken, sanitizeFeishuMsg } from '@/lib/feishu-perm';
 import { computeScopeSync, formatSyncDetail, syncStatusLabel } from '@/lib/sop-sync';
 import { sopFileSignedUrl } from '@/lib/sop-storage';
+
+/** 按文档提交人 user_id 查其手机号（用于回退读取其飞书 user 身份），查不到返回 null。 */
+async function resolveSubmitterPhone(userId: string | null): Promise<string | null> {
+  if (!userId) return null;
+  try {
+    const { data } = await getSupabaseClient().from('users').select('phone').eq('id', userId).maybeSingle();
+    return (data?.phone as string | undefined) ?? null;
+  } catch {
+    return null;
+  }
+}
 
 // GET /api/sop/documents/[id]
 // 权限：外部合作→404；内部角色需落在其可见域内，否则 404。
@@ -22,7 +34,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const cur = await client
       .from('sop_documents')
       .select(
-        'id, doc_type, title, category, sub_category, scope, applicable_post, applicable_brand, source_type, external_url, file_url, file_name, file_kind, mime_type, file_size, original_file_url, original_mime_type, visibility, needs_quiz, status, version, content_excerpt, content_body, content_sheet, prev_version_at, ai_summary, ai_keypoints, ai_status, ai_error, uploaded_by, uploader_name, is_active, remark, created_at, updated_at'
+        'id, doc_type, title, category, sub_category, scope, applicable_post, applicable_brand, source_type, external_url, file_url, file_name, file_kind, mime_type, file_size, original_file_url, original_mime_type, visibility, needs_quiz, status, version, content_excerpt, content_body, content_sheet, prev_version_at, ai_summary, ai_keypoints, ai_status, ai_error, uploaded_by, uploader_name, is_active, remark, perm_status, perm_source, perm_at, fetch_as, fetch_error, created_at, updated_at'
       )
       .eq('id', id)
       .eq('status', 'published')
@@ -36,19 +48,42 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const stats = await computeScopeSync(data.scope as string);
 
-    // 原文内联展示：飞书正文未落库时实时抓一次并回存（仅飞书；腾讯无开放接口、失败则降级，不向客户端抛错）
+    // 原文内联展示：飞书正文未落库时实时抓（bot 优先→提交人 user 回退）并回存；
+    // 失败按「待授权」归类并记录审计字段（仅飞书；腾讯无开放接口、失败则降级，不向客户端抛错）
     const isFeishu = data.source_type === 'feishu' && !!data.external_url;
     if (isFeishu && !data.content_body) {
-      try {
-        const text = await fetchFeishuDocBody(data.external_url as string);
-        if (text) {
-          await client.from('sop_documents').update({ content_body: text }).eq('id', id);
-          data.content_body = text;
+      const submitterPhone = await resolveSubmitterPhone(data.uploaded_by as string | null);
+      const userToken = resolveFeishuUserToken([ctx.phone, submitterPhone]);
+      const fr = await fetchFeishuDoc(data.external_url as string, userToken);
+      if (fr.ok) {
+        const patch: Record<string, unknown> = { content_body: fr.content, fetch_as: fr.readAs, fetch_error: null };
+        if (!data.perm_status) patch.perm_status = 'ok';
+        await client.from('sop_documents').update(patch).eq('id', id);
+        data.content_body = fr.content;
+        (data as Record<string, unknown>).fetch_as = fr.readAs;
+        if (!data.perm_status) (data as Record<string, unknown>).perm_status = 'ok';
+      } else {
+        const errMsg = sanitizeFeishuMsg(fr.message);
+        const patch: Record<string, unknown> = { fetch_error: errMsg };
+        if (fr.kind === 'permission') {
+          if (!data.perm_status) patch.perm_status = 'pending';
+          else if (data.perm_status === 'granted' && !data.content_body) patch.perm_status = 'granted'; // 已授权仍读不到→显式加协作者
+        } else if (!data.perm_status) {
+          patch.perm_status = 'pending';
         }
-      } catch {
-        /* 抓取失败：保持 content_body 为空，前端显示降级提示 */
+        await client.from('sop_documents').update(patch).eq('id', id);
+        (data as Record<string, unknown>).fetch_error = errMsg;
+        if (patch.perm_status) (data as Record<string, unknown>).perm_status = patch.perm_status;
       }
     }
+    // 授权操作权限：提交人本人或 PM/超管（管理权限）
+    const canGrant =
+      ctx.role === 'PM' ||
+      ctx.role === '超管' ||
+      (!ctx.isExternal && !!ctx.userId && ctx.userId === (data.uploaded_by as string | null));
+    const feishuEnabled = !!data.external_url && data.source_type === 'feishu';
+    (data as Record<string, unknown>).canGrant = canGrant;
+    (data as Record<string, unknown>).feishuEnabled = feishuEnabled;
 
     // 文件文档：签发短时签名 URL（仅已确认可见该文档的用户）
     const isFile = data.source_type === 'file' && !!data.file_url;

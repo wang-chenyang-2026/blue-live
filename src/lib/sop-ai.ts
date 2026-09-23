@@ -70,6 +70,104 @@ export async function fetchFeishuDocBody(url: string): Promise<string> {
   return content;
 }
 
+// —— v2.16 文档级授权：读取顺序 bot → 提交人 user 身份回退 ——
+
+export type FeishuReadAs = 'bot' | 'user';
+export type FeishuFetchFailureKind = 'permission' | 'notfound' | 'empty' | 'parse' | 'other';
+export type FeishuFetchResult =
+  | { ok: true; content: string; readAs: FeishuReadAs }
+  | { ok: false; kind: FeishuFetchFailureKind; message: string };
+
+/** 根据飞书错误码 / 文案归类为「无权限」等类别，用于标「待授权」。 */
+function classifyFeishuFailure(code: number, msg: string): FeishuFetchFailureKind {
+  if (code === 131006 || code === 3380004 || /无权|无权限|permission|not.*access|forbidden/i.test(msg)) {
+    return 'permission';
+  }
+  if (code === 126004 || code === 1130003 || /不存在|not found|no node/i.test(msg)) return 'notfound';
+  if (/空|empty/i.test(msg)) return 'empty';
+  return 'other';
+}
+
+/** 单次以给定身份抓取，失败抛错。 */
+async function fetchFeishuWithToken(url: string, token: string): Promise<string> {
+  const parsed = parseFeishuToken(url);
+  if (!parsed) throw Object.assign(new Error('无法识别的飞书链接格式'), { __kind: 'parse' });
+  let documentId = parsed.token;
+
+  const feishuFetch = async (input: string) => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 12000);
+    try {
+      return await fetch(input, { headers: { Authorization: `Bearer ${token}` }, signal: ctrl.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  if (parsed.kind === 'wiki') {
+    const nodeRes = await feishuFetch(
+      `${FEISHU_BASE}/open-apis/wiki/v2/spaces/get_node?token=${encodeURIComponent(parsed.token)}`
+    );
+    const nodeData = await nodeRes.json();
+    if (nodeData.code !== 0) {
+      const e = new Error(`飞书获取文档节点失败: ${nodeData.msg ?? nodeData.code}`);
+      (e as { __kind?: string }).__kind = classifyFeishuFailure(nodeData.code, nodeData.msg ?? '');
+      throw e;
+    }
+    documentId = nodeData.data.node.obj_token;
+  }
+
+  const res = await feishuFetch(`${FEISHU_BASE}/open-apis/docx/v1/documents/${documentId}/raw_content`);
+  const data = await res.json();
+  if (data.code !== 0) {
+    const e = new Error(`飞书读取文档失败: ${data.msg ?? data.code}`);
+    (e as { __kind?: string }).__kind = classifyFeishuFailure(data.code, data.msg ?? '');
+    throw e;
+  }
+  const content = (data.data?.content ?? '').trim();
+  if (!content) throw Object.assign(new Error('飞书文档正文为空'), { __kind: 'empty' });
+  return content;
+}
+
+/**
+ * 在线文档正文抓取：优先 bot（应用身份），失败再回退 user 身份（如提供）。
+ * 返回结构化的成功/失败结果，供「待授权」状态与审计使用。
+ */
+export async function fetchFeishuDoc(url: string, userToken?: string | null): Promise<FeishuFetchResult> {
+  const lower = (url ?? '').toLowerCase();
+  if (!lower.includes('feishu.cn') && !lower.includes('larksuite.com')) {
+    return { ok: false, kind: 'parse', message: '非飞书链接，无法抓取正文' };
+  }
+
+  // 1) 先应用身份（bot）
+  try {
+    const token = await getTenantToken();
+    const content = await fetchFeishuWithToken(url, token);
+    return content ? { ok: true, content, readAs: 'bot' } : { ok: false, kind: 'empty', message: '飞书文档正文为空' };
+  } catch (botErr) {
+    const kind = (botErr as { __kind?: string }).__kind as FeishuFetchFailureKind | undefined;
+    // 2) 仅当 bot 因无权限/节点缺失等原因失败，且有 user 令牌时回退
+    if (!userToken) {
+      return {
+        ok: false,
+        kind: kind || 'other',
+        message: (botErr as Error).message || '飞书应用身份读取失败',
+      };
+    }
+    try {
+      const content = await fetchFeishuWithToken(url, userToken);
+      return content ? { ok: true, content, readAs: 'user' } : { ok: false, kind: 'empty', message: '飞书文档正文为空' };
+    } catch (userErr) {
+      const ukind = (userErr as { __kind?: string }).__kind as FeishuFetchFailureKind | undefined;
+      return {
+        ok: false,
+        kind: ukind || kind || 'other',
+        message: (userErr as Error).message || '飞书两种身份均读取失败',
+      };
+    }
+  }
+}
+
 /**
  * AI 关键内容提炼：产出 ≤120 字概述 + 3~6 条关键要点。
  * 只读取 process.env.BLUEAI_API_KEY；缺失或网关无可用文本能力时抛错（不得伪造）。

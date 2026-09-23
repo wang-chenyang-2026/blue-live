@@ -71,6 +71,46 @@ function SopDocDetailInner() {
     }
   };
 
+  // 一键授权平台读取该飞书文档（单篇，提交人/管理员）
+  const grantFeishu = async () => {
+    if (!id) return null;
+    try {
+      const res = await fetch('/api/sop/feishu/grant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ document_id: id }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        void refreshDoc();
+        return { granted: true, readable: !!json.readable, message: json.message };
+      }
+      return { granted: false, readable: false, message: json.message ?? '授权失败' };
+    } catch {
+      return null;
+    }
+  };
+
+  // 重新检查：bot 优先重新抓取正文
+  const recheckFeishu = async () => {
+    if (!id) return null;
+    try {
+      const res = await fetch('/api/sop/feishu/retry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ document_id: id }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        void refreshDoc();
+        return { readable: !!json.readable, message: json.message };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
   return (
     <div className="sop-scope flex min-h-screen items-start justify-center" style={{ backgroundColor: 'var(--sop-bg)' }}>
       <div className="mt-6 w-full max-w-[1000px] px-6 pb-14">
@@ -87,7 +127,13 @@ function SopDocDetailInner() {
           ) : notFound || !doc ? (
             <p style={{ color: 'var(--sop-t3)' }}>文档不存在或您无权访问。</p>
           ) : (
-            <SopDocDetailBody doc={doc} canUpload={false} onRefreshDoc={refreshDoc} />
+            <SopDocDetailBody
+              doc={doc}
+              canUpload={false}
+              onRefreshDoc={refreshDoc}
+              onGrantFeishu={grantFeishu}
+              onRecheckFeishu={recheckFeishu}
+            />
           )}
         </div>
       </div>

@@ -36,6 +36,14 @@ export interface SopDetailDoc {
   file_signed_url?: string | null;
   original_file_url?: string | null;
   original_signed_urls?: Array<{ url: string | null; mime?: string | null }> | null;
+  // v2.16 在线文档授权状态（pending 待授权 / granted 已授仅 / ok 可读）
+  perm_status?: string | null;
+  perm_source?: string | null;
+  perm_at?: string | null;
+  fetch_as?: string | null;
+  fetch_error?: string | null;
+  canGrant?: boolean;
+  feishuEnabled?: boolean;
 }
 
 const SCOPES: Record<string, { label: string }> = {
@@ -409,16 +417,145 @@ function SheetTablePanel({ raw }: { raw: string }) {
   );
 }
 
+/** v2.16 在线飞书文档「待授权」动作区：一键授权（提交人可）/ 向 owner 申请 / 重新检查。 */
+function FeishuPermPanel({
+  doc,
+  onGrant,
+  onRecheck,
+}: {
+  doc: SopDetailDoc;
+  onGrant?: () => Promise<{ granted: boolean; readable: boolean; message?: string } | null>;
+  onRecheck?: () => Promise<{ readable: boolean; message?: string } | null>;
+}) {
+  const [busy, setBusy] = useState<'grant' | 'recheck' | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const granted = doc.perm_status === 'granted';
+  const copyText = `请为该飞书文档开启读取授权（二选一）：\n① 把【blue-live 平台应用】添加为该文档的「可阅读」协作者；\n② 开启文档「组织内获得链接可阅读」。\n\n授权后系统会自动以应用身份重新读取并展示全文。\n\n文档：${doc.title}\n链接：${doc.external_url ?? ''}`;
+
+  const grant = async () => {
+    if (!onGrant || busy) return;
+    setBusy('grant');
+    setMsg(null);
+    const r = await onGrant();
+    setMsg(r ? (r.granted ? (r.readable ? '已授权并成功读取正文。' : '已授权平台只读该文档，稍后重新检查即可看到正文。') : r.message ?? '授权失败') : '授权失败，请稍后重试。');
+    setBusy(null);
+  };
+  const recheck = async () => {
+    if (!onRecheck || busy) return;
+    setBusy('recheck');
+    setMsg(null);
+    const r = await onRecheck();
+    setMsg(r ? (r.readable ? '已成功读取正文。' : '仍未读取到正文，请先在飞书完成授权后再试。') : '检查失败，请稍后重试。');
+    setBusy(null);
+  };
+  const doCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(copyText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setMsg('复制失败，请手动复制下方内容');
+    }
+  };
+
+  const btnBase =
+    'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12.5px] font-medium transition disabled:opacity-50';
+  return (
+    <div
+      className="space-y-3 rounded-lg border p-3"
+      style={{ borderColor: 'var(--sop-border)', backgroundColor: 'var(--sop-primary-bg)' }}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+          style={{
+            color: granted ? 'var(--sop-primary-ink, #fff)' : 'var(--sop-t2)',
+            backgroundColor: granted ? 'var(--sop-primary)' : 'var(--sop-muted)',
+          }}
+        >
+          {granted ? '已授权' : '待授权'}
+        </span>
+        <span className="text-[12.5px]" style={{ color: 'var(--sop-t2)' }}>
+          {granted
+            ? '平台已在协作者中，但仍读取失败：需在飞书里把平台应用显式加为该文档只读协作者'
+            : '该文档当前无法以应用身份读取，请完成授权后重新检查'}
+        </span>
+      </div>
+
+      {doc.fetch_error ? (
+        <p className="text-[12px]" style={{ color: 'var(--sop-t3)' }}>
+          最近一次读取：{doc.fetch_error.length > 120 ? `${doc.fetch_error.slice(0, 120)}…` : doc.fetch_error}
+        </p>
+      ) : null}
+
+      {doc.canGrant && !granted ? (
+        <button
+          type="button"
+          className={btnBase}
+          disabled={busy !== null}
+          onClick={() => void grant()}
+          style={{ color: 'var(--sop-primary-ink, #fff)', backgroundColor: 'var(--sop-primary)' }}
+        >
+          {busy === 'grant' ? '授权中…' : '✓ 授权平台读取此文档'}
+        </button>
+      ) : null}
+
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-[12px] font-medium" style={{ color: 'var(--sop-t1)' }}>
+            向该文档 owner 申请授权
+          </span>
+          <button
+            type="button"
+            className="text-[12px] underline underline-offset-2"
+            onClick={() => void doCopy()}
+            style={{ color: 'var(--sop-primary)' }}
+          >
+            {copied ? '已复制' : '复制申请文案'}
+          </button>
+        </div>
+        <pre
+          className="max-h-32 overflow-auto whitespace-pre-wrap rounded-md p-2 text-[12px] leading-relaxed"
+          style={{ color: 'var(--sop-t2)', backgroundColor: 'var(--sop-muted)', border: '1px solid var(--sop-border)' }}
+        >
+          {copyText}
+        </pre>
+      </div>
+
+      <button
+        type="button"
+        className={btnBase}
+        disabled={busy !== null}
+        onClick={() => void recheck()}
+        style={{ color: 'var(--sop-t1)', backgroundColor: 'var(--sop-muted)', border: '1px solid var(--sop-border)' }}
+      >
+        {busy === 'recheck' ? '检查中…' : '↻ 重新检查'}
+      </button>
+
+      {msg ? (
+        <p className="text-[12px]" style={{ color: 'var(--sop-primary)' }}>
+          {msg}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export default function SopDocDetailBody({
   doc,
   canUpload,
   onDelete,
   onRefreshDoc,
+  onGrantFeishu,
+  onRecheckFeishu,
 }: {
   doc: SopDetailDoc;
   canUpload: boolean;
   onDelete?: (id: string) => Promise<void>;
   onRefreshDoc?: () => void;
+  onGrantFeishu?: () => Promise<{ granted: boolean; readable: boolean; message?: string } | null>;
+  onRecheckFeishu?: () => Promise<{ readable: boolean; message?: string } | null>;
 }) {
   const [deleting, setDeleting] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -617,9 +754,14 @@ export default function SopDocDetailBody({
             {doc.content_body}
           </div>
         ) : (
-          <p className="text-[13px]" style={{ color: 'var(--sop-t3)' }}>
-            {isFile ? '原文件暂无法在线预览，请点击顶部「下载原文件」查看。' : '原文内容暂无法直接展示，请点击顶部「查看原文」链接访问。'}
-          </p>
+          <div className="space-y-3">
+            {!isFile && doc.feishuEnabled && !doc.content_body && (
+              <FeishuPermPanel doc={doc} onGrant={onGrantFeishu} onRecheck={onRecheckFeishu} />
+            )}
+            <p className="text-[13px]" style={{ color: 'var(--sop-t3)' }}>
+              {isFile ? '原文件暂无法在线预览，请点击顶部「下载原文件」查看。' : '原文内容暂无法直接展示，请点击顶部「查看原文」链接访问。'}
+            </p>
+          </div>
         )}
       </div>
 

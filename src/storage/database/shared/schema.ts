@@ -92,6 +92,12 @@ export const sopDocuments = pgTable(
     original_file_url: text("original_file_url"),
     original_mime_type: text("original_mime_type"),
     prev_version_at: timestamp("prev_version_at", { withTimezone: true }),
+    // v2.16 在线文档授权状态：pending(待授权)/granted(已把平台应用加为只读协作者)/ok(已可读)
+    perm_status: text("perm_status"),
+    perm_source: text("perm_source"),
+    perm_at: timestamp("perm_at", { withTimezone: true }),
+    fetch_as: text("fetch_as"),
+    fetch_error: text("fetch_error"),
     created_by: varchar("created_by", { length: 64 }),
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
