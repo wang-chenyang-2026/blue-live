@@ -51,12 +51,13 @@ const SUBCATS: { value: string; label: string }[] = [
 const SOURCE_LABEL: Record<string, string> = { feishu: '飞书', tencent: '腾讯文档', file: '本地上传' };
 
 // 上传文件白名单（扩展名）与大小限制（与服务端一致）
-const FILE_EXT_RE = /\.(pdf|doc|docx|ppt|pptx|txt|md|png|jpe?g|gif|webp|bmp|svg)$/i;
+const FILE_EXT_RE = /\.(pdf|doc|docx|ppt|pptx|txt|md|xlsx|xls|csv|png|jpe?g|gif|webp|bmp|svg)$/i;
 const MAX_FILE_BYTES = 30 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const FILE_KIND: Record<string, string> = {
   pdf: 'pdf', doc: 'word', docx: 'word', ppt: 'ppt', pptx: 'ppt',
-  txt: 'text', md: 'text', png: 'image', jpg: 'image', jpeg: 'image',
+  txt: 'text', md: 'text', xlsx: 'sheet', xls: 'sheet', csv: 'sheet',
+  png: 'image', jpg: 'image', jpeg: 'image',
   gif: 'image', webp: 'image', bmp: 'image', svg: 'image',
 };
 
@@ -787,7 +788,7 @@ function UploadModal({
         skips.push(`「${f.name}」重复，已忽略`);
         continue;
       }
-      if (!/\.(pdf|doc|docx|ppt|pptx|txt|md|png|jpe?g|gif|webp|bmp|svg)$/i.test(f.name)) {
+      if (!/\.(pdf|doc|docx|ppt|pptx|txt|md|xlsx|xls|csv|png|jpe?g|gif|webp|bmp|svg)$/i.test(f.name)) {
         skips.push(`「${f.name}」类型不支持，已忽略`);
         continue;
       }
@@ -827,7 +828,7 @@ function UploadModal({
   };
 
   const reselectItem = (uid: string, f: File) => {
-    if (!/\.(pdf|doc|docx|ppt|pptx|txt|md|png|jpe?g|gif|webp|bmp|svg)$/i.test(f.name)) {
+    if (!/\.(pdf|doc|docx|ppt|pptx|txt|md|xlsx|xls|csv|png|jpe?g|gif|webp|bmp|svg)$/i.test(f.name)) {
       setError(`「${f.name}」类型不支持`);
       return;
     }
@@ -1011,7 +1012,7 @@ function UploadModal({
           上传 SOP 文档
         </h3>
         <p className="mt-1 text-xs" style={{ color: 'var(--sop-t3)' }}>
-          支持在线链接（飞书 / 腾讯文档）或本地文件批量上传（PDF / Word / PPT / txt / md / 图片）
+          支持在线链接（飞书 / 腾讯文档）或本地文件批量上传（PDF / Word / PPT / txt / md / 表格（xlsx / xls / csv）/ 图片）
         </p>
 
         {/* 恢复草稿提示 */}
@@ -1142,7 +1143,7 @@ function UploadModal({
               ref={fileInputRef}
               type="file"
               multiple
-              accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.md,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg"
+              accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.md,.xlsx,.xls,.csv,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg"
               className="hidden"
               onChange={(e) => {
                 addFiles(Array.from(e.target.files || []));

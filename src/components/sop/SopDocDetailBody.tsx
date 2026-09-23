@@ -15,6 +15,8 @@ export interface SopDetailDoc {
   ai_status: string | null;
   content_excerpt: string | null;
   content_body: string | null;
+  // v2.14 表格结构化数据（JSON 字符串：sheets[]）
+  content_sheet?: string | null;
   uploader_name: string | null;
   version: number;
   prev_version_at: string | null;
@@ -186,6 +188,138 @@ function PdfViewer({
             }}
           />
         </>
+      )}
+    </div>
+  );
+}
+
+interface SheetData {
+  name: string;
+  header: string[];
+  rows: string[][];
+  totalRows: number;
+  shown: number;
+  truncated: boolean;
+}
+
+// 表格文件（xlsx/xls/csv）：解析 content_sheet JSON 并按 sheet 分页签表格化展示。
+// 表头 + 斑马纹 + 横向/纵向滚动 + 截断提示；沿用 var(--sop-*) 主题变量，dark/light 自动切换。
+function SheetTablePanel({ raw }: { raw: string }) {
+  const [sheets, setSheets] = useState<SheetData[]>(() => {
+    try {
+      const s = JSON.parse(raw) as unknown;
+      return Array.isArray(s) ? (s as SheetData[]) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [active, setActive] = useState(0);
+
+  useEffect(() => {
+    try {
+      const s = JSON.parse(raw) as unknown;
+      setSheets(Array.isArray(s) ? (s as SheetData[]) : []);
+    } catch {
+      setSheets([]);
+    }
+    setActive(0);
+  }, [raw]);
+
+  if (sheets.length === 0) {
+    return (
+      <p className="text-[13px]" style={{ color: 'var(--sop-t3)' }}>
+        表格内容暂无法解析，请点击顶部「下载原文件」查看。
+      </p>
+    );
+  }
+
+  const cur = sheets[Math.min(active, sheets.length - 1)];
+  const maxCols = Math.max(
+    cur.header.length,
+    ...cur.rows.map((r) => r.length),
+    1,
+  );
+
+  return (
+    <div>
+      {sheets.length > 1 && (
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+          {sheets.map((s, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setActive(i)}
+              className="rounded px-2 py-0.5 text-xs font-medium transition-colors"
+              style={
+                i === active
+                  ? { backgroundColor: 'var(--sop-primary)', color: 'var(--sop-primary-ink, #fff)' }
+                  : { backgroundColor: 'var(--sop-muted)', color: 'var(--sop-t2)' }
+              }
+            >
+              {s.name || `Sheet ${i + 1}`}
+              {s.truncated ? `（前 ${s.shown}）` : ''}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div
+        className="overflow-auto rounded-md border"
+        style={{ borderColor: 'var(--sop-border)', maxHeight: 480, backgroundColor: 'var(--sop-panel)' }}
+      >
+        <table className="w-full border-collapse text-[13px]" style={{ minWidth: maxCols * 80 }}>
+          <thead>
+            <tr>
+              {cur.header.length === 0 ? (
+                <th
+                  className="px-2 py-1.5 text-left font-semibold"
+                  style={{ color: 'var(--sop-t2)', borderBottom: '1px solid var(--sop-border)' }}
+                >
+                  （无表头）
+                </th>
+              ) : (
+                cur.header.map((h, i) => (
+                  <th
+                    key={i}
+                    className="whitespace-nowrap border-b px-2 py-1.5 text-left font-semibold"
+                    style={{ color: 'var(--sop-t1)', borderColor: 'var(--sop-border)', backgroundColor: 'var(--sop-soft)' }}
+                  >
+                    {h || `列 ${i + 1}`}
+                  </th>
+                ))
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {cur.rows.length === 0 ? (
+              <tr>
+                <td colSpan={cur.header.length || 1} className="px-2 py-3 text-[13px]" style={{ color: 'var(--sop-t3)' }}>
+                  该 Sheet 暂无数据行。
+                </td>
+              </tr>
+            ) : (
+              cur.rows.map((r, i) => (
+                <tr key={i} style={i % 2 === 1 ? { backgroundColor: 'var(--sop-soft)' } : undefined}>
+                  {Array.from({ length: maxCols }).map((_, c) => (
+                    <td
+                      key={c}
+                      className="whitespace-nowrap border-b px-2 py-1 align-top"
+                      style={{ color: 'var(--sop-t2)', borderColor: 'var(--sop-border)' }}
+                    >
+                      {r[c] ?? ''}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {cur.truncated && (
+        <p className="mt-1.5 text-xs" style={{ color: 'var(--sop-t3)' }}>
+          共 {cur.totalRows} 行，展示前 {cur.shown} 行。
+        </p>
       )}
     </div>
   );
@@ -385,6 +519,9 @@ export default function SopDocDetailBody({
         ) : isPdfFile ? (
           // 铁律：file_kind=pdf 只走 PDF 阅读器渲染签名 URL，空/失效时展示兜底，绝不 .replace 为 <img> 原图画廊
           <PdfViewer url={doc.file_signed_url ?? ''} fileName={doc.file_name} onReload={handleReloadPdf} />
+        ) : doc.file_kind === 'sheet' && doc.content_sheet ? (
+          // 表格文件（xlsx/xls/csv）：按 sheets 结构化数据表格化展示
+          <SheetTablePanel raw={doc.content_sheet} />
         ) : doc.content_body ? (
           <div
             className="max-h-[720px] overflow-auto whitespace-pre-wrap text-[13.5px] leading-[1.9]"

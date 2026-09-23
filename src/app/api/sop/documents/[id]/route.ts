@@ -22,7 +22,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const cur = await client
       .from('sop_documents')
       .select(
-        'id, doc_type, title, category, sub_category, scope, applicable_post, applicable_brand, source_type, external_url, file_url, file_name, file_kind, mime_type, file_size, original_file_url, original_mime_type, visibility, needs_quiz, status, version, content_excerpt, content_body, prev_version_at, ai_summary, ai_keypoints, ai_status, ai_error, uploaded_by, uploader_name, is_active, remark, created_at, updated_at'
+        'id, doc_type, title, category, sub_category, scope, applicable_post, applicable_brand, source_type, external_url, file_url, file_name, file_kind, mime_type, file_size, original_file_url, original_mime_type, visibility, needs_quiz, status, version, content_excerpt, content_body, content_sheet, prev_version_at, ai_summary, ai_keypoints, ai_status, ai_error, uploaded_by, uploader_name, is_active, remark, created_at, updated_at'
       )
       .eq('id', id)
       .eq('status', 'published')

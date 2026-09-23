@@ -6,6 +6,7 @@ import { SCOPE_OPTIONS, SUB_CATEGORY_OPTIONS, detectSourceType } from '@/lib/sop
 import { runSopRefine } from '@/lib/sop-refine';
 import { getScopeSyncStats, formatSyncDetail, syncStatusLabel, ScopeSyncStats } from '@/lib/sop-sync';
 import { sniffFile, extractFileText, MAX_DOC_BYTES, MAX_IMAGE_BYTES } from '@/lib/file-extract';
+import { parseSheetFile } from '@/lib/sheet-parse';
 import { ensureSopBucket, uploadSopFile, deleteSopFile } from '@/lib/sop-storage';
 import { buildImagesPdf, isEmbeddableImageExt } from '@/lib/img-to-pdf';
 
@@ -74,7 +75,7 @@ export async function GET(request: NextRequest) {
 
     if (subCategory) query = query.eq('sub_category', subCategory);
     if (docType && docType !== 'all') query = query.eq('doc_type', docType);
-    if (keyword) query = query.or(`title.ilike.%${keyword}%,ai_summary.ilike.%${keyword}%`);
+    if (keyword) query = query.or(`title.ilike.%${keyword}%,ai_summary.ilike.%${keyword}%,content_body.ilike.%${keyword}%`);
 
     const { data: docs, error } = await query;
     if (error) throw new Error(`查询失败: ${error.message}`);
@@ -299,6 +300,7 @@ async function handleFileUpload(request: NextRequest, ctx: SopUserContextForUplo
       let mime = p.sniff.mime as string;
       let fileSize = p.buf.length;
       let contentBody = '';
+      let contentSheet: string | null = null;
       let originalKeys: string[] = [];
       let originalMimes: string[] = [];
       let skipRefine = false;
@@ -318,10 +320,22 @@ async function handleFileUpload(request: NextRequest, ctx: SopUserContextForUplo
         skipRefine = true; // 图片 PDF 无文字层，不触发 AI 摘要
       } else {
         fileUrl = trackWrite(await uploadObject(p.buf, p.name, p.sniff.mime as string));
-        try {
-          contentBody = await extractFileText(p.sniff.kind as string, p.buf);
-        } catch {
-          contentBody = '';
+        if (p.sniff.kind === 'sheet') {
+          // 表格：解析出结构化数据（详情页表格化展示）与纯文本（检索 + 自动摘要）
+          try {
+            const parsed = await parseSheetFile(p.sniff.kind as string, p.buf, p.sniff.ext as string);
+            contentBody = parsed.text;
+            contentSheet = parsed.sheets.length ? JSON.stringify(parsed.sheets) : null;
+          } catch {
+            contentBody = '';
+            contentSheet = null;
+          }
+        } else {
+          try {
+            contentBody = await extractFileText(p.sniff.kind as string, p.buf);
+          } catch {
+            contentBody = '';
+          }
         }
       }
 
@@ -339,6 +353,7 @@ async function handleFileUpload(request: NextRequest, ctx: SopUserContextForUplo
           mime_type: mime,
           file_size: fileSize,
           content_body: contentBody || null,
+          content_sheet: contentSheet,
           ...(originalKeys.length ? {
             original_file_url: JSON.stringify(originalKeys),
             original_mime_type: JSON.stringify(originalMimes),

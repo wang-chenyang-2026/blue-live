@@ -129,6 +129,14 @@ src/
 - **铁律不变**：`file_kind=pdf` 详情页只能由 PDF 阅读器（iframe 渲染 `file_signed_url`）展示，绝不退回 `<img>` 原图画廊；未改 PdfViewer 的加载骨架/onError/25s 超时兜底/「重新加载」/「下载 PDF」；未动图片论文（`file_kind=image` 仍 img）、上传、后端、`.coze`/`.preview`。
 - 验收口径（已过）：ts-check 0 错、lint 改动文件 0 新增告警（仅继承的既有 `<img>` warning 2 条在图片内联展示处）、生产 build 全绿、test_run pipeline（lint/ts-check/service_probe=localhost:5000 ready）pass；dev server 重启后监听 5000。dev 库原状未动。
 
+## SOP管理板块（v2.14：本地表格上传 xlsx/xls/csv + 服务端解析 + 详情页表格化展示）
+- **类型与存储**：`src/lib/file-extract.ts` EXT_MAP 新增 xlsx/xls/csv → `kind:'sheet'`（mime=xlsx 全名/ms-excel/text/csv）。魔数：xlsx=PK、xls=D0 CF 或含 'Microsoft Excel'、csv 从宽（纯文本，交解析器判编码）。sop_documents 新增列 `content_sheet` text（JSON 字符串：sheets[]，结构化表格供详情展示）；原始文件照常入桶 sop-files + `file_signed_url` 签名可下载。
+- **服务端解析（新文件 `src/lib/sheet-parse.ts`，只在服务端调、防不可信文件）**：`parseSheetFile(kind, buffer, ext)` 用既有依赖 `xlsx`（SheetJS）解析。多 sheet（≤20 个）逐个 sheet 按「表头 + 行」结构化为 `{name, header, rows, totalRows, shown, truncated}`；单元格裁剪/空值置 ''；列≤50、每 sheet 展示前 200 行并标注「共 N 行，展示/提取前 M 行」。CSV 编码兼容：`decodeCsvBuffer` 优先 UTF-8（TextDecoder fatal 校验），非法则回退 GBK（再 latin1 兜底），剥 BOM。产出 `sheets[]`（content_sheet JSON）与纯文本 `text`（content_body，多 sheet 分节、供列表检索 + AI 摘要）。
+- **上传/检索**：`src/app/api/sop/documents/route.ts` createFileRecord 中 kind='sheet' 走 parseSheetFile（不走 extractFileText），写 content_sheet + content_body；非空 contentBody 照常 `runSopRefine`（表格参与自动摘要）。**列表搜索扩展**：原来仅 `title/ai_summary` ilike，现加 `content_body.ilike` → 表格单元格文本可直接搜到（对 AI 摘要失败/未提炼的文档同样可命中）。
+- **详情页表格化展示**（SopDocDetailBody）：file_kind='sheet' 且有 content_sheet → `SheetTablePanel`（新子组件）：head `text-[13px]` 表格、表头`--sop-soft`底+`--sop-t1`、斑马纹（奇行 `--sop-soft`）、列 whitespace-nowrap + 横向滚动（minWidth=col×80px）、容器 maxHeight 480px 纵向滚动；多 sheet 渲染「页签」（激活=--sop-primary 白字），页签上标 trunk；行数超限底部灰字提示「共 N 行，展示前 M 行」。沿用 `var(--sop-*)` 双主题（新增 `--sop-soft` 到 sop-theme.css 光/暗两套）。顶部 chip 仍显「下载原文件」。
+- **回归**：image/pdf/word/ppt/txt/md 上传、PdfViewer、摘要区、状态徽章、查看原图均不动；在线链接（飞书/腾讯）路径未改（表格不阻断）。
+- **验收（实测）**：多 sheet xlsx（产品价目/渠道分布）与 UTF-8 csv（人员名单）真实上传成功：不再提示类型不支持、file_kind=sheet、mime 正确、content_body 分节文本、content_sheet 结构化 sheets、file_signed_url 可下载；列表搜单元格关键词（xlsx→'2999'、csv→'杭州'）命中；SSR 渲染：sheet→1 表+2 页签+0 img、pdf→iframe、image→img、截断提示正确；ts-check 0 错 / lint 改动文件 0 新增告警 / 生产 build 全绿 / test_run（lint/ts-check/service_probe）pass。测试数据已清理，dev 库恢复基线 5 条、content_sheet 全空。AI 提炼：preview 密钥未注入 → ai_status=failed（照旧不造假）。
+
 ## SOP管理板块（第一期：制度+培训文档库 查阅/检索/权限）
 - 库：sop_documents（制度/培训统一表：doc_type=management|training、category、applicable_post/applicable_brand 为 jsonb 数组、visibility=internal|general、needs_quiz、status、version）与字典表 sop_categories（type=category/post/brand、label、sort_order）。
 - 页面：`/sop`（文档库：全部/制度/培训分页签 + category/brand 下拉 + 关键词，卡片显示 标题/分类/品牌/来源状态/需考核；来源有 external_url 显示"查看文档"，无则"资料待补充"）、`/sop/doc/[id]` 详情页（全字段；external_url 新标签打开，无则占位）。

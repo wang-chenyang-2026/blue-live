@@ -9,6 +9,9 @@ const EXT_MAP: Record<string, { kind: string; mime: string }> = {
   pptx: { kind: 'ppt', mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' },
   txt: { kind: 'text', mime: 'text/plain' },
   md: { kind: 'text', mime: 'text/markdown' },
+  xlsx: { kind: 'sheet', mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+  xls: { kind: 'sheet', mime: 'application/vnd.ms-excel' },
+  csv: { kind: 'sheet', mime: 'text/csv' },
   png: { kind: 'image', mime: 'image/png' },
   jpg: { kind: 'image', mime: 'image/jpeg' },
   jpeg: { kind: 'image', mime: 'image/jpeg' },
@@ -41,11 +44,14 @@ export function sniffFile(fileName: string, mime: string, head: Buffer): FileSni
     (ext === 'pptx' && head.toString('latin1', 0, Math.min(4, size)).includes('PK')) ||
     (ext === 'doc' && (head.toString('latin1', 0, 8).includes('D0 CF') || head.toString('latin1', 0, 256).includes('W0rd'))) ||
     (ext === 'ppt' && (head.toString('latin1', 0, 8).includes('D0 CF') || head.toString('latin1', 0, 256).includes('PPT'))) ||
-    (entry.kind === 'text');
+    (ext === 'xlsx' && head.toString('latin1', 0, Math.min(4, size)).includes('PK')) ||
+    (ext === 'xls' && (head.toString('latin1', 0, 8).includes('D0 CF') || head.toString('latin1', 0, 512).includes('Microsoft Excel'))) ||
+    (entry.kind === 'text') ||
+    (ext === 'csv'); // CSV 为纯文本，交由解析器判断编码；魔数从宽
 
   if (!magicOk) {
-    // 容忍很短的文本/空文件
-    if (entry.kind === 'text' && size < 64) {
+    // 容忍很短的文本/空文件/CSV
+    if ((entry.kind === 'text' || ext === 'csv') && size < 64) {
       return { ok: true, ext, kind: entry.kind, mime: entry.mime };
     }
     return { ok: false, reason: `文件内容与扩展名不匹配` };

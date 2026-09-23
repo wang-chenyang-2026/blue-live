@@ -82,6 +82,8 @@ export const sopDocuments = pgTable(
     content_excerpt: text("content_excerpt"),
     // v2.8 原文内联展示：已抓取的飞书正文全量
     content_body: text("content_body"),
+    // v2.14 表格文件结构化数据（JSON 字符串：sheets[]，供详情页表格化展示）
+    content_sheet: text("content_sheet"),
     // v2.9 本地文件上传：对象存储路径 + 类型/字节 + 备注
     file_url: text("file_url"),
     file_kind: text("file_kind"),

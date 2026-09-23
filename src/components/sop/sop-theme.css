@@ -16,6 +16,7 @@
   --sop-t3: #86909c;
   --sop-t4: #c9cdd4;
   --sop-muted: #f2f3f5;
+  --sop-soft: #f7f8fa;
   --sop-success: #00b42a;
   --sop-success-bg: #e8ffea;
   --sop-warn: #ff7d00;
@@ -44,6 +45,7 @@
   --sop-t3: oklch(0.66 0 0);
   --sop-t4: oklch(0.5 0 0);
   --sop-muted: var(--muted);
+  --sop-soft: oklch(0.27 0 0);
   --sop-success: oklch(0.76 0.17 155);
   --sop-success-bg: oklch(0.76 0.17 155 / 0.16);
   --sop-warn: oklch(0.8 0.14 70);
