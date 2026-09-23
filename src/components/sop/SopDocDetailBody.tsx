@@ -1,6 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import { ExternalLink, Loader2, Trash2 } from 'lucide-react';
 import './sop-theme.css';
 
@@ -189,6 +193,86 @@ function PdfViewer({
           />
         </>
       )}
+    </div>
+  );
+}
+
+// 放行飞书导出 markdown 的自定义 HTML 标签，供 react-markdown 自定义渲染
+declare module 'react' {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace JSX {
+    // title 为原生元素，无需在此声明
+    interface IntrinsicElements {
+      callout: React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { emoji?: string };
+      sheet: React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
+    }
+  }
+}
+
+// 在线正文 markdown：把脚本抓回并写入 content_body 的 Markdown 完整渲染（标题/列表/表格/引用/加粗/链接）。
+// 只读系统边界内容，经过 rehype-sanitize 清洗（javascript: 等危险协议与 on* 事件默认被剔除）后再渲染；
+// 额外通过自定义 <a> 二次校验 href，杜绝危险链接。飞书特殊标签：
+//  <callout emoji="…">…</callout> → emoji 高亮提示块；<sheet …/> → 原文提示；<title>…</title> → 不重复展示。
+const MD_SCHEMA = {
+  ...defaultSchema,
+  tagNames: [
+    ...(defaultSchema.tagNames ?? []),
+    'callout',
+    'sheet',
+    'title',
+    'br',
+    'del',
+    'sub',
+    'sup',
+    'mark',
+  ],
+  attributes: {
+    ...(defaultSchema.attributes ?? {}),
+    callout: ['emoji'],
+    sheet: ['block_id', 'token'],
+  },
+};
+
+function MarkdownContent({ content }: { content: string }) {
+  if (!content) return null;
+
+  const components: React.ComponentProps<typeof ReactMarkdown>['components'] = {
+    a: ({ href, children }: { href?: string | undefined; children?: React.ReactNode }) => {
+      const safe = typeof href === 'string' && /^(https?:|mailto:|tel:)/i.test(href) ? href : null;
+      return safe ? (
+        <a href={safe} target="_blank" rel="noopener noreferrer">
+          {children}
+        </a>
+      ) : (
+        <span>{children}</span>
+      );
+    },
+    callout: ({ emoji, children }: { emoji?: string | undefined; children?: React.ReactNode }) => (
+      <div className="sop-callout">
+        <span className="sop-callout-emoji" aria-hidden>
+          {typeof emoji === 'string' && emoji.trim() ? emoji : '💡'}
+        </span>
+        <div className="sop-callout-body">{children}</div>
+      </div>
+    ),
+    sheet: () => <div className="sop-sheet-hint">内含表格，详见原文</div>,
+    title: () => null,
+    table: ({ children }: { children?: React.ReactNode }) => (
+      <div className="table-wrap">
+        <table>{children}</table>
+      </div>
+    ),
+  };
+
+  return (
+    <div className="sop-md text-[13.5px] leading-[1.85]">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeRaw, [rehypeSanitize, MD_SCHEMA]]}
+        components={components}
+      >
+        {content}
+      </ReactMarkdown>
     </div>
   );
 }
@@ -519,6 +603,9 @@ export default function SopDocDetailBody({
         ) : isPdfFile ? (
           // 铁律：file_kind=pdf 只走 PDF 阅读器渲染签名 URL，空/失效时展示兜底，绝不 .replace 为 <img> 原图画廊
           <PdfViewer url={doc.file_signed_url ?? ''} fileName={doc.file_name} onReload={handleReloadPdf} />
+        ) : !isFile && doc.content_body ? (
+          // 在线文档（飞书/腾讯/manual）：脚本抓回写入 content_body 的 Markdown 正文直接渲染
+          <MarkdownContent content={doc.content_body} />
         ) : doc.file_kind === 'sheet' && doc.content_sheet ? (
           // 表格文件（xlsx/xls/csv）：按 sheets 结构化数据表格化展示
           <SheetTablePanel raw={doc.content_sheet} />

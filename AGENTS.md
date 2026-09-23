@@ -144,3 +144,12 @@ src/
 - 权限：复用 `src/lib/api-permission.ts` 的 `isExternalRoleRequest`；内部角色可见全部 published；「外部合作」仅 visibility=general（本期 17 条全 internal，故外部为空态/详情 404）。**未改动既有总闸 maskExternalBusiness**，SOP 门控直接在路由内做。
 - 避坑：jsonb 数组列（applicable_brand）不能直接用 supabase-js `.contains([x])`（会序列化成 `{..}` 文本数组字面量，PostgREST 报 invalid input syntax for type json）；应在 DB 查完其他条件后，内存中 `applicable_brand.includes(brand)` 过滤（数据量小）。
 - 数据：17 条已入库（制度4 management=日常管理类，培训13；needs_quiz=6；external_url 有值 2 条：南京字节 oceanengine、vivo直播违规注意事项 feishu——验收写"3条"与实际源数据不符，按源数据 2 条为准）。
+
+## SOP管理板块（v2.15：在线文档正文 Markdown 完整渲染 + 特殊标签 + 安全过滤）
+- **新增依赖**：`react-markdown`+`remark-gfm`+`rehype-raw`+`rehype-sanitize`（已在 SopDocDetailBody 内 bundle）。
+- **渲染分支**：在线来源（`source_type !== 'file'` 且 `content_body` 非空，即飞书/腾讯/人工等）→ `MarkdownContent` 完整渲染 markdown（标题/列表/表格/引用/加粗/链接，remark-gfm 支持 GFM 表格、任务列表、删除线）；**本地文件分支保持不变**（`isFile` 与 sheet/pdf/image 分支/sheet 表控/旧 text 展示都未动）。空 content_body 维持原兜底文案「原文内容暂无法直接展示…」。
+- **飞书特殊标签**：`<callout emoji>`→`.sop-callout` 高亮块（emoji+body，支持内部含 `<p>` 等）；`<sheet …/>`→`.sop-sheet-hint` 占位提示；`<title>`→组件返回 null 不重复展示标题；未知 HTML 标签（如 `<cite>`）被 rehype-sanitize 降级为纯文本。均用 `rehype-raw` 解析 + `rehype-sanitize` 清洗（schema 在 `defaultSchema` 基础上放宽 callout/sheet/title/br/del/sub/sup/mark 及必要属性）。
+- **安全红线**：rehype-sanitize 默认协议过滤已挡 `javascript:`；另自定义 `a` 组件二次校验 href（仅 http(s)/mailto:/tel 渲染链接，其余渲染为纯文本不生成 `<a>`），`target=_blank rel=noopener noreferrer`；禁用 raw HTML 脚本/on* 属性靠 sanitize 兜底。
+- **样式**：`.sop-scope .sop-md`（含 h1-h6/li/blockquote/hr/表格 thead+斑马纹/行内及块级 code/链接/img 等）与 `.sop-callout`/`.sop-sheet-hint` 全部用 `var(--sop-*)` 双主题；模块增强 `declare module 'react'` 仅注册 `callout`/`sheet` 自定义元素（**勿 augment `title`**——它是原生 HTMLTitleElement 既有 IntrinsicElements，直接在 components.title 提供 () => null 即可）。
+- **验收（实测）**：SSR 渲染合成 markdown 全绿（h2/table-wrap/blockquote/bold、callout emoji、sheet hint、title 去除、javascript: 链接被过滤为 span、安全链接 _blank）；对真实飞书正文（`a59e7003`，脚本抓回 150k 字符含 `<title>`/`<callout emoji="📌">` 嵌套 `<p>`/含 `<cite>`/markdown 表格）通过 API 取回 + SSR 渲染通过（title 去重、callout/表格渲染、`<cite>` 降级为文本、无 javascript:）；在线空 content_body 兜底不变；sheet/pdf/image 分支无回归；ts-check/lint(仅继承 img 告警)/生产 build(58/58)/test_run pass。
+- **dev server 注意事项**：`pnpm run dev` 走 `scripts/dev.sh`→`tsx watch src/server.ts`（**进程 cmdline 是 `cli.mjs watch src/server.ts`，不是 "next dev"**）；kill 残留时用 `pkill -9 -f "cli.mjs watch"` + `webpack-loaders`/`src/server.ts`，勿碰 9000。测试飞书正文用 fetch-on-detail 或临时 UPDATE 后回填 NULL（勿污染 dev 库）。
