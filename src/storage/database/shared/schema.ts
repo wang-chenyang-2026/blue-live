@@ -145,7 +145,52 @@ export const sopCategories = pgTable(
   ]
 );
 
+// 百应采集任务配置（M2）。频率 daily/weekly/custom/manual；写模式 append/overwrite；交付方式二期支持飞书。
+export const buyinTasks = pgTable(
+  "buyin_tasks",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    name: varchar("name", { length: 64 }).notNull(),
+    // 达人ID / 账号名（留空走默认 vivo 官方旗舰店）
+    by_kol_id: varchar("by_kol_id", { length: 64 }),
+    by_account: varchar("by_account", { length: 128 }),
+    // 数据粒度数组：day / hour / product / anchor
+    granularities: jsonb("granularities").notNull(),
+    // 已选指标 FIELD（按 FIELD 源顺序记录，作为输出列）
+    selected_fields: jsonb("selected_fields").notNull(),
+    // 商品明细开关（仅 product 粒度可用）
+    with_product_detail: boolean("with_product_detail").notNull().default(false),
+    // 每次采集回溯天数
+    lookback_days: integer("lookback_days").notNull().default(1),
+    // daily / weekly / custom / manual
+    frequency: varchar("frequency", { length: 12 }).notNull().default("daily"),
+    interval_days: integer("interval_days"),
+    run_time: varchar("run_time", { length: 10 }),
+    // 交付：方式固定飞书；target_type=feishu / auto_create
+    delivery_target_type: varchar("delivery_target_type", { length: 16 }).notNull().default("feishu"),
+    delivery_feishu_token: varchar("delivery_feishu_token", { length: 512 }),
+    delivery_feishu_url: text("delivery_feishu_url"),
+    delivery_auto_create: boolean("delivery_auto_create").notNull().default(false),
+    // 自动新建是否已在 M4 交付阶段创建（预留回链字段）
+    delivery_sheet_created: boolean("delivery_sheet_created").notNull().default(false),
+    // 一个 data_type 一个 sheet
+    one_sheet_per_type: boolean("one_sheet_per_type").notNull().default(true),
+    write_mode: varchar("write_mode", { length: 8 }).notNull().default("append"),
+    enabled: boolean("enabled").notNull().default(true),
+    created_by: varchar("created_by", { length: 64 }),
+    creator_name: varchar("creator_name", { length: 64 }),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("buyin_tasks_created_by_idx").on(table.created_by),
+    index("buyin_tasks_enabled_idx").on(table.enabled),
+  ]
+);
+
 export type SopDocument = typeof sopDocuments.$inferSelect;
 export type InsertSopDocument = typeof sopDocuments.$inferInsert;
 export type SopCategory = typeof sopCategories.$inferSelect;
 export type SopReadLog = typeof sopReadLogs.$inferSelect;
+export type BuyinTask = typeof buyinTasks.$inferSelect;
+export type InsertBuyinTask = typeof buyinTasks.$inferInsert;

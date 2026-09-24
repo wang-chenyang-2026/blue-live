@@ -1,0 +1,731 @@
+[
+ {
+  "field": "_id",
+  "cn": "索引",
+  "cat": "索引与账号",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ },
+ {
+  "field": "data_type",
+  "cn": "数据粒度",
+  "cat": "索引与账号",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ },
+ {
+  "field": "by_kol_id",
+  "cn": "百应达人id",
+  "cat": "索引与账号",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ },
+ {
+  "field": "by_account",
+  "cn": "百应账号",
+  "cat": "索引与账号",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ },
+ {
+  "field": "kol_id",
+  "cn": "达人id",
+  "cat": "索引与账号",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ },
+ {
+  "field": "nickname",
+  "cn": "昵称",
+  "cat": "索引与账号",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ },
+ {
+  "field": "stat_date",
+  "cn": "统计日期",
+  "cat": "索引与账号",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ },
+ {
+  "field": "stat_hour",
+  "cn": "统计时段",
+  "cat": "索引与账号",
+  "day": 0,
+  "hour": 1,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "anchor_name",
+  "cn": "主播",
+  "cat": "索引与账号",
+  "day": 0,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "stat_period",
+  "cn": "统计周期",
+  "cat": "索引与账号",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ },
+ {
+  "field": "value_type",
+  "cn": "数值口径",
+  "cat": "索引与账号",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ },
+ {
+  "field": "live_count",
+  "cn": "直播场次",
+  "cat": "索引与账号",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "live_ids",
+  "cn": "关联场次id",
+  "cat": "索引与账号",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "live_start_time",
+  "cn": "开播时间",
+  "cat": "索引与账号",
+  "day": 1,
+  "hour": 0,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "live_end_time",
+  "cn": "下播时间",
+  "cat": "索引与账号",
+  "day": 1,
+  "hour": 0,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "live_duration",
+  "cn": "直播时长",
+  "cat": "索引与账号",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "live_duration_hour",
+  "cn": "直播时长(小时)",
+  "cat": "索引与账号",
+  "day": 1,
+  "hour": 0,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "is_cross_day",
+  "cn": "是否含跨零点场次",
+  "cat": "索引与账号",
+  "day": 1,
+  "hour": 0,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "is_fallback",
+  "cn": "是否沿用上期数据",
+  "cat": "索引与账号",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ },
+ {
+  "field": "phone_sale_num",
+  "cn": "手机销售台数",
+  "cat": "核心结算与订单",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ },
+ {
+  "field": "phone_refund_num",
+  "cn": "手机退款台数",
+  "cat": "核心结算与订单",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ },
+ {
+  "field": "phone_settle_num",
+  "cn": "手机结算台数",
+  "cat": "核心结算与订单",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ },
+ {
+  "field": "phone_settle_num_per_hour",
+  "cn": "时均手机结算订单",
+  "cat": "核心结算与订单",
+  "day": 0,
+  "hour": 0,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "phone_sale_order_count",
+  "cn": "手机成交订单数",
+  "cat": "核心结算与订单",
+  "day": 0,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "phone_refund_order_count",
+  "cn": "手机退款订单数",
+  "cat": "核心结算与订单",
+  "day": 0,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "phone_settle_order_count",
+  "cn": "手机去退订单数",
+  "cat": "核心结算与订单",
+  "day": 0,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "live_sale_amount",
+  "cn": "总GMV",
+  "cat": "GMV 与效率",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "live_refund_amount",
+  "cn": "退款GMV",
+  "cat": "GMV 与效率",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "live_settle_amount",
+  "cn": "去退GMV",
+  "cat": "GMV 与效率",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "gpm",
+  "cn": "GPM",
+  "cat": "GMV 与效率",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "live_uv_value",
+  "cn": "UV价值",
+  "cat": "GMV 与效率",
+  "day": 0,
+  "hour": 0,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "customer_price",
+  "cn": "客单价",
+  "cat": "GMV 与效率",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "natural_sale_amount",
+  "cn": "自然总GMV",
+  "cat": "分渠道 GMV(仅每日)",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "feed_sale_amount",
+  "cn": "feedGMV",
+  "cat": "分渠道 GMV(仅每日)",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "search_sale_amount",
+  "cn": "搜索GMV",
+  "cat": "分渠道 GMV(仅每日)",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "follow_sale_amount",
+  "cn": "关注GMV",
+  "cat": "分渠道 GMV(仅每日)",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "short_video_sale_amount",
+  "cn": "短视频GMV",
+  "cat": "分渠道 GMV(仅每日)",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "qianchuan_sale_amount",
+  "cn": "千川GMV",
+  "cat": "分渠道 GMV(仅每日)",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "brand_ad_sale_amount",
+  "cn": "品牌广告GMV",
+  "cat": "分渠道 GMV(仅每日)",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "live_traffic_sale_trend",
+  "cn": "分渠道GMV明细",
+  "cat": "分渠道 GMV(仅每日)",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "live_watch_pv",
+  "cn": "总观看次数",
+  "cat": "分渠道观看次数(仅每日)",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "natural_watch_pv",
+  "cn": "自然流量总观看次数",
+  "cat": "分渠道观看次数(仅每日)",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "feed_watch_pv",
+  "cn": "feed观看次数",
+  "cat": "分渠道观看次数(仅每日)",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "search_watch_pv",
+  "cn": "搜索观看次数",
+  "cat": "分渠道观看次数(仅每日)",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "follow_watch_pv",
+  "cn": "关注观看次数",
+  "cat": "分渠道观看次数(仅每日)",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "short_video_watch_pv",
+  "cn": "短视频观看次数",
+  "cat": "分渠道观看次数(仅每日)",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "qianchuan_watch_pv",
+  "cn": "千川观看次数",
+  "cat": "分渠道观看次数(仅每日)",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "brand_ad_watch_pv",
+  "cn": "品牌广告观看次数",
+  "cat": "分渠道观看次数(仅每日)",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "live_traffic_watch_trend",
+  "cn": "分渠道观看次数明细",
+  "cat": "分渠道观看次数(仅每日)",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "exposure_pv",
+  "cn": "曝光次数",
+  "cat": "流量、互动与粉丝",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "exposure_uv",
+  "cn": "曝光人数",
+  "cat": "流量、互动与粉丝",
+  "day": 0,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "live_watch_uv",
+  "cn": "累计观看人数",
+  "cat": "流量、互动与粉丝",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "avg_online_count",
+  "cn": "平均在线人数",
+  "cat": "流量、互动与粉丝",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "avg_stay_duration",
+  "cn": "平均停留时长",
+  "cat": "流量、互动与粉丝",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "exposure_view_rate_pv",
+  "cn": "曝光-观看率(次数)",
+  "cat": "流量、互动与粉丝",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "exposure_view_rate_uv",
+  "cn": "曝光-观看率(人数)",
+  "cat": "流量、互动与粉丝",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "fans_add_rate",
+  "cn": "新增关注率",
+  "cat": "流量、互动与粉丝",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "live_fans_add",
+  "cn": "新增粉丝数",
+  "cat": "流量、互动与粉丝",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "live_fans_group_add",
+  "cn": "新加粉丝团人数",
+  "cat": "流量、互动与粉丝",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "live_interact_rate_uv",
+  "cn": "观看-互动率(人数)",
+  "cat": "流量、互动与粉丝",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "deal_user_count",
+  "cn": "成交人数",
+  "cat": "流量、互动与粉丝",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "refund_user_count",
+  "cn": "退款人数",
+  "cat": "流量、互动与粉丝",
+  "day": 1,
+  "hour": 0,
+  "anchor": 0,
+  "product": 0
+ },
+ {
+  "field": "watch_product_show_rate_uv",
+  "cn": "观看-商品曝光率(人数)",
+  "cat": "转化漏斗(人数口径)",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "product_show_click_rate_uv",
+  "cn": "商品曝光-点击率(人数)",
+  "cat": "转化漏斗(人数口径)",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "product_click_deal_rate_uv",
+  "cn": "商品点击-成交转化率(人数)",
+  "cat": "转化漏斗(人数口径)",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "watch_deal_rate_uv",
+  "cn": "观看-成交转化率(人数)",
+  "cat": "转化漏斗(人数口径)",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "model_sale_trend",
+  "cn": "各机型销量",
+  "cat": "商品与机型(仅商品粒度)",
+  "day": 0,
+  "hour": 0,
+  "anchor": 0,
+  "product": 1
+ },
+ {
+  "field": "series_sale_trend",
+  "cn": "各系列销量",
+  "cat": "商品与机型(仅商品粒度)",
+  "day": 0,
+  "hour": 0,
+  "anchor": 0,
+  "product": 1
+ },
+ {
+  "field": "model_sale_list",
+  "cn": "机型销量明细",
+  "cat": "商品与机型(仅商品粒度)",
+  "day": 0,
+  "hour": 0,
+  "anchor": 0,
+  "product": 1
+ },
+ {
+  "field": "product_list",
+  "cn": "商品明细",
+  "cat": "商品与机型(仅商品粒度)",
+  "day": 0,
+  "hour": 0,
+  "anchor": 0,
+  "product": 1
+ },
+ {
+  "field": "target_value",
+  "cn": "目标值",
+  "cat": "目标与元字段",
+  "day": 1,
+  "hour": 0,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "target_rate",
+  "cn": "目标达成率",
+  "cat": "目标与元字段",
+  "day": 1,
+  "hour": 0,
+  "anchor": 1,
+  "product": 0
+ },
+ {
+  "field": "plat_type",
+  "cn": "平台",
+  "cat": "目标与元字段",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ },
+ {
+  "field": "data_source",
+  "cn": "数据来源",
+  "cat": "目标与元字段",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ },
+ {
+  "field": "brand_name",
+  "cn": "所属品牌",
+  "cat": "目标与元字段",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ },
+ {
+  "field": "project_id",
+  "cn": "项目id",
+  "cat": "目标与元字段",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ },
+ {
+  "field": "project_name",
+  "cn": "项目名称",
+  "cat": "目标与元字段",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ },
+ {
+  "field": "create_time",
+  "cn": "创建时间",
+  "cat": "目标与元字段",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ },
+ {
+  "field": "update_time",
+  "cn": "更新时间",
+  "cat": "目标与元字段",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ },
+ {
+  "field": "crawl_status",
+  "cn": "爬取状态",
+  "cat": "目标与元字段",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ },
+ {
+  "field": "state_desc",
+  "cn": "状态描述",
+  "cat": "目标与元字段",
+  "day": 1,
+  "hour": 1,
+  "anchor": 1,
+  "product": 1
+ }
+]

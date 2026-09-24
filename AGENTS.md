@@ -190,3 +190,13 @@ src/
 - **自检结论（已实测）**：①进程内走查：start→waiting_scan(17KB qr-img)；注入模拟 cookie+导航 buyin 主页→status 翻 **logged_in**、cookieCount=7、accountHint=注入的 `uid` 值；cancel→not_found；TTL1.5s 超时 live 1→0 自动清理；closeAll 后 live=0 无泄漏。②HTTP(bearer PM token)：start 200+QR、status×3 稳定 waiting_scan、cancel→not_found、未鉴权 start=401。③`pnpm run build` 61/61 EXIT=0；ts-check 0 错；lint 改动文件 0 error（仅 1 `<img>` warning）；test_run(lint/ts-check/probe) pass；/buyin-spike、/sop 200。
 - **诚实边界**：预览环境无法真扫码，logged_in 用「脚本驱动页面跳转/注入 cookie」验证状态机与 cookie 提取逻辑；真实扫码设置的实际 cookie 名/账号识别字段需用户在真机上实测校准（accountHint 取值可能为 null→界面显示"未知"）。
 - **取 cookie 的坑**：cookie 提取必须 await（fire-and-forget 会导致首次 logged_in 时 cookieCount=0 的竞态），已修。
+
+## 百应 M2：采集任务配置（spike 分支第四轮：删调试区 + buyin_tasks 表 + CRUD + 字段/粒度联动）
+- **删调试区**：`/buyin-spike/page.tsx` 移除 startDebug/statusLog/sessionId state 与 debug 输出块；登录后渲染 `<TaskConfigPanel loggedIn>`。
+- **数据**：`src/lib/data/buyin_fields.json`（81 字段）+ `src/lib/data/buyin-fields.ts`（`BUYIN_FIELDS/BUYIN_GRANULARITIES/BUYIN_CATS/fieldSupported/supportedFields/groupFieldsByCat/GRANULARITY_NOTES`）。字段按 9 类(采购、佣金、趋势、「取消与退款」等)分组；`supportedFields(granularity)` 运行时过滤（hour 排除退款/gpm/曝光/停留时长、anchor 排除 phone_sale_num、product 含 product_list+model_sale_list、natural_sale_amount 只 day）。粒度 hour/day/anchor/product。
+- **表** `buyin_tasks`（exec_sql 建 + `src/storage/database/shared/schema.ts` 登记）：id uuid pk、name、brand、granularities text[]、selected_fields jsonb、enabled bool、task_type、created_at/updated_at。鉴权复用 `getSopUserContext(request)`（`src/lib/api-permission.ts`），未登录 401，仅 PM/运营可写（403 其余）。
+- **业务钩子** `src/lib/buyin-task-utils.ts` 仅 `cleanTaskBody`（去未知字段/裁剪空值，安全转存）。
+- **API**：`/api/buyin-spike/tasks`（GET 列表 / POST 创建）；`/api/buyin-spike/tasks/[id]`（PATCH 更新 / DELETE）。PATCH 必须把 name/granularities/selected_fields 一起并入 update 对象（早期漏带导致改名/粒度回调被丢弃），bug 已修并验证。
+- **前端** `src/components/buyin/TaskConfigPanel.tsx`：配置表单（任务名/品牌/粒度/字段分组勾选），字段随粒度联动。各角色模块可见（ModuleKey 已含 buyin-spike）。
+- **验证（已实测）**：install/build(61/61 EXIT=0)/ts-check/lint 全绿；HTTP CRUD 全链路（create→200、list 含、空名 400、update 改名+粒度回读成功、toggle-off enabled=false、delete、after 无记录、noauth 401）；字段联动脚本断言通过。**test_run 需 5000 有存活 dev 服务**——手动 `bash ./scripts/dev.sh` 常驻时 lint/ts-check/probe 全 pass、smoke（tasks→401、/buyin-spike→200）。删除可用 `/tmp` 临时 node 脚本 + 前述 bearer token 直打。
+- **dev server 注意（沿用）**：pkill `-9 -f "cli.mjs watch"`/`"src/server.ts"`；改完测试 test_run 前务必确保 5000 上有运行中的 dev.sh 实例（service_probe 依赖，否则 app.log 陈旧报 service not ready）。勿碰 9000。

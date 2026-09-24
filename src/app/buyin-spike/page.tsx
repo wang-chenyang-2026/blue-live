@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import TaskConfigPanel from '@/components/buyin/TaskConfigPanel';
 
 interface StartRes {
   ok: boolean;
@@ -27,13 +28,10 @@ const POLL_INTERVAL = 2500;
 
 export default function BuyinSpikePage() {
   const [phase, setPhase] = useState<Phase>('idle');
-  const [sessionId, setSessionId] = useState<string | null>(null);
   const [qrImage, setQrImage] = useState<string | null>(null);
   const [accountHint, setAccountHint] = useState<string | null>(null);
   const [cookieCount, setCookieCount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [startDebug, setStartDebug] = useState<{ shotMode?: string } | null>(null);
-  const [statusLog, setStatusLog] = useState<StatusRes | null>(null);
   const [pollCount, setPollCount] = useState(0);
   const [pollKey, setPollKey] = useState(0);
   const currentRef = useRef<string | null>(null);
@@ -48,22 +46,17 @@ export default function BuyinSpikePage() {
       }).catch(() => undefined);
     }
     currentRef.current = null;
-    setSessionId(null);
     setQrImage(null);
     setAccountHint(null);
     setCookieCount(null);
     setError(null);
-    setStatusLog(null);
     setPollCount(0);
-    setStartDebug(null);
     setPhase('starting');
     try {
       const d = (await (await fetch('/api/buyin-spike/session/start', { method: 'POST' })).json()) as StartRes;
       if (d.ok && d.sessionId && d.image) {
         currentRef.current = d.sessionId;
-        setSessionId(d.sessionId);
         setQrImage(d.image);
-        setStartDebug(d.debug ?? null);
         setPhase('waiting');
         setPollKey((k) => k + 1);
       } else {
@@ -81,7 +74,6 @@ export default function BuyinSpikePage() {
     if (!id) return;
     try {
       const d = (await (await fetch(`/api/buyin-spike/session/status?sessionId=${encodeURIComponent(id)}`)).json()) as StatusRes;
-      setStatusLog(d);
       setPollCount((c) => c + 1);
       if (d.status === 'logged_in') {
         setAccountHint(d.accountHint ?? null);
@@ -127,8 +119,6 @@ export default function BuyinSpikePage() {
           ? '重新登录'
           : '连接百应 / 获取二维码';
 
-  const inProgress = phase === 'starting' || phase === 'waiting';
-
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
       <h1 className="mb-1 text-xl font-semibold">百应登录 · 常驻会话闭环</h1>
@@ -144,7 +134,6 @@ export default function BuyinSpikePage() {
         >
           {buttonLabel}
         </button>
-        {sessionId && <span className="max-w-[16rem] truncate text-xs text-muted-foreground">会话 {sessionId}</span>}
       </div>
 
       {phase === 'starting' && (
@@ -194,24 +183,17 @@ export default function BuyinSpikePage() {
       {phase === 'error' && (
         <div className="mb-5 rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
           <p className="mb-1 font-medium text-destructive">会话启动失败</p>
-          {startDebug?.shotMode && <p className="text-muted-foreground">截图模式：{startDebug.shotMode}</p>}
           {error && <p className="break-all text-muted-foreground">错误：{error}</p>}
         </div>
       )}
 
-      {inProgress ||
-        (['logged_in', 'expired', 'not_found'].includes(phase) && (
-          <details className="rounded-lg border border-border bg-card p-4" open>
-            <summary className="cursor-pointer text-sm font-medium">状态与调试信息（结构化）</summary>
-            <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs text-muted-foreground">
-              {JSON.stringify(
-                { phase, sessionId, pollCount, startDebug, lastStatus: statusLog, error },
-                null,
-                2,
-              )}
-            </pre>
-          </details>
-        ))}
+      <div className="mt-8 border-t border-border pt-6">
+        <h2 className="mb-1 text-base font-semibold">② 采集任务配置</h2>
+        <p className="mb-4 text-sm text-muted-foreground">
+          {phase === 'logged_in' ? '已登录，可配置采集任务并保存到数据库。' : '登录百应成功后可用；未登录时仅浏览。'}
+        </p>
+        <TaskConfigPanel loggedIn={phase === 'logged_in'} />
+      </div>
     </div>
   );
 }
