@@ -19,6 +19,7 @@ import {
   UserCog,
   LogOut,
   TrendingUp,
+  Database,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -37,6 +38,7 @@ const MODULE_ICONS: Record<ModuleKey, React.ReactNode> = {
   'problem-feedback': <MessageSquareWarning className="h-4 w-4" />,
   personnel: <Users className="h-4 w-4" />,
   approval: <UserCheck className="h-4 w-4" />,
+  'buyin-spike': <Database className="h-4 w-4" />,
 };
 
 const MODULE_PATHS: Record<ModuleKey, string> = {
@@ -51,6 +53,7 @@ const MODULE_PATHS: Record<ModuleKey, string> = {
   'problem-feedback': '/feedback',
   personnel: '/admin/user-management',
   approval: '/approval',
+  'buyin-spike': '/buyin-spike',
 };
 
 const SIDEBAR_ORDER: ModuleKey[] = [
@@ -61,6 +64,7 @@ const SIDEBAR_ORDER: ModuleKey[] = [
   'market-monitor',
   'visual',
   'sop',
+  'buyin-spike',
   'workstation',
   'problem-feedback',
   'personnel',

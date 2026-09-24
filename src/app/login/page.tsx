@@ -23,6 +23,7 @@ const MODULE_PATHS: Record<ModuleKey, string> = {
   'problem-feedback': '/feedback',
   personnel: '/admin/user-management',
   approval: '/approval',
+  'buyin-spike': '/buyin-spike',
 };
 
 export default function LoginPage() {

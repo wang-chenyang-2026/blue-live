@@ -118,6 +118,7 @@ const MODULE_LABELS: Record<ModuleKey, string> = {
   'problem-feedback': '问题反馈',
   'personnel': '注册人员管理',
   'approval': '用户审批',
+  'buyin-spike': '百应数据',
   
 };
 
@@ -139,34 +140,35 @@ export const ROLES: Role[] = [
       'problem-feedback',
       'personnel',
       'approval',
+      'buyin-spike',
     ],
     brandScopedModules: [], // PM 全部品牌不受限
   },
   {
     key: '运营',
     label: '运营',
-    modules: ['dashboard', 'schedule', 'data-overview', 'market-monitor', 'visual', 'sop', 'workstation', 'problem-feedback'],
+    modules: ['dashboard', 'schedule', 'data-overview', 'market-monitor', 'visual', 'sop', 'workstation', 'problem-feedback', 'buyin-spike'],
     brandScopedModules: ['dashboard', 'schedule', 'data-overview', 'workstation'],
     // 无成本核算、注册人员管理、用户审批
   },
   {
     key: '中控',
     label: '中控',
-    modules: ['schedule', 'market-monitor', 'visual', 'sop', 'workstation', 'problem-feedback'],
+    modules: ['schedule', 'market-monitor', 'visual', 'sop', 'workstation', 'problem-feedback', 'buyin-spike'],
     brandScopedModules: ['schedule'],
     // 无首页概览、成本核算、注册人员管理、用户审批
   },
   {
     key: '主播',
     label: '主播',
-    modules: ['schedule', 'market-monitor', 'visual', 'sop', 'workstation', 'problem-feedback'],
+    modules: ['schedule', 'market-monitor', 'visual', 'sop', 'workstation', 'problem-feedback', 'buyin-spike'],
     brandScopedModules: ['schedule'],
     // 无首页概览、成本核算、数据概览、注册人员管理、用户审批
   },
   {
     key: '外部合作',
     label: '外部合作',
-    modules: ['dashboard', 'schedule', 'data-overview', 'market-monitor', 'cost', 'visual', 'sop', 'workstation', 'problem-feedback'],
+    modules: ['dashboard', 'schedule', 'data-overview', 'market-monitor', 'cost', 'visual', 'sop', 'workstation', 'problem-feedback', 'buyin-spike'],
     brandScopedModules: [],
     // 外部合作可查看全部业务模块的页面布局与数据维度，但服务端数据门控（maskExternalBusiness）返回空版本；
     // 不含注册人员管理、用户审批。项目固定为"公共功能"
@@ -186,6 +188,7 @@ export const PATH_TO_MODULE: Record<string, ModuleKey> = {
   '/feedback': 'problem-feedback',
   '/admin/user-management': 'personnel',
   '/approval': 'approval',
+  '/buyin-spike': 'buyin-spike',
 };
 
 /** 模块到路径的反向映射 */
@@ -201,6 +204,7 @@ export const MODULE_PATHS: Record<ModuleKey, string> = {
   'problem-feedback': '/feedback',
   personnel: '/admin/user-management',
   approval: '/approval',
+  'buyin-spike': '/buyin-spike',
 };
 
 // ==================== 直播类型 & 小时费标准 ====================
