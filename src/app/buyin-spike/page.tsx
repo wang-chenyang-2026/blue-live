@@ -1,125 +1,217 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-interface SpikeDebug {
-  browserLaunched: boolean;
-  pageLoaded: boolean;
-  pageStatus: number | null;
-  pageUrl: string | null;
-  qrFound: boolean;
-  timingMs: { launch: number; goto: number; qr: number; screenshot: number };
-  engine: string;
-  shotMode: string;
-  shotBytes: number;
-}
-
-interface SpikeRes {
+interface StartRes {
   ok: boolean;
-  failedStep: string | null;
-  error: string | null;
-  image: string | null;
-  debug: SpikeDebug;
+  sessionId?: string;
+  image?: string;
+  status?: string;
+  failedStep?: string;
+  error?: string;
+  debug?: { shotMode?: string };
 }
+
+interface StatusRes {
+  ok?: boolean;
+  status: string;
+  accountHint?: string | null;
+  cookieCount?: number;
+  sessionId?: string;
+  error?: string;
+}
+
+type Phase = 'idle' | 'starting' | 'waiting' | 'logged_in' | 'expired' | 'not_found' | 'error';
+
+const POLL_INTERVAL = 2500;
 
 export default function BuyinSpikePage() {
-  const [loading, setLoading] = useState(false);
-  const [res, setRes] = useState<SpikeRes | null>(null);
+  const [phase, setPhase] = useState<Phase>('idle');
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [qrImage, setQrImage] = useState<string | null>(null);
+  const [accountHint, setAccountHint] = useState<string | null>(null);
+  const [cookieCount, setCookieCount] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [startDebug, setStartDebug] = useState<{ shotMode?: string } | null>(null);
+  const [statusLog, setStatusLog] = useState<StatusRes | null>(null);
+  const [pollCount, setPollCount] = useState(0);
+  const [pollKey, setPollKey] = useState(0);
+  const currentRef = useRef<string | null>(null);
 
-  const fetchQr = async () => {
-    setLoading(true);
-    setRes(null);
-    try {
-      const r = await fetch('/api/buyin-spike/qr', { method: 'POST' });
-      const data = (await r.json()) as SpikeRes;
-      setRes(data);
-    } catch (e) {
-      setRes({
-        ok: false,
-        failedStep: 'network',
-        error: e instanceof Error ? e.message : String(e),
-        image: null,
-        debug: {
-          browserLaunched: false,
-          pageLoaded: false,
-          pageStatus: null,
-          pageUrl: null,
-          qrFound: false,
-          timingMs: { launch: 0, goto: 0, qr: 0, screenshot: 0 },
-          engine: 'fetch-error',
-          shotMode: 'none',
-          shotBytes: 0,
-        },
-      });
-    } finally {
-      setLoading(false);
+  const start = useCallback(async () => {
+    const prev = currentRef.current;
+    if (prev) {
+      fetch('/api/buyin-spike/session/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: prev }),
+      }).catch(() => undefined);
     }
-  };
+    currentRef.current = null;
+    setSessionId(null);
+    setQrImage(null);
+    setAccountHint(null);
+    setCookieCount(null);
+    setError(null);
+    setStatusLog(null);
+    setPollCount(0);
+    setStartDebug(null);
+    setPhase('starting');
+    try {
+      const d = (await (await fetch('/api/buyin-spike/session/start', { method: 'POST' })).json()) as StartRes;
+      if (d.ok && d.sessionId && d.image) {
+        currentRef.current = d.sessionId;
+        setSessionId(d.sessionId);
+        setQrImage(d.image);
+        setStartDebug(d.debug ?? null);
+        setPhase('waiting');
+        setPollKey((k) => k + 1);
+      } else {
+        setPhase('error');
+        setError(d.error || d.failedStep || 'start 未返回二维码');
+      }
+    } catch (e) {
+      setPhase('error');
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
+
+  const tick = useCallback(async () => {
+    const id = currentRef.current;
+    if (!id) return;
+    try {
+      const d = (await (await fetch(`/api/buyin-spike/session/status?sessionId=${encodeURIComponent(id)}`)).json()) as StatusRes;
+      setStatusLog(d);
+      setPollCount((c) => c + 1);
+      if (d.status === 'logged_in') {
+        setAccountHint(d.accountHint ?? null);
+        setCookieCount(d.cookieCount ?? 0);
+        setPhase('logged_in');
+      } else if (d.status === 'expired' || d.status === 'not_found') {
+        setPhase(d.status);
+      } else if (d.status === 'error') {
+        setError(d.error || 'status 接口异常');
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (phase !== 'waiting') return;
+    void tick();
+    const t = setInterval(tick, POLL_INTERVAL);
+    return () => clearInterval(t);
+  }, [phase, pollKey, tick]);
+
+  useEffect(
+    () => () => {
+      const id = currentRef.current;
+      if (id) {
+        fetch('/api/buyin-spike/session/cancel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId: id }),
+        }).catch(() => undefined);
+      }
+    },
+    [],
+  );
+
+  const buttonLabel =
+    phase === 'starting'
+      ? '启动会话…'
+      : phase === 'waiting'
+        ? '重新获取'
+        : phase === 'logged_in'
+          ? '重新登录'
+          : '连接百应 / 获取二维码';
+
+  const inProgress = phase === 'starting' || phase === 'waiting';
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
-      <h1 className="mb-1 text-xl font-semibold">百应登录 · 技术验证 Spike</h1>
+      <h1 className="mb-1 text-xl font-semibold">百应登录 · 常驻会话闭环</h1>
       <p className="mb-5 text-sm text-muted-foreground">
-        验证后端能否拉起无头 Chromium，打开巨量百应登录页并取回抖音扫码二维码（本页为独立验证页，非正式入口）。
+        后端维持一个常驻无头浏览器。扫码后自动轮询，检测到进入百应主页即保存 cookie（后端持有，不回显明文）。
       </p>
 
       <div className="mb-5 flex items-center gap-3">
         <button
-          onClick={fetchQr}
-          disabled={loading}
+          onClick={start}
+          disabled={phase === 'starting'}
           className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition disabled:opacity-60"
         >
-          {loading ? '获取中…' : res?.image ? '重新获取' : '连接百应 / 获取二维码'}
+          {buttonLabel}
         </button>
-        {(loading || res) && (
-          <span className="text-xs text-muted-foreground">
-            {loading
-              ? '正在启动浏览器并等待二维码渲染（约需 5-25s）…'
-              : res
-                ? `上次执行：${res.ok ? '成功' : '失败'} · ${res.debug.timingMs.launch + res.debug.timingMs.goto + res.debug.timingMs.qr + res.debug.timingMs.screenshot}ms`
-                : ''}
-          </span>
-        )}
+        {sessionId && <span className="max-w-[16rem] truncate text-xs text-muted-foreground">会话 {sessionId}</span>}
       </div>
 
-      {loading && (
+      {phase === 'starting' && (
         <div className="flex h-64 items-center justify-center rounded-lg border border-border bg-card text-sm text-muted-foreground">
-          正在取回二维码，请稍候…
+          正在启动常驻浏览器并取回二维码，请稍候…
         </div>
       )}
 
-      {!loading && res?.ok && res.image && (
+      {(phase === 'waiting' || phase === 'logged_in') && qrImage && (
         <div className="mb-5 flex w-fit flex-col items-center rounded-lg border border-border bg-card p-5">
-          <img src={res.image} alt="抖音登录二维码" className="h-56 w-56 object-contain" />
+          <img src={qrImage} alt="抖音登录二维码" className="h-56 w-56 object-contain" />
           <p className="mt-2 text-xs text-muted-foreground">用抖音 App 扫一扫登录百应</p>
-        </div>
-      )}
-
-      {!loading && res && !res.ok && (
-        <div className="mb-5 rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
-          <p className="mb-1 font-medium text-destructive">获取失败</p>
-          {res.failedStep && <p className="text-muted-foreground">失败步骤：{res.failedStep}</p>}
-          {res.error && <p className="break-all text-muted-foreground">错误：{res.error}</p>}
-        </div>
-      )}
-
-      {!loading && res && (
-        <details className="rounded-lg border border-border bg-card p-4" open>
-          <summary className="cursor-pointer text-sm font-medium">后端调试信息（结构化）</summary>
-          <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs text-muted-foreground">
-            {JSON.stringify(
-              {
-                ok: res.ok,
-                failedStep: res.failedStep,
-                error: res.error,
-                debug: res.debug,
-              },
-              null,
-              2,
+          <div className="mt-2 flex items-center gap-2 text-xs">
+            {phase === 'waiting' ? (
+              <>
+                <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+                <span className="text-muted-foreground">等待扫码…（已轮询 {pollCount} 次）</span>
+              </>
+            ) : (
+              <span className="font-medium text-emerald-500">登录成功</span>
             )}
-          </pre>
-        </details>
+          </div>
+        </div>
       )}
+
+      {phase === 'logged_in' && (
+        <div className="mb-5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm">
+          <p className="mb-1 font-medium text-emerald-500">登录成功！cookie 已保存到后端会话</p>
+          <p className="text-muted-foreground">
+            识别账号：{accountHint ?? '未知（未识别到 uid/name cookie）'} · cookie 数量：{cookieCount ?? 0}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            浏览器会话保留供后续采集；下方「重新登录」将先关闭当前会话。
+          </p>
+        </div>
+      )}
+
+      {(phase === 'expired' || phase === 'not_found') && (
+        <div className="mb-5 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
+          <p className="mb-1 font-medium text-amber-500">
+            会话已{phase === 'expired' ? '过期（5 分钟未完成）' : '不存在或已清理'}
+          </p>
+          <p className="text-muted-foreground">请点击上方按钮重新获取二维码。</p>
+        </div>
+      )}
+
+      {phase === 'error' && (
+        <div className="mb-5 rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
+          <p className="mb-1 font-medium text-destructive">会话启动失败</p>
+          {startDebug?.shotMode && <p className="text-muted-foreground">截图模式：{startDebug.shotMode}</p>}
+          {error && <p className="break-all text-muted-foreground">错误：{error}</p>}
+        </div>
+      )}
+
+      {inProgress ||
+        (['logged_in', 'expired', 'not_found'].includes(phase) && (
+          <details className="rounded-lg border border-border bg-card p-4" open>
+            <summary className="cursor-pointer text-sm font-medium">状态与调试信息（结构化）</summary>
+            <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs text-muted-foreground">
+              {JSON.stringify(
+                { phase, sessionId, pollCount, startDebug, lastStatus: statusLog, error },
+                null,
+                2,
+              )}
+            </pre>
+          </details>
+        ))}
     </div>
   );
 }
