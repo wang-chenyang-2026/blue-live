@@ -192,7 +192,7 @@ export default function BuyinSpikePage() {
         <p className="mb-4 text-sm text-muted-foreground">
           {phase === 'logged_in' ? '已登录，可配置采集任务并保存到数据库。' : '登录百应成功后可用；未登录时仅浏览。'}
         </p>
-        <TaskConfigPanel loggedIn={phase === 'logged_in'} />
+        <TaskConfigPanel loggedIn={phase === 'logged_in'} accountHint={phase === 'logged_in' ? accountHint : null} />
       </div>
     </div>
   );

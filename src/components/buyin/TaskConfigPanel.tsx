@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BUYIN_GRANULARITIES,
   BUYIN_CATS,
@@ -22,6 +22,8 @@ interface TaskResp {
   lookback_days: number;
   frequency: string;
   interval_days: number | null;
+  interval_value: number | null;
+  weekday: number | null;
   run_time: string | null;
   delivery_target_type: string;
   delivery_feishu_token: string | null;
@@ -36,13 +38,65 @@ interface TaskResp {
 }
 
 const FREQUENCIES: { key: string; label: string }[] = [
+  { key: 'minute', label: '按分钟' },
+  { key: 'hour', label: '按小时' },
   { key: 'daily', label: '每天' },
   { key: 'weekly', label: '每周' },
   { key: 'custom', label: '自定义间隔（天）' },
   { key: 'manual', label: '仅手动' },
 ];
 
-export default function TaskConfigPanel({ loggedIn }: { loggedIn: boolean }) {
+const WEEKDAYS = [
+  { v: 1, n: '周一' },
+  { v: 2, n: '周二' },
+  { v: 3, n: '周三' },
+  { v: 4, n: '周四' },
+  { v: 5, n: '周五' },
+  { v: 6, n: '周六' },
+  { v: 7, n: '周日' },
+];
+
+function intervalDefault(freq: string): number {
+  switch (freq) {
+    case 'minute':
+      return 15;
+    case 'hour':
+      return 1;
+    case 'custom':
+      return 7;
+    default:
+      return 1;
+  }
+}
+
+function intervalAllowed(freq: string): boolean {
+  return freq === 'minute' || freq === 'hour' || freq === 'custom';
+}
+
+function weekdayCn(v: number): string {
+  const w = v < 1 ? 1 : v > 7 ? 7 : v;
+  return WEEKDAYS[w - 1].n;
+}
+
+function freqText(t: TaskResp): string {
+  const iv = t.interval_value ?? t.interval_days;
+  switch (t.frequency) {
+    case 'minute':
+      return `每 ${iv ?? 15} 分钟`;
+    case 'hour':
+      return `每 ${iv ?? 1} 小时`;
+    case 'daily':
+      return '每天';
+    case 'weekly':
+      return `每周（${weekdayCn(t.weekday ?? 1)}）`;
+    case 'custom':
+      return `每 ${iv ?? 7} 天（自定义）`;
+    default:
+      return '仅手动';
+  }
+}
+
+export default function TaskConfigPanel({ loggedIn, accountHint }: { loggedIn: boolean; accountHint?: string | null }) {
   const [name, setName] = useState('');
   const [kolId, setKolId] = useState('');
   const [account, setAccount] = useState('');
@@ -51,7 +105,8 @@ export default function TaskConfigPanel({ loggedIn }: { loggedIn: boolean }) {
   const [withPd, setWithPd] = useState(false);
   const [lookback, setLookback] = useState(1);
   const [frequency, setFrequency] = useState('daily');
-  const [intervalDays, setIntervalDays] = useState(7);
+  const [intervalValue, setIntervalValue] = useState(15);
+  const [weekday, setWeekday] = useState(1);
   const [runTime, setRunTime] = useState('10:00');
   const [autoCreate, setAutoCreate] = useState(false);
   const [feishuToken, setFeishuToken] = useState('');
@@ -80,6 +135,19 @@ export default function TaskConfigPanel({ loggedIn }: { loggedIn: boolean }) {
   useEffect(() => {
     if (loggedIn) void loadTasks();
   }, [loggedIn, loadTasks]);
+
+  // 账号/达人自动带出当前扫码账号；用户手填后可覆盖，切换/重登账号后更新。
+  const lastAutoAccountRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!loggedIn) return;
+    const hint = accountHint || '';
+    if (lastAutoAccountRef.current === hint) return;
+    const prevAuto = lastAutoAccountRef.current;
+    lastAutoAccountRef.current = hint;
+    if (hint) {
+      setAccount((prev) => (prev === '' || prev === prevAuto ? hint : prev));
+    }
+  }, [loggedIn, accountHint]);
 
   // 保存/回显时按 FIELD 源顺序输出已选字段
   const orderedSelected = useMemo(
@@ -139,8 +207,10 @@ export default function TaskConfigPanel({ loggedIn }: { loggedIn: boolean }) {
     setSelected((t.selected_fields || []).filter((f) => sup.has(f)));
     setWithPd(Boolean(t.with_product_detail));
     setLookback(t.lookback_days ?? 1);
-    setFrequency(t.frequency || 'daily');
-    setIntervalDays(t.interval_days ?? 7);
+    const f = t.frequency || 'daily';
+    setFrequency(f);
+    setIntervalValue(t.interval_value ?? t.interval_days ?? intervalDefault(f));
+    setWeekday(t.weekday ?? 1);
     setRunTime(t.run_time || '10:00');
     setAutoCreate(Boolean(t.delivery_auto_create));
     setFeishuToken(t.delivery_feishu_token || '');
@@ -152,13 +222,14 @@ export default function TaskConfigPanel({ loggedIn }: { loggedIn: boolean }) {
   function resetForm() {
     setName('');
     setKolId('');
-    setAccount('');
+    setAccount(loggedIn && accountHint ? accountHint : '');
     setGrans([]);
     setSelected([]);
     setWithPd(false);
     setLookback(1);
     setFrequency('daily');
-    setIntervalDays(7);
+    setIntervalValue(15);
+    setWeekday(1);
     setRunTime('10:00');
     setAutoCreate(false);
     setFeishuToken('');
@@ -173,6 +244,13 @@ export default function TaskConfigPanel({ loggedIn }: { loggedIn: boolean }) {
     if (!name.trim()) return setMsg('任务名称不能为空');
     if (grans.length === 0) return setMsg('至少选择一个数据粒度');
     if (orderedSelected.length === 0) return setMsg('至少选择一个指标字段');
+    const iv = Number(intervalValue);
+    if (frequency === 'minute' && (!Number.isInteger(iv) || iv < 5))
+      return setMsg('分钟级间隔至少 5 分钟');
+    if (frequency === 'hour' && (!Number.isInteger(iv) || iv < 1 || iv > 23))
+      return setMsg('小时级间隔需在 1-23 之间');
+    if (frequency === 'custom' && (!Number.isInteger(iv) || iv < 1))
+      return setMsg('自定义间隔至少 1 天');
     setSaving(true);
     try {
       const body = {
@@ -184,7 +262,9 @@ export default function TaskConfigPanel({ loggedIn }: { loggedIn: boolean }) {
         with_product_detail: withPd,
         lookback_days: lookback,
         frequency,
-        interval_days: frequency === 'custom' ? intervalDays : null,
+        interval_value: intervalAllowed(frequency) ? iv : null,
+        interval_days: frequency === 'custom' ? iv : null, // 兼容旧读取
+        weekday: frequency === 'weekly' ? weekday : 1,
         run_time: runTime || null,
         delivery_auto_create: autoCreate,
         delivery_feishu_token: autoCreate ? null : feishuToken.trim() || null,
@@ -267,9 +347,16 @@ export default function TaskConfigPanel({ loggedIn }: { loggedIn: boolean }) {
             <input className={inputCls + ' w-full'} value={name} placeholder="如：vivo 每日核心指标" onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <label className={labelCls}>账号 / 达人（默认 vivo 官方旗舰店）</label>
+            <label className={labelCls}>账号 / 达人（留空 = 采集当前登录账号）</label>
             <input className={inputCls + ' w-full'} value={kolId} placeholder="达人ID by_kol_id（可留空）" onChange={(e) => setKolId(e.target.value)} />
             <input className={inputCls + ' w-full'} value={account} placeholder="账号名 by_account（可留空）" onChange={(e) => setAccount(e.target.value)} />
+            {loggedIn && accountHint ? (
+              <p className="text-xs text-muted-foreground">
+                当前登录账号已自动带出：{accountHint}；留空即采集该账号，如需采集其他账号/达人请手动输入覆盖。
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">留空将采集当前扫码登录账号。</p>
+            )}
           </div>
         </div>
 
@@ -368,17 +455,45 @@ export default function TaskConfigPanel({ loggedIn }: { loggedIn: boolean }) {
               ))}
             </select>
           </div>
+          {frequency === 'minute' && (
+            <div>
+              <label className={labelCls}>每 N 分钟（下限 5）</label>
+              <input type="number" min={5} className={inputCls + ' w-full'} value={intervalValue} onChange={(e) => setIntervalValue(Number(e.target.value))} />
+              <p className="mt-1 text-xs text-amber-500/90">高频可能触发百应风控 11001；分钟级为轮询刷新，出数仍按小时/天聚合。</p>
+            </div>
+          )}
+          {frequency === 'hour' && (
+            <div>
+              <label className={labelCls}>每 N 小时（1-23）</label>
+              <input type="number" min={1} max={23} className={inputCls + ' w-full'} value={intervalValue} onChange={(e) => setIntervalValue(Number(e.target.value))} />
+              <p className="mt-1 text-xs text-muted-foreground">小时级为轮询刷新，出数仍按小时/天聚合。</p>
+            </div>
+          )}
           {frequency === 'custom' && (
             <div>
               <label className={labelCls}>自定义间隔（天）</label>
-              <input type="number" min={1} className={inputCls + ' w-full'} value={intervalDays} onChange={(e) => setIntervalDays(Number(e.target.value))} />
+              <input type="number" min={1} className={inputCls + ' w-full'} value={intervalValue} onChange={(e) => setIntervalValue(Number(e.target.value))} />
             </div>
           )}
-          <div>
-            <label className={labelCls}>获取时间</label>
-            <input type="time" className={inputCls + ' w-full'} value={runTime} onChange={(e) => setRunTime(e.target.value)} />
-            <p className="mt-1 text-xs text-muted-foreground">建议早上采前一日（跨零点归属与 T+ 回调）。</p>
-          </div>
+          {frequency === 'weekly' && (
+            <div>
+              <label className={labelCls}>每周几</label>
+              <select className={inputCls + ' w-full'} value={weekday} onChange={(e) => setWeekday(Number(e.target.value))}>
+                {WEEKDAYS.map((w) => (
+                  <option key={w.v} value={w.v}>
+                    {w.n}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {(frequency === 'daily' || frequency === 'weekly') && (
+            <div>
+              <label className={labelCls}>获取时间（时刻）</label>
+              <input type="time" className={inputCls + ' w-full'} value={runTime} onChange={(e) => setRunTime(e.target.value)} />
+              <p className="mt-1 text-xs text-muted-foreground">建议早上采前一日（跨零点归属与 T+ 回调）。</p>
+            </div>
+          )}
         </div>
 
         {/* 9 交付 */}
@@ -450,9 +565,8 @@ export default function TaskConfigPanel({ loggedIn }: { loggedIn: boolean }) {
                       {!t.enabled && <span className="text-xs text-muted-foreground">已停用</span>}
                     </div>
                     <p className="truncate text-xs text-muted-foreground">
-                      {(t.by_account || t.by_kol_id || 'vivo 官方旗舰店')} · {t.granularities.join(' / ')} · {t.selected_fields.length} 指标 ·{' '}
-                      {FREQUENCIES.find((f) => f.key === t.frequency)?.label ?? t.frequency}
-                      {t.frequency === 'custom' && `（${t.interval_days}天）`}
+                      {(t.by_account || t.by_kol_id || '当前登录账号')} · {t.granularities.join(' / ')} · {t.selected_fields.length} 指标 ·{' '}
+                      {freqText(t)}
                       {t.run_time ? ` · ${t.run_time}` : ''} · 交付 {t.delivery_auto_create ? '自动新建' : '指定表格'}
                       {t.delivery_feishu_token ? '（有Token）' : ''}
                       {t.creator_name ? ` · 创建人 ${t.creator_name}` : ''}

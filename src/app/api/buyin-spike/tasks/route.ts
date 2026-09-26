@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 const LIST_SELECT = [
   'id', 'name', 'by_kol_id', 'by_account', 'granularities', 'selected_fields',
-  'with_product_detail', 'lookback_days', 'frequency', 'interval_days', 'run_time',
+  'with_product_detail', 'lookback_days', 'frequency', 'interval_days', 'interval_value', 'weekday', 'run_time',
   'delivery_target_type', 'delivery_feishu_token', 'delivery_feishu_url',
   'delivery_auto_create', 'delivery_sheet_created', 'one_sheet_per_type', 'write_mode',
   'enabled', 'created_by', 'creator_name', 'created_at', 'updated_at',

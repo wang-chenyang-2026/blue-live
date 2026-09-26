@@ -162,9 +162,13 @@ export const buyinTasks = pgTable(
     with_product_detail: boolean("with_product_detail").notNull().default(false),
     // 每次采集回溯天数
     lookback_days: integer("lookback_days").notNull().default(1),
-    // daily / weekly / custom / manual
+    // minute / hour / daily / weekly / custom / manual
     frequency: varchar("frequency", { length: 12 }).notNull().default("daily"),
+    // 间隔数值：minute=分钟(≥5)、hour=小时(1-23)、custom=天(≥1)；daily/weekly/manual 为 null
     interval_days: integer("interval_days"),
+    interval_value: integer("interval_value"),
+    // 每天/每周/自定义 时执行时刻；每周时 weekday 1(周一)~7(周日)
+    weekday: integer("weekday").notNull().default(1),
     run_time: varchar("run_time", { length: 10 }),
     // 交付：方式固定飞书；target_type=feishu / auto_create
     delivery_target_type: varchar("delivery_target_type", { length: 16 }).notNull().default("feishu"),

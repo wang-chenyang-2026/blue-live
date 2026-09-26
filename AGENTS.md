@@ -200,3 +200,10 @@ src/
 - **前端** `src/components/buyin/TaskConfigPanel.tsx`：配置表单（任务名/品牌/粒度/字段分组勾选），字段随粒度联动。各角色模块可见（ModuleKey 已含 buyin-spike）。
 - **验证（已实测）**：install/build(61/61 EXIT=0)/ts-check/lint 全绿；HTTP CRUD 全链路（create→200、list 含、空名 400、update 改名+粒度回读成功、toggle-off enabled=false、delete、after 无记录、noauth 401）；字段联动脚本断言通过。**test_run 需 5000 有存活 dev 服务**——手动 `bash ./scripts/dev.sh` 常驻时 lint/ts-check/probe 全 pass、smoke（tasks→401、/buyin-spike→200）。删除可用 `/tmp` 临时 node 脚本 + 前述 bearer token 直打。
 - **dev server 注意（沿用）**：pkill `-9 -f "cli.mjs watch"`/`"src/server.ts"`；改完测试 test_run 前务必确保 5000 上有运行中的 dev.sh 实例（service_probe 依赖，否则 app.log 陈旧报 service not ready）。勿碰 9000。
+
+## 百应 M2 补丁（第五轮：账号自动带出 + 频率分钟/小时；仍属 spike 分支，仅 dev）
+- **频率六态**（buyin_tasks.frequency）：`minute/hour/daily/weekly/custom/manual`。新列 `interval_value integer`（间隔数值：minute=分钟 / hour=小时 / custom=天）+ `weekday integer default 1`（weekly 周几）。`interval_days` 保留作为 custom 天数的兼容读写（保存时 interval_value 与 interval_days 同写，旧 reader 仍可读）。
+- **间隔校验（前后端双拦）**：minute 整数且 ≥5（默认 15，提示「高频可能触发百应风控 11001；分钟级为轮询刷新」）；hour 1-23（默认 1）；custom ≥1（默认 7）。daily/weekly/manual 无间隔（interval_value=null）。非法在 `cleanTaskBody`(src/lib/buyin-task-utils.ts) 推 errs→400，前端 save() 同步拦截。
+- **时刻/星期显隐**：「获取时间（时刻）」仅 daily/weekly 显示（minute/hour 隐藏并标注不适用）；weekly 额外显示「每周几」下拉（默认周一，weekday 1-7）。
+- **账号/达人自动带出**：`/buyin-spike/page.tsx` 登录后把 status 的 `accountHint` 传入 `<TaskConfigPanel loggedIn accountHint>`；面板内 useEffect 在登录/重登切换账号时把 by_account 预填为当前会话账号标识（cookie 名值，回显明文账号名/id 或 hash——均不回传明文 cookie，只回 accountHint 短标识），用户手填可覆盖、留空=采集当前登录账号，并渲染「当前登录账号已自动带出：X」说明。lastAutoAccountRef 记录上次自动值：账号值=上次自动值或空时才覆盖，避免覆盖用户手填。
+- **验证（已实测）**：build(61/61 EXIT=0)/ts-check/lint(改动文件 0 error)全绿；HTTP CRUD：minute(15)/hour(3+weekday5)/custom(7)/daily(run_time)/weekly(weekday2) 各自 200 且回显正确（interval_value+interval_days 兼容回写）；minute=2→400「分钟级间隔至少 5 分钟」、hour=0→400、hour=24→400；PATCH 改 hour=10+改名成功；list 显示各频率文案；noauth 401。SSR 渲染面板：频率选项=6、登录+accountHint 渲染自动带出说明、未登录不显示。dev 库已清空测试记录（buyin_tasks=0）。test_run 全绿（tasks→401、/buyin-spike→200、/sop→200）。
