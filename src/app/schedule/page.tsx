@@ -384,7 +384,7 @@ function StatCard({ label, value, suffix, color }: { label: string; value: numbe
         <span>{label}</span>
       </div>
       <div className="flex items-baseline gap-1">
-        <span className="text-2xl font-bold text-white">{value}</span>
+        <span className="text-2xl font-bold text-foreground">{value}</span>
         <span className="text-xs text-muted-foreground">{suffix}</span>
       </div>
     </div>
@@ -592,7 +592,7 @@ function formatTimeSlots(slots: string[]): string {
 function ExternalScheduleSkeleton({ startDate, endDate }: { startDate: string; endDate: string }) {
   const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
   const cols: { label: string; week: string }[] = [];
-  let cursor = new Date(startDate + 'T00:00:00');
+  const cursor = new Date(startDate + 'T00:00:00');
   const end = new Date(endDate + 'T00:00:00');
   let guard = 0;
   while (cursor <= end && guard < 31) {
