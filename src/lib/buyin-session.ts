@@ -1,4 +1,5 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core';
+import { persistAccountCookies } from './buyin-cookie-store';
 
 export const SESSION_TTL = 5 * 60 * 1000;
 
@@ -263,6 +264,14 @@ async function attemptLoginFinalize(session: BuyinSession): Promise<'logged_in' 
     session.status = 'logged_in';
     if (session.timer) clearTimeout(session.timer);
     session.timer = null;
+    // 持久化到受限文件（供调度器/执行器在内存会话过期后仍能取数）
+    if (session.cookie && session.cookie.length) {
+      try {
+        persistAccountCookies(session.cookie, session.accountHint);
+      } catch {
+        // 持久化失败不阻断登录成功，仅影响后续自动调度取数
+      }
+    }
   } catch (e) {
     session.status = 'waiting_scan';
     session.error = e instanceof Error ? e.message : String(e);
