@@ -5,6 +5,11 @@ export const SESSION_TTL = 5 * 60 * 1000;
 
 const LOGIN_URL = 'https://buyin.jinritemai.com/mpa/account/login?log_out=1&type=24';
 const COMPASS_URL = 'https://compass.jinritemai.com/';
+// 罗盘视角业务页（buyin 直播明细 + 罗盘直播复盘）：真实登录会话里打开会触发
+// /compass_api/author/** 鉴权并回填 ecom_us_lt_compass / ucas_c0_compass / LUOPAN_DT 这组 cookie
+const BUYIN_COMPASS_LIVE_LIST = 'https://buyin.jinritemai.com/dashboard/compass-home/live-list';
+const COMPASS_STATEMENT = 'https://compass.jinritemai.com/talent/live-statement';
+const COMPASS_COOKIE_MARKS = ['ecom_us_lt_compass', 'ucas_c0_compass', 'LUOPAN_DT'];
 
 const LAUNCH_ARGS = [
   '--no-sandbox',
@@ -145,20 +150,29 @@ async function extractCookie(session: BuyinSession): Promise<void> {
 }
 
 /**
- * 在已登录（同一下文）后导航一次电商罗盘，等 compass 域 cookie 写齐（buyin 已登录时 compass
- * 自动 SSO 复用同 sessionid，不需二次扫码）。成功标志：出现 ecom_us_lt_compass / ucas_c0_compass / LUOPAN_DT 之一。
+ * 在已登录（同一下文）后补齐电商罗盘 cookie。buyin 已登录时罗盘会复用同 sessionid 自动 SSO，不需二次扫码。
+ * 实战验证：仅开罗盘首页不会 set ecom_us_lt_compass 组，必须导航进罗盘商务模块（buyin 直播明细 / 罗盘直播复盘）
+ * 触发 /compass_api/author/** 鉴权才会回填。此处依序打开多个模块并轮询，任一回填即成功。
  */
 async function ensureCompassCookies(session: BuyinSession): Promise<void> {
   let compassPage: Page | null = null;
+  const deadline = Date.now() + 45000;
+  const gotCompass = async (): Promise<boolean> => {
+    const c = await session.context.cookies(['https://compass.jinritemai.com']);
+    return c.some((x) => COMPASS_COOKIE_MARKS.includes(x.name));
+  };
   try {
+    // 给刚完成的 buyin 登录一小段沉降，避免罗盘导航过早、SSO 未就绪
+    await new Promise((r) => setTimeout(r, 2000));
     compassPage = await session.context.newPage();
-    await compassPage.goto(COMPASS_URL, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => undefined);
-    const deadline = Date.now() + 20000;
+    const urls = [COMPASS_URL, BUYIN_COMPASS_LIVE_LIST, COMPASS_STATEMENT, COMPASS_URL];
+    for (const u of urls) {
+      if (await gotCompass()) break;
+      await compassPage.goto(u, { waitUntil: 'load', timeout: 25000 }).catch(() => undefined);
+    }
     while (Date.now() < deadline) {
-      const c = await session.context.cookies(['https://compass.jinritemai.com']);
-      const names = c.map((x) => x.name);
-      if (names.includes('ecom_us_lt_compass') || names.includes('ucas_c0_compass') || names.includes('LUOPAN_DT')) return;
-      await compassPage.waitForTimeout(1000);
+      if (await gotCompass()) break;
+      await compassPage.waitForTimeout(1500);
     }
   } catch {
     /* 拿不到 compass cookie 不抛——extractCookie 仍会保存文档状态，门控会如实判不完整 */
