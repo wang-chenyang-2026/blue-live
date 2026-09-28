@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import TaskConfigPanel from '@/components/buyin/TaskConfigPanel';
+import ResultsPanel from '@/components/buyin/ResultsPanel';
 
 interface StartRes {
   ok: boolean;
@@ -194,6 +195,8 @@ export default function BuyinSpikePage() {
         </p>
         <TaskConfigPanel loggedIn={phase === 'logged_in'} accountHint={phase === 'logged_in' ? accountHint : null} />
       </div>
+
+      <ResultsPanel />
     </div>
   );
 }

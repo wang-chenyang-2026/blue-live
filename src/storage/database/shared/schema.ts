@@ -227,4 +227,40 @@ export const buyinRunLogs = pgTable(
 export type BuyinTask = typeof buyinTasks.$inferSelect;
 export type BuyinRunLog = typeof buyinRunLogs.$inferSelect;
 export type InsertBuyinRunLog = typeof buyinRunLogs.$inferInsert;
+
+// 百应取数结果数据行（M4）。run 成功/部分成功拿到 parse 后 upsert 入库。
+// 幂等唯一键 (account_key, stat_date, data_type, dim_key)：重跑同一统计日覆盖更新，不堆叠。
+// cookie/签名串一律不入本表（row_json 仅含业务指标字段）。
+export const buyinData = pgTable(
+  "buyin_data",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    // 来源任务（可为空表示系统级采集）
+    task_id: varchar("task_id", { length: 36 }),
+    account_hint: varchar("account_hint", { length: 128 }),
+    account_key: varchar("account_key", { length: 32 }).notNull(),
+    // 统计日 YYYY-MM-DD
+    stat_date: varchar("stat_date", { length: 10 }).notNull(),
+    // day / hour / anchor / product
+    data_type: varchar("data_type", { length: 16 }).notNull(),
+    // day='day'；hour=统计时段；anchor=主播标识；product='product'（skill 单日单聚合行）
+    dim_key: varchar("dim_key", { length: 255 }).notNull(),
+    live_room_id: varchar("live_room_id", { length: 64 }),
+    // 全量业务字段（英文字段名行）
+    row_json: jsonb("row_json").notNull(),
+    crawl_status: varchar("crawl_status", { length: 32 }),
+    state_desc: varchar("state_desc", { length: 255 }),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("buyin_data_upsert_unique").on(table.account_key, table.stat_date, table.data_type, table.dim_key),
+    index("buyin_data_stat_date_idx").on(table.stat_date),
+    index("buyin_data_data_type_idx").on(table.data_type),
+    index("buyin_data_task_id_idx").on(table.task_id),
+  ]
+);
+
+export type BuyinData = typeof buyinData.$inferSelect;
+export type InsertBuyinData = typeof buyinData.$inferInsert;
 export type InsertBuyinTask = typeof buyinTasks.$inferInsert;

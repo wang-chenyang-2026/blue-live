@@ -4,6 +4,7 @@ import { spawn } from 'child_process';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { liveCookies, type StoredCookie } from '@/lib/buyin-session';
 import { persistAccountCookies, resolveCookieFileForAccount, type PersistedCookie } from '@/lib/buyin-cookie-store';
+import { persistBuyinRows } from '@/lib/buyin-persist';
 
 /**
  * 百应采集任务执行器（M3 + 补单）。
@@ -338,11 +339,22 @@ export async function runTask(task: BuyinRuntimeTask, opts: RunOptions): Promise
       outcome = { runId, status: 'failed', rowCount: 0, requestCount: 0, statDates, errorSummary: '取数签名SDK未就绪（缺 scripts/by_sign/vendor），无法对 /compass_api/author/** 签名，未发起真实取数', detail: null };
     } else {
       const res = await runFetchProcess(task, pc.file, statDates, gran);
+      // 成功/部分成功拿到 parse 后，把真实数据行 upsert 进 buyin_data（重跑同统计日覆盖，不堆叠）
+      let savedRows = res.rows;
+      if ((res.status === 'success' || res.status === 'partial') && res.rows > 0) {
+        const persisted = await persistBuyinRows(res.dataDir, statDates, {
+          taskId: task.id,
+          accountHint,
+          accountKey: pc.accountKey,
+        });
+        savedRows = persisted.count;
+        if (persisted.failed > 0) res.errors.push(`入库失败 ${persisted.failed} 行（已上库 ${persisted.count} 行）`);
+      }
       const errText = res.errors.map((s) => sanitizeError(new Error(s))).join('；');
       outcome = {
         runId,
         status: res.status,
-        rowCount: res.rows,
+        rowCount: savedRows,
         requestCount: res.rawDumps,
         statDates,
         errorSummary: errText || null,
