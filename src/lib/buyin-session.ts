@@ -5,7 +5,6 @@ export const SESSION_TTL = 5 * 60 * 1000;
 
 const LOGIN_URL = 'https://buyin.jinritemai.com/mpa/account/login?log_out=1&type=24';
 const COMPASS_URL = 'https://compass.jinritemai.com/';
-const COOKIE_HOSTS = ['https://buyin.jinritemai.com', 'https://compass.jinritemai.com'];
 
 const LAUNCH_ARGS = [
   '--no-sandbox',
@@ -132,14 +131,39 @@ async function captureLoginQr(page: Page): Promise<{ shot: Buffer; shotMode: str
 async function extractCookie(session: BuyinSession): Promise<void> {
   // 已登录后从会话上下文提取目标 host 的 cookie（安全存储，不回显值）
   try {
-    const cookies = await session.context.cookies(COOKIE_HOSTS);
-    const safe = cookies.map((c) => ({ name: c.name, value: c.value, domain: c.domain }));
+    const buyinCookies = await session.context.cookies(['https://buyin.jinritemai.com']);
+    const compassCookies = await session.context.cookies(['https://compass.jinritemai.com']);
+    // buyin 在前、compass 在后：同名以 compass 为准（对齐 skill cookies.update(compass_cookies)）
+    const safe = [...buyinCookies, ...compassCookies].map((c) => ({ name: c.name, value: c.value, domain: c.domain }));
     session.cookie = safe;
     session.cookieCount = safe.length;
     const hit = safe.find((c) => /(^|_)(uid|user|account|name|nick)(_|$)/i.test(c.name));
     session.accountHint = hit ? hit.value.slice(0, 40) : null;
   } catch {
     session.cookieCount = 0;
+  }
+}
+
+/**
+ * 在已登录（同一下文）后导航一次电商罗盘，等 compass 域 cookie 写齐（buyin 已登录时 compass
+ * 自动 SSO 复用同 sessionid，不需二次扫码）。成功标志：出现 ecom_us_lt_compass / ucas_c0_compass / LUOPAN_DT 之一。
+ */
+async function ensureCompassCookies(session: BuyinSession): Promise<void> {
+  let compassPage: Page | null = null;
+  try {
+    compassPage = await session.context.newPage();
+    await compassPage.goto(COMPASS_URL, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => undefined);
+    const deadline = Date.now() + 20000;
+    while (Date.now() < deadline) {
+      const c = await session.context.cookies(['https://compass.jinritemai.com']);
+      const names = c.map((x) => x.name);
+      if (names.includes('ecom_us_lt_compass') || names.includes('ucas_c0_compass') || names.includes('LUOPAN_DT')) return;
+      await compassPage.waitForTimeout(1000);
+    }
+  } catch {
+    /* 拿不到 compass cookie 不抛——extractCookie 仍会保存文档状态，门控会如实判不完整 */
+  } finally {
+    if (compassPage) await compassPage.close().catch(() => undefined);
   }
 }
 
@@ -254,12 +278,8 @@ export async function getSessionStatus(sessionId: string): Promise<{
 async function attemptLoginFinalize(session: BuyinSession): Promise<'logged_in' | 'waiting_scan'> {
   session.status = 'starting';
   try {
-    // 触发 compass 首页复用该登录会话，让 cookie 覆盖两个 host
-    const extra = await session.context.newPage();
-    await extra.goto(COMPASS_URL, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => undefined);
-    await extra.waitForTimeout(1500).catch(() => undefined);
-    await extra.close().catch(() => undefined);
-
+    // 先导航 compass 首页复用登录会话，等 compass 域 cookie 写齐（含 ecom_us_lt_compass 等）
+    await ensureCompassCookies(session);
     await extractCookie(session);
     session.status = 'logged_in';
     if (session.timer) clearTimeout(session.timer);
