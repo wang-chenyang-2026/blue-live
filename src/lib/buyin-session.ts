@@ -1,4 +1,6 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core';
+import { existsSync } from 'fs';
+import { spawn, type ChildProcess } from 'child_process';
 import { persistAccountCookies } from './buyin-cookie-store';
 
 export const SESSION_TTL = 5 * 60 * 1000;
@@ -197,7 +199,33 @@ function scheduleExpiry(session: BuyinSession, ttlMs: number): void {
 }
 
 /**
- * 启动一次常驻扫码会话：拉起无头浏览器→开百应登录页→取二维码，浏览器保持不关。
+ * Xvfb 常驻管理：把扫码浏览器以 headful 模式显示到虚拟显示器，行为贴近真实 Chrome，
+ * 让 buyin→compass 的 SSO 握手能自然 SET ecom_us_lt_compass 等罗盘 cookie。
+ * 有 DISPLAY 即 headful；读不到 Xvfb 或无可用显示时回退 headless（不阻断扫码）。
+ */
+let xvfbProc: ChildProcess | null = null;
+function xvfbDisplayRunning(display: string): boolean {
+  const num = display.replace(/^:/, '').split('.')[0];
+  return existsSync(`/tmp/.X11-unix/X${num}`);
+}
+function ensureXvfb(display = process.env.BUYIN_DISPLAY || ':99'): string {
+  if (process.env.BUYIN_HEADLESS === '1') return '';
+  if (!xvfbProc && !xvfbDisplayRunning(display)) {
+    try {
+      xvfbProc = spawn('Xvfb', [display, '-screen', '0', '1280x800x24', '-nolisten', 'tcp'], {
+        stdio: 'ignore',
+        detached: true,
+      });
+      xvfbProc.unref();
+    } catch {
+      xvfbProc = null;
+    }
+  }
+  return xvfbDisplayRunning(display) ? display : '';
+}
+
+/**
+ * 启动一次常驻扫码会话：拉起浏览器→开百应登录页→取二维码，浏览器保持不关。
  * 已存在会话会先关闭（避免堆积/旧二维码被占用）。
  */
 export async function startSession(
@@ -206,7 +234,10 @@ export async function startSession(
   const ttlMs = opts.ttlMs ?? readEnvTtl();
   for (const s of Array.from(sessions.values())) disposeSession(s);
 
-  const browser = await chromium.launch({ headless: true, args: LAUNCH_ARGS });
+  const display = ensureXvfb();
+  const headless = !display;
+  const env = display ? { ...process.env, DISPLAY: display } : undefined;
+  const browser = await chromium.launch({ headless, args: LAUNCH_ARGS, env });
   const context = await browser.newContext({
     viewport: { width: 1280, height: 900 },
     locale: 'zh-CN',

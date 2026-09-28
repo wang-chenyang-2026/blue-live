@@ -2,8 +2,8 @@ import { existsSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { spawn } from 'child_process';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { liveCookies, type StoredCookie } from '@/lib/buyin-session';
-import { persistAccountCookies, resolveCookieFileForAccount, type PersistedCookie } from '@/lib/buyin-cookie-store';
+import { liveCookies } from '@/lib/buyin-session';
+import { persistAccountCookies, resolveCookieFileForAccount, preferCompleteAccount, type PersistedCookie } from '@/lib/buyin-cookie-store';
 import { persistBuyinRows } from '@/lib/buyin-persist';
 
 /**
@@ -156,27 +156,41 @@ export function signSdkReady(): boolean {
 
 /**
  * 解析本次执行应使用的登录态（持久文件优先，进程内内存兜底并顺手落盘）。
- * 返回 null 表示没有任何可用登录态。
+ * 账号 auto-align 原则：
+ *   1) 任务显式指定 by_account 且持久文件里存在 → 尊重显式选择（即使不完整，也交给下层校验报错）；
+ *   2) 否则/未匹配 → 自动打到「最近一次成功扫码且 buyin+compass 齐全」的账号（不写死、随扫码更新漂移）；
+ *   3) 无持久文件 → 用进程内已登录会话兜底并立即落盘，之后以持久文件为准。
+ * 返回 { pc, alignedByAccount }：alignedByAccount 为本次实际生效的账号标识（供下发 skill 与入库对齐）。
  */
-export async function resolveExecutableCookie(task: BuyinRuntimeTask): Promise<PersistedCookie | null> {
-  const persisted = resolveCookieFileForAccount(task.by_account || null);
-  if (persisted && Object.keys(persisted.cookies).length) return persisted;
+export async function resolveExecutableCookie(
+  task: BuyinRuntimeTask,
+): Promise<{ pc: PersistedCookie | null; alignedByAccount: string | null }> {
+  const want = (task.by_account || '').trim();
+
+  if (want) {
+    const explicit = resolveCookieFileForAccount(want);
+    if (explicit && Object.keys(explicit.cookies).length) {
+      return { pc: explicit, alignedByAccount: explicit.accountHint || want };
+    }
+  }
+
+  const best = preferCompleteAccount();
+  if (best && Object.keys(best.cookies).length) {
+    return { pc: best, alignedByAccount: best.accountHint || want || null };
+  }
 
   // 无持久文件：用进程内已登录会话兜底，并把其 cookie 立即落盘，之后以持久文件为准
   const sessions = liveCookies();
   if (sessions.length) {
-    let match: { accountHint: string | null; cookie: StoredCookie[] | null } | undefined;
-    const want = (task.by_account || '').trim();
-    if (want) match = sessions.find((s) => s.accountHint && s.accountHint.includes(want.slice(0, 30)));
-    else match = sessions[0];
-    if (!match) match = sessions[0];
+    const match = want ? sessions.find((s) => s.accountHint && s.accountHint.includes(want.slice(0, 30))) || sessions[0] : sessions[0];
     if (match && match.cookie && match.cookie.length) {
-      persistAccountCookies(match.cookie, match.accountHint || task.by_account || null);
-      const hit = resolveCookieFileForAccount(match.accountHint || task.by_account || '');
-      if (hit) return hit;
+      const key = match.accountHint || want || null;
+      persistAccountCookies(match.cookie, key);
+      const hit = resolveCookieFileForAccount(key || match.accountHint || '');
+      if (hit) return { pc: hit, alignedByAccount: hit.accountHint || key || null };
     }
   }
-  return null;
+  return { pc: null, alignedByAccount: want || null };
 }
 
 /** 校验持久 cookie 是否具备取数所需的最小集合。 */
@@ -202,6 +216,7 @@ function runFetchProcess(
   cookieFile: string,
   dates: string[],
   gran: string[],
+  effHint: string | null,
 ): Promise<FetchResult> {
   return new Promise((resolve) => {
     if (!existsSync(RUN_SCRIPT)) {
@@ -216,7 +231,7 @@ function runFetchProcess(
       '--cookie-file', cookieFile,
     ];
     if (task.with_product_detail) args.push('--with-product-detail');
-    if (task.by_account) args.push('--by-account', task.by_account);
+    if (effHint) args.push('--by-account', effHint);
     if (task.by_kol_id) args.push('--by-kol-id', task.by_kol_id);
 
     const proc = spawn('python3', args, {
@@ -330,7 +345,8 @@ export async function runTask(task: BuyinRuntimeTask, opts: RunOptions): Promise
 
   let outcome: RunOutcome;
   try {
-    const pc = await resolveExecutableCookie(task);
+    const { pc, alignedByAccount } = await resolveExecutableCookie(task);
+    const effHint = alignedByAccount || accountHint;
     if (!pc) {
       outcome = { runId, status: 'failed', rowCount: 0, requestCount: 0, statDates, errorSummary: '无可用登录态：未找到该账号的持久登录态，请在百应页重新扫码登录', detail: '调度执行以持久 cookie 文件为准；当前无可用登录态，未发起任何真实取数请求' };
     } else if (!validateCookieCompleteness(pc).ok) {
@@ -338,13 +354,13 @@ export async function runTask(task: BuyinRuntimeTask, opts: RunOptions): Promise
     } else if (!signSdkReady()) {
       outcome = { runId, status: 'failed', rowCount: 0, requestCount: 0, statDates, errorSummary: '取数签名SDK未就绪（缺 scripts/by_sign/vendor），无法对 /compass_api/author/** 签名，未发起真实取数', detail: null };
     } else {
-      const res = await runFetchProcess(task, pc.file, statDates, gran);
+      const res = await runFetchProcess(task, pc.file, statDates, gran, effHint);
       // 成功/部分成功拿到 parse 后，把真实数据行 upsert 进 buyin_data（重跑同统计日覆盖，不堆叠）
       let savedRows = res.rows;
       if ((res.status === 'success' || res.status === 'partial') && res.rows > 0) {
         const persisted = await persistBuyinRows(res.dataDir, statDates, {
           taskId: task.id,
-          accountHint,
+          accountHint: effHint,
           accountKey: pc.accountKey,
         });
         savedRows = persisted.count;

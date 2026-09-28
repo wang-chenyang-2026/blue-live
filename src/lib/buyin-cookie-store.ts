@@ -112,3 +112,28 @@ export function resolveCookieFileForAccount(accountHint: string | null): Persist
   }
   return all.length === 1 ? all[0] : null;
 }
+
+const BUYIN_MARKS = ['sessionid', 'ecom_us_lt_buyin'];
+const COMPASS_MARKS = ['ecom_us_lt_compass', 'ucas_c0_compass', 'LUOPAN_DT'];
+
+/** 取数所需最小集合：buyin（sessionid/ecom_us_lt_buyin）+ compass（ecom_us_lt_compass）。 */
+export function hasCompleteCookies(cookies: Record<string, string>): boolean {
+  const c = cookies || {};
+  return BUYIN_MARKS.every((k) => !!c[k]) && !!c['ecom_us_lt_compass'];
+}
+
+/** 罗盘组覆盖情况（次要：罗盘 cookie 越多越有利于罗盘接口鉴权）。 */
+export function compassCoverage(cookies: Record<string, string>): number {
+  const c = cookies || {};
+  return COMPASS_MARKS.filter((k) => !!c[k]).length;
+}
+
+/**
+ * 账号 auto-align：以「最近一次成功扫码且 buyin+compass 齐全」的账号为优先。
+ * 仅返回完整账号中 update_time 最新者；无任何完整账号则返回 null（不得拿旧的不完整账号硬取数）。
+ */
+export function preferCompleteAccount(): PersistedCookie | null {
+  const complete = listPersistedAccounts().filter((p) => hasCompleteCookies(p.cookies));
+  if (!complete.length) return null;
+  return complete.sort((a, b) => (a.updateTime < b.updateTime ? 1 : -1))[0];
+}
