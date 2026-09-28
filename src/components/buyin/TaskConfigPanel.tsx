@@ -118,6 +118,82 @@ export default function TaskConfigPanel({ loggedIn, accountHint }: { loggedIn: b
   const [tasks, setTasks] = useState<TaskResp[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
 
+interface RunInfo {
+  id: string;
+  trigger_type: string;
+  stat_dates: string[];
+  granularities: string[];
+  status: string;
+  row_count: number;
+  request_count: number;
+  error_summary: string | null;
+  started_at: string;
+  finished_at: string | null;
+}
+const [runs, setRuns] = useState<Record<string, RunInfo[]>>({});
+const [showRuns, setShowRuns] = useState<Record<string, boolean>>({});
+const [runningId, setRunningId] = useState<string | null>(null);
+
+const STATUS_CN: Record<string, string> = {
+  running: 'text-sky-400',
+  success: 'text-emerald-400',
+  partial: 'text-amber-400',
+  failed: 'text-red-400',
+  skipped: 'text-zinc-400',
+};
+const STATUS_LABEL: Record<string, string> = {
+  running: '运行中',
+  success: '成功',
+  partial: '部分成功',
+  failed: '失败',
+  skipped: '已跳过',
+};
+
+function fmtDate(s: string | null | undefined): string {
+  if (!s) return '—';
+  const d = new Date(s);
+  const p = (x: number) => String(x).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+const loadRuns = useCallback(
+  async (taskId: string) => {
+    try {
+      const d = (await (await fetch(`/api/buyin-spike/tasks/${taskId}/runs`)).json()) as { success: boolean; runs: RunInfo[] };
+      if (d.success) setRuns((prev) => ({ ...prev, [taskId]: d.runs ?? [] }));
+    } catch {
+      /* ignore */
+    }
+  },
+  [],
+);
+
+async function toggleRuns(taskId: string) {
+  const open = !showRuns[taskId];
+  setShowRuns((prev) => ({ ...prev, [taskId]: open }));
+  if (open && !runs[taskId]) await loadRuns(taskId);
+}
+
+async function doRunNow(task: TaskResp) {
+  setMsg('正在执行…');
+  setRunningId(task.id);
+  try {
+    const d = (await (
+      await fetch(`/api/buyin-spike/tasks/${task.id}/run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    ).json()) as { success: boolean; error?: string; run?: { id: string; status: string; statDates: string[]; errorSummary: string | null } };
+    if (d.success) {
+      setMsg(`已触发执行：${STATUS_LABEL[d.run?.status ?? ''] ?? d.run?.status ?? ''}（统计日 ${(d.run?.statDates ?? []).join(',') || '—'}${d.run?.errorSummary ? '，' + d.run.errorSummary : ''}）`);
+      await loadRuns(task.id);
+    } else {
+      setMsg(d.error || '执行失败');
+    }
+  } catch {
+    setMsg('执行请求失败');
+  } finally {
+    setRunningId(null);
+  }
+}
+
   const supported = useMemo<BuyinGranularity[]>(() => grans, [grans]);
   const supportedFieldsList = useMemo(() => supportedFields(supported), [supported]);
   const grouped = useMemo(() => groupFieldsByCat(supportedFieldsList, BUYIN_CATS), [supportedFieldsList]);
@@ -539,10 +615,15 @@ export default function TaskConfigPanel({ loggedIn, accountHint }: { loggedIn: b
           </button>
           <button
             type="button"
-            onClick={() => setMsg('调度执行将在下一阶段启用（M3 实现）')}
-            className="rounded-md border border-border px-4 py-2 text-sm text-foreground"
+            disabled={!editingId || runningId !== null}
+            onClick={() => {
+              const t = tasks.find((x) => x.id === editingId);
+              if (t) void doRunNow(t);
+              else setMsg('请先在「已保存任务」中“编辑”打开目标任务后再执行');
+            }}
+            className="rounded-md border border-border px-4 py-2 text-sm text-foreground transition disabled:opacity-50"
           >
-            立即执行一次
+            {runningId === editingId ? '执行中…' : '立即执行一次'}
           </button>
           {editingId && (
             <button type="button" onClick={resetForm} className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground">
@@ -558,53 +639,88 @@ export default function TaskConfigPanel({ loggedIn, accountHint }: { loggedIn: b
             <h3 className="mb-2 text-sm font-medium">已保存任务</h3>
             <div className="space-y-2">
               {tasks.map((t) => (
-                <div key={t.id} className="flex items-center justify-between rounded-lg border border-border bg-card p-3 text-sm">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className={t.enabled ? 'font-medium' : 'font-medium text-muted-foreground'}>{t.name}</span>
-                      {!t.enabled && <span className="text-xs text-muted-foreground">已停用</span>}
+                <div key={t.id} className="rounded-lg border border-border bg-card p-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={t.enabled ? 'font-medium' : 'font-medium text-muted-foreground'}>{t.name}</span>
+                        {!t.enabled && <span className="text-xs text-muted-foreground">已停用</span>}
+                      </div>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {(t.by_account || t.by_kol_id || '当前登录账号')} · {t.granularities.join(' / ')} · {t.selected_fields.length} 指标 ·{' '}
+                        {freqText(t)}
+                        {t.run_time ? ` · ${t.run_time}` : ''} · 交付 {t.delivery_auto_create ? '自动新建' : '指定表格'}
+                        {t.delivery_feishu_token ? '（有Token）' : ''}
+                        {t.creator_name ? ` · 创建人 ${t.creator_name}` : ''}
+                      </p>
                     </div>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {(t.by_account || t.by_kol_id || '当前登录账号')} · {t.granularities.join(' / ')} · {t.selected_fields.length} 指标 ·{' '}
-                      {freqText(t)}
-                      {t.run_time ? ` · ${t.run_time}` : ''} · 交付 {t.delivery_auto_create ? '自动新建' : '指定表格'}
-                      {t.delivery_feishu_token ? '（有Token）' : ''}
-                      {t.creator_name ? ` · 创建人 ${t.creator_name}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <input
-                      type="checkbox"
-                      className="accent-primary"
-                      checked={t.enabled}
-                      title="启用 / 停用"
-                      onChange={() => toggleEnabled(t)}
-                    />
-                    <button
-                      onClick={() => {
-                        fillForm(t);
-                        setEditingId(t.id);
-                        setMsg('编辑中…保存后生效');
-                      }}
-                      className="text-xs text-primary hover:underline"
-                    >
-                      编辑
-                    </button>
-                    {confirmingDelete === t.id ? (
-                      <span className="flex items-center gap-1 text-xs">
-                        <button onClick={() => doDelete(t.id)} className="text-red-500 hover:underline">
-                          确认
-                        </button>
-                        <button onClick={() => setConfirmingDelete(null)} className="text-muted-foreground hover:underline">
-                          取消
-                        </button>
-                      </span>
-                    ) : (
-                      <button onClick={() => setConfirmingDelete(t.id)} className="text-xs text-red-500 hover:underline">
-                        删除
+                    <div className="flex shrink-0 items-center gap-3">
+                      <input
+                        type="checkbox"
+                        className="accent-primary"
+                        checked={t.enabled}
+                        title="启用 / 停用"
+                        onChange={() => toggleEnabled(t)}
+                      />
+                      <button
+                        onClick={() => void doRunNow(t)}
+                        disabled={runningId !== null}
+                        className="text-xs text-primary hover:underline disabled:opacity-50"
+                      >
+                        {runningId === t.id ? '执行中…' : '立即执行'}
                       </button>
-                    )}
+                      <button
+                        onClick={() => void toggleRuns(t.id)}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        {showRuns[t.id] ? '收起运行记录' : '运行记录' + (runs[t.id]?.length ? `(${runs[t.id].length})` : '')}
+                      </button>
+                      <button
+                        onClick={() => {
+                          fillForm(t);
+                          setEditingId(t.id);
+                          setMsg('编辑中…保存后生效');
+                        }}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        编辑
+                      </button>
+                      {confirmingDelete === t.id ? (
+                        <span className="flex items-center gap-1 text-xs">
+                          <button onClick={() => doDelete(t.id)} className="text-red-500 hover:underline">
+                            确认
+                          </button>
+                          <button onClick={() => setConfirmingDelete(null)} className="text-muted-foreground hover:underline">
+                            取消
+                          </button>
+                        </span>
+                      ) : (
+                        <button onClick={() => setConfirmingDelete(t.id)} className="text-xs text-red-500 hover:underline">
+                          删除
+                        </button>
+                      )}
+                    </div>
                   </div>
+                  {showRuns[t.id] && (
+                    <div className="mt-2 border-t border-border pt-2">
+                      {!runs[t.id] || runs[t.id].length === 0 ? (
+                        <p className="text-xs text-muted-foreground">暂无运行记录。</p>
+                      ) : (
+                        <ul className="space-y-1">
+                          {runs[t.id].map((r) => (
+                            <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
+                              <span className={STATUS_CN[r.status] || 'text-foreground'}>{STATUS_LABEL[r.status] ?? r.status}</span>
+                              <span className="text-muted-foreground">{r.trigger_type === 'auto' ? '自动' : '手动'}</span>
+                              <span className="text-muted-foreground">统计日 {(r.stat_dates || []).join(',') || '—'}</span>
+                              <span className="text-muted-foreground">行 {r.row_count} · 请求 {r.request_count}</span>
+                              <span className="text-muted-foreground">{fmtDate(r.started_at)}</span>
+                              {r.error_summary ? <span className="w-full truncate text-red-400/80" title={r.error_summary}>原因：{r.error_summary}</span> : null}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

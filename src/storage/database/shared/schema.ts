@@ -196,5 +196,35 @@ export type SopDocument = typeof sopDocuments.$inferSelect;
 export type InsertSopDocument = typeof sopDocuments.$inferInsert;
 export type SopCategory = typeof sopCategories.$inferSelect;
 export type SopReadLog = typeof sopReadLogs.$inferSelect;
+
+// 百应采集任务执行记录（M3）。trigger_type=auto/manual；status=running/success/partial/failed/skipped。
+// cookie/签名串一律不入本表；error_summary 仅记录风控/缺数据/缺登录态等非敏感原因。
+export const buyinRunLogs = pgTable(
+  "buyin_run_logs",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    task_id: varchar("task_id", { length: 36 }).notNull(),
+    account_hint: varchar("account_hint", { length: 128 }),
+    trigger_type: varchar("trigger_type", { length: 12 }).notNull(),
+    // 本次实际溯源的统计日（ISO 日期），如 ["2026-09-25"]
+    stat_dates: jsonb("stat_dates").notNull().default([]).$type<string[]>(),
+    granularities: jsonb("granularities").notNull().default([]).$type<string[]>(),
+    status: varchar("status", { length: 16 }).notNull().default("running"),
+    row_count: integer("row_count").notNull().default(0),
+    request_count: integer("request_count").notNull().default(0),
+    error_summary: text("error_summary"),
+    detail: text("detail"),
+    started_at: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+    finished_at: timestamp("finished_at", { withTimezone: true }),
+    creator_id: varchar("creator_id", { length: 64 }),
+  },
+  (table) => [
+    index("buyin_run_logs_task_idx").on(table.task_id),
+    index("buyin_run_logs_task_started_idx").on(table.task_id, table.started_at),
+  ]
+);
+
 export type BuyinTask = typeof buyinTasks.$inferSelect;
+export type BuyinRunLog = typeof buyinRunLogs.$inferSelect;
+export type InsertBuyinRunLog = typeof buyinRunLogs.$inferInsert;
 export type InsertBuyinTask = typeof buyinTasks.$inferInsert;

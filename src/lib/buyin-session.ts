@@ -293,3 +293,14 @@ export function getSession(sessionId: string): BuyinSession | undefined {
 export function liveSessions(): number {
   return sessions.size;
 }
+
+/** 返回进程内所有已登录会话的登录态（仅供同进程执行器使用，不与外部交互、不回落盘）。 */
+export function liveCookies(): Array<{ accountHint: string | null; cookie: StoredCookie[] | null }> {
+  const out: Array<{ accountHint: string | null; cookie: StoredCookie[] | null }> = [];
+  for (const s of sessions.values()) {
+    if (s.status === 'logged_in' && s.cookie && s.cookie.length) {
+      out.push({ accountHint: s.accountHint, cookie: s.cookie });
+    }
+  }
+  return out;
+}
