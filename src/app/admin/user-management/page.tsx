@@ -56,11 +56,11 @@ const PROJECT_OPTIONS = [
 function statusBadge(status: UserRow['status']) {
   switch (status) {
     case 'approved':
-      return <Badge className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border-emerald-500/40">已通过</Badge>;
+      return <Badge className="bg-[#34C759]/20 text-[#34C759] hover:bg-[#34C759]/30 border-[#34C759]/40">已通过</Badge>;
     case 'pending':
-      return <Badge className="bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 border-yellow-500/40">待审批</Badge>;
+      return <Badge className="bg-[#FF9F0A]/20 text-[#FF9F0A] hover:bg-[#FF9F0A]/30 border-[#FF9F0A]/40">待审批</Badge>;
     case 'rejected':
-      return <Badge className="bg-red-500/20 text-red-400 hover:bg-red-500/30 border-red-500/40">已拒绝</Badge>;
+      return <Badge className="bg-[#F5483B]/20 text-[#F5483B] hover:bg-[#F5483B]/30 border-[#F5483B]/40">已拒绝</Badge>;
     case 'terminated':
       return <Badge className="bg-zinc-500/20 text-zinc-400 hover:bg-zinc-500/30 border-zinc-500/40">停止合作</Badge>;
   }
@@ -279,8 +279,8 @@ export default function UserManagementPage() {
       </div>
 
       {error && (
-        <Card className="border-red-500/50">
-          <CardContent className="pt-6 text-red-400 text-sm">
+        <Card className="border-[#FF9F0A]/50">
+          <CardContent className="pt-6 text-[#FF9F0A] text-sm">
             加载失败：{error}
           </CardContent>
         </Card>

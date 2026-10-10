@@ -86,10 +86,10 @@ type ApiResponse = SingleBrandResponse | AllBrandsResponse;
 
 /* ========== Brand Config ========== */
 const BRAND_TABS = [
-  { id: 'all', label: '全部', color: '#a78bfa' },
-  { id: 'vivo', label: 'vivo', color: '#415FFF' },
-  { id: 'iQOO', label: 'iQOO', color: '#FF6B35' },
-  { id: 'IOT', label: 'IOT', color: '#00C9A7' },
+  { id: 'all', label: '全部', color: '#2A2E45' },
+  { id: 'vivo', label: 'vivo', color: '#2A2E45' },
+  { id: 'iQOO', label: 'iQOO', color: '#2A2E45' },
+  { id: 'IOT', label: 'IOT', color: '#2A2E45' },
 ] as const;
 
 type BrandTabId = typeof BRAND_TABS[number]['id'];
@@ -541,7 +541,7 @@ export default function DataOverviewPage() {
       if (!bd?.dailyData) continue;
 
       const accounts = bd.accounts || [];
-      const brandColor = bd.color || BRAND_TABS.find(b => b.id === brandKey)?.color || '#a78bfa';
+      const brandColor = bd.color || BRAND_TABS.find(b => b.id === brandKey)?.color || '#2A2E45';
 
       for (const accountName of accounts) {
         const accountRows = bd.dailyData.filter(d => d.accountName === accountName);
@@ -650,7 +650,7 @@ export default function DataOverviewPage() {
   // Get brand color
   const getBrandColor = () => {
     const tab = BRAND_TABS.find((t) => t.id === activeBrand);
-    return tab?.color || '#415FFF';
+    return tab?.color || '#4158D0';
   };
 
   const brandColor = getBrandColor();
@@ -683,7 +683,7 @@ export default function DataOverviewPage() {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center space-y-3">
-          <p className="text-red-400">{error}</p>
+          <p className="text-[#FF9F0A]">{error}</p>
           <Button variant="outline" onClick={() => fetchData('all')}>重试</Button>
         </div>
       </div>
@@ -787,7 +787,7 @@ export default function DataOverviewPage() {
                       if (prev === 0) return cur > 0 ? 100 : 0;
                       return ((cur - prev) / prev) * 100;
                     };
-                    const colorClass = (val: number) => val > 0 ? 'text-emerald-400' : val < 0 ? 'text-red-400' : 'text-zinc-500';
+                    const colorClass = (val: number) => val > 0 ? 'text-[#F5483B]' : val < 0 ? 'text-[#34C759]' : 'text-zinc-500';
 
                     const dDelta = calcDelta(row.curDuration, row.prevDuration);
                     const dRate = calcRate(row.curDuration, row.prevDuration);
@@ -862,7 +862,7 @@ export default function DataOverviewPage() {
         {/* Data Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Brand Summary Card */}
-          <Card className="bg-gradient-to-br from-[#415FFF]/20 to-[#415FFF]/5 border-[#415FFF]/30" style={{ borderColor: `${brandColor}50`, background: `linear-gradient(to bottom right, ${brandColor}33, ${brandColor}0d)` }}>
+          <Card className="bg-gradient-to-br from-[#4158D0]/20 to-[#4158D0]/5 border-[#4158D0]/30" style={{ borderColor: `${brandColor}50`, background: `linear-gradient(to bottom right, ${brandColor}33, ${brandColor}0d)` }}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm text-zinc-300">{currentBrandData.brandLabel} 汇总</CardTitle>
             </CardHeader>
@@ -877,7 +877,7 @@ export default function DataOverviewPage() {
               </div>
               <div>
                 <div className="text-xs text-zinc-400">KPI完成率</div>
-                <div className={`text-lg font-semibold ${(accountKpiRates['汇总'] ?? 0) >= 1 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                <div className={`text-lg font-semibold ${(accountKpiRates['汇总'] ?? 0) >= 1 ? 'text-[#34C759]' : 'text-[#FF9F0A]'}`}>
                   {((accountKpiRates['汇总'] ?? 0) * 100).toFixed(0)}%
                 </div>
               </div>
@@ -907,7 +907,7 @@ export default function DataOverviewPage() {
                   </div>
                   <div>
                     <div className="text-xs text-zinc-400">KPI完成率</div>
-                    <div className={`text-lg font-semibold ${kpiRate >= 1 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    <div className={`text-lg font-semibold ${kpiRate >= 1 ? 'text-[#34C759]' : 'text-[#FF9F0A]'}`}>
                       {(kpiRate * 100).toFixed(0)}%
                     </div>
                   </div>
@@ -945,7 +945,7 @@ export default function DataOverviewPage() {
                       key={opt.label}
                       variant={quickLabel === opt.label ? 'default' : 'outline'}
                       size="sm"
-                      className={quickLabel === opt.label ? 'bg-[#415FFF]' : 'border-zinc-600 text-zinc-300'}
+                      className={quickLabel === opt.label ? 'bg-[#4158D0]' : 'border-zinc-600 text-zinc-300'}
                       onClick={() => handleQuickSelect(opt)}
                     >
                       {opt.label}
@@ -972,7 +972,7 @@ export default function DataOverviewPage() {
                       className="bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-sm text-zinc-200 flex-1"
                     />
                   </div>
-                  <Button size="sm" className="w-full bg-[#415FFF] mt-2" onClick={applyCustomRange}>
+                  <Button size="sm" className="w-full bg-[#4158D0] mt-2" onClick={applyCustomRange}>
                     应用
                   </Button>
                 </div>
@@ -988,7 +988,7 @@ export default function DataOverviewPage() {
               key={opt}
               variant={accountFilter === opt ? 'default' : 'outline'}
               size="sm"
-              className={accountFilter === opt ? 'bg-[#415FFF]' : 'border-zinc-600 text-zinc-300'}
+              className={accountFilter === opt ? 'bg-[#4158D0]' : 'border-zinc-600 text-zinc-300'}
               onClick={() => setAccountFilter(opt)}
             >
               {opt}
@@ -1104,7 +1104,7 @@ export default function DataOverviewPage() {
                       <td className="py-3 px-4 text-right text-foreground font-semibold font-mono tabular-nums border-r border-zinc-800/60">{monthlyCompareData.current.duration}h</td>
                       <td className="py-3 px-4 text-right text-zinc-400 font-mono tabular-nums border-r border-zinc-800/60">{monthlyCompareData.prev.duration}h</td>
                       <td className="py-3 px-4 text-right">
-                        <span className={`inline-flex items-center gap-1 font-mono tabular-nums font-medium ${monthlyCompareData.durationChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        <span className={`inline-flex items-center gap-1 font-mono tabular-nums font-medium ${monthlyCompareData.durationChange >= 0 ? 'text-[#F5483B]' : 'text-[#34C759]'}`}>
                           {monthlyCompareData.durationChange >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
                           {monthlyCompareData.durationChange >= 0 ? '+' : ''}{monthlyCompareData.durationChange.toFixed(1)}%
                         </span>
@@ -1116,7 +1116,7 @@ export default function DataOverviewPage() {
                       <td className="py-3 px-4 text-right text-foreground font-semibold font-mono tabular-nums border-r border-zinc-800/60">{fmt(monthlyCompareData.current.gmv)}</td>
                       <td className="py-3 px-4 text-right text-zinc-400 font-mono tabular-nums border-r border-zinc-800/60">{fmt(monthlyCompareData.prev.gmv)}</td>
                       <td className="py-3 px-4 text-right">
-                        <span className={`inline-flex items-center gap-1 font-mono tabular-nums font-medium ${monthlyCompareData.gmvChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        <span className={`inline-flex items-center gap-1 font-mono tabular-nums font-medium ${monthlyCompareData.gmvChange >= 0 ? 'text-[#F5483B]' : 'text-[#34C759]'}`}>
                           {monthlyCompareData.gmvChange >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
                           {monthlyCompareData.gmvChange >= 0 ? '+' : ''}{monthlyCompareData.gmvChange.toFixed(1)}%
                         </span>
@@ -1128,7 +1128,7 @@ export default function DataOverviewPage() {
                       <td className="py-3 px-4 text-right text-foreground font-semibold font-mono tabular-nums border-r border-zinc-800/60">{fmt(monthlyCompareData.current.sales)}</td>
                       <td className="py-3 px-4 text-right text-zinc-400 font-mono tabular-nums border-r border-zinc-800/60">{fmt(monthlyCompareData.prev.sales)}</td>
                       <td className="py-3 px-4 text-right">
-                        <span className={`inline-flex items-center gap-1 font-mono tabular-nums font-medium ${monthlyCompareData.salesChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        <span className={`inline-flex items-center gap-1 font-mono tabular-nums font-medium ${monthlyCompareData.salesChange >= 0 ? 'text-[#F5483B]' : 'text-[#34C759]'}`}>
                           {monthlyCompareData.salesChange >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
                           {monthlyCompareData.salesChange >= 0 ? '+' : ''}{monthlyCompareData.salesChange.toFixed(1)}%
                         </span>
@@ -1156,7 +1156,7 @@ export default function DataOverviewPage() {
                       key={idx}
                       variant={kpiTabIndex === idx ? 'default' : 'outline'}
                       size="sm"
-                      className={kpiTabIndex === idx ? 'bg-[#415FFF]' : 'border-zinc-600 text-zinc-300'}
+                      className={kpiTabIndex === idx ? 'bg-[#4158D0]' : 'border-zinc-600 text-zinc-300'}
                       onClick={() => setKpiTabIndex(idx)}
                     >
                       {tab.label}
@@ -1171,11 +1171,11 @@ export default function DataOverviewPage() {
                   {/* Overall Completion Rate Card */}
                   <div className="mb-4 flex items-center gap-4 bg-zinc-800/50 rounded-lg p-4">
                     <div className={`flex items-center justify-center w-16 h-16 rounded-full ${overallKpiRate >= 1 ? 'bg-emerald-500/20' : 'bg-amber-500/20'}`}>
-                      <Trophy className={`h-8 w-8 ${overallKpiRate >= 1 ? 'text-emerald-400' : 'text-amber-400'}`} />
+                      <Trophy className={`h-8 w-8 ${overallKpiRate >= 1 ? 'text-[#34C759]' : 'text-[#FF9F0A]'}`} />
                     </div>
                     <div>
                       <div className="text-sm text-zinc-400">整体完成率</div>
-                      <div className={`text-3xl font-bold ${overallKpiRate >= 1 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      <div className={`text-3xl font-bold ${overallKpiRate >= 1 ? 'text-[#34C759]' : 'text-[#FF9F0A]'}`}>
                         {(overallKpiRate * 100).toFixed(0)}%
                       </div>
                       <div className="text-xs text-zinc-500">
@@ -1213,12 +1213,12 @@ export default function DataOverviewPage() {
                             <td className="py-2 px-3 text-zinc-300">{kpi.dimension}</td>
                             <td className="py-2 px-3 text-right text-zinc-300">{kpi.target}</td>
                             <td className="py-2 px-3 text-right text-zinc-300">{kpi.achieved}</td>
-                            <td className={`py-2 px-3 text-right font-medium ${kpi.isLow ? 'text-red-400' : 'text-emerald-400'}`}>
+                            <td className={`py-2 px-3 text-right font-medium ${kpi.isLow ? 'text-[#FF9F0A]' : 'text-[#34C759]'}`}>
                               {kpi.rate}
                             </td>
                             <td className="py-2 px-3 text-right">
                               {idx === 0 ? (
-                                <span className={`font-bold text-lg ${overallKpiRate >= 1 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                <span className={`font-bold text-lg ${overallKpiRate >= 1 ? 'text-[#34C759]' : 'text-[#FF9F0A]'}`}>
                                   {(overallKpiRate * 100).toFixed(0)}%
                                 </span>
                               ) : (

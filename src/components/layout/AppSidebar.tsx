@@ -235,11 +235,8 @@ export function RoleSwitcher() {
 export function BrandSwitcher() {
   const { currentBrand, setCurrentBrand } = useApp();
 
-  const brandColors: Record<string, string> = {
-    vivo: '#415FFF',
-    iqoo: '#FF6B35',
-    iot: '#00C9A7',
-  };
+  const brandColor = 'var(--badge-bg, #2a2e45)'; // 业务线统一中性徽章，不再按品牌分色
+  const brandFg = 'var(--badge-fg, rgb(255 255 255 / 92%))';
 
   const handleBrandChange = (value: string) => {
     setCurrentBrand(value);
@@ -271,13 +268,13 @@ export function BrandSwitcher() {
           )}
           style={
             currentBrand === brand.id
-              ? { backgroundColor: brandColors[brand.id] + '25', color: brandColors[brand.id] }
+              ? { backgroundColor: brandColor, color: brandFg }
               : undefined
           }
         >
           <span
-            className="h-2 w-2 rounded-full"
-            style={{ backgroundColor: brandColors[brand.id] }}
+            className="h-2 w-2 rounded-full brand-dot"
+            style={{ backgroundColor: brandColor }}
           />
           {brand.name}
         </button>

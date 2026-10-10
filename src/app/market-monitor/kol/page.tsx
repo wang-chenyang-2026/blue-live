@@ -142,7 +142,7 @@ const LIVE_TYPES = ['新品首发', '品牌种草', '测评开箱', '产品测�
 const INFLUENCER_TYPES = ['头部', '中腰部', '尾部', '素人'];
 const PLATFORMS = ['抖音', '快手', '小红书', 'B站'];
 
-const GROUP_COLORS = ['#4158D0', '#C850C0', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#0EA5E9', '#EC4899'];
+const GROUP_COLORS = ['#4158D0', 'rgba(65,88,208,0.7)', 'rgba(65,88,208,0.55)', 'rgba(65,88,208,0.4)', 'rgba(65,88,208,0.28)', '#4158D0', 'rgba(65,88,208,0.7)', 'rgba(65,88,208,0.55)'];
 
 const DEFAULT_BRIEF: BriefForm = {
   brand: '',
@@ -226,7 +226,7 @@ function StepIndicator({ currentStep }: { currentStep: StepKey }) {
                 className={cn(
                   'flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all',
                   isCompleted
-                    ? 'bg-gradient-to-br from-[#4158D0] to-[#C850C0] border-transparent text-white'
+                    ? 'bg-gradient-to-br from-[#4158D0] to-[rgba(65,88,208,0.55)] border-transparent text-white'
                     : isActive
                     ? 'border-primary bg-primary/10 text-primary'
                     : 'border-border text-muted-foreground',
@@ -247,7 +247,7 @@ function StepIndicator({ currentStep }: { currentStep: StepKey }) {
               <div
                 className={cn(
                   'mx-4 h-0.5 w-12 md:w-20 rounded-full',
-                  isCompleted ? 'bg-gradient-to-r from-[#4158D0] to-[#C850C0]' : 'bg-border',
+                  isCompleted ? 'bg-gradient-to-r from-[#4158D0] to-[rgba(65,88,208,0.55)]' : 'bg-border',
                 )}
               />
             )}
@@ -407,7 +407,7 @@ function KeywordsStep({
     <div className="space-y-6">
       {!hasGenerated ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#4158D0]/20 to-[#C850C0]/20">
+          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#4158D0]/20 to-[#4158D0]/20">
             <Sparkles className="h-8 w-8 text-primary" />
           </div>
           <h3 className="text-lg font-semibold text-foreground mb-2">准备生成关键词方向</h3>
@@ -418,7 +418,7 @@ function KeywordsStep({
             size="lg"
             onClick={onGenerate}
             disabled={generating}
-            className="bg-gradient-to-r from-[#4158D0] to-[#C850C0] hover:opacity-90"
+            className="bg-gradient-to-r from-[#4158D0] to-[rgba(65,88,208,0.55)] hover:opacity-90"
           >
             {generating ? (
               <>
@@ -516,7 +516,7 @@ function FiltersStep({
   return (
     <div className="space-y-8">
       {recommendedMetrics && Object.keys(recommendedMetrics).length > 0 && (
-        <div className="rounded-lg border border-[#4158D0]/30 bg-gradient-to-r from-[#4158D0]/5 to-[#C850C0]/5 p-4">
+        <div className="rounded-lg border border-[#4158D0]/30 bg-gradient-to-r from-[#4158D0]/5 to-[#4158D0]/5 p-4">
           <div className="flex items-start gap-2">
             <Sparkles className="h-4 w-4 text-primary mt-0.5" />
             <div className="text-xs text-muted-foreground">
@@ -1557,7 +1557,7 @@ export default function KolPage() {
                 <Button
                   onClick={handleNext}
                   disabled={!canProceed() || generating || submitting}
-                  className="bg-gradient-to-r from-[#4158D0] to-[#C850C0] hover:opacity-90"
+                  className="bg-gradient-to-r from-[#4158D0] to-[rgba(65,88,208,0.55)] hover:opacity-90"
                 >
                   {submitting ? (
                     <>

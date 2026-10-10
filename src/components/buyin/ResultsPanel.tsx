@@ -231,7 +231,7 @@ export default function ResultsPanel() {
                   />
                   <Legend />
                   <Line type="monotone" dataKey="gmv" name="GMV" stroke="var(--primary)" strokeWidth={2} />
-                  <Line type="monotone" dataKey="views" name="观看人次" stroke="var(--chart-2, #16a34a)" strokeWidth={2} />
+                  <Line type="monotone" dataKey="views" name="观看人次" stroke="var(--chart-2, rgba(65,88,208,0.55))" strokeWidth={2} />
                 </LineChart>
               </ResponsiveContainer>
             </div>

@@ -179,12 +179,12 @@ function StatusBadge({ status, desc }: { status: TaskStatus; desc?: string | nul
   const configs: Record<TaskStatus, { label: string; className: string; icon: React.ReactNode }> = {
     pending: {
       label: '等待中',
-      className: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+      className: 'bg-amber-500/15 text-[#FF9F0A] border-amber-500/30',
       icon: <Clock className="h-3 w-3" />,
     },
     running: {
       label: '进行中',
-      className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+      className: 'bg-[#34C759]/15 text-[#34C759] border-[#34C759]/30',
       icon: <Play className="h-3 w-3" />,
     },
     completed: {
@@ -194,7 +194,7 @@ function StatusBadge({ status, desc }: { status: TaskStatus; desc?: string | nul
     },
     failed: {
       label: '异常',
-      className: 'bg-red-500/15 text-red-400 border-red-500/30',
+      className: 'bg-[#F5483B]/15 text-[#F5483B] border-[#F5483B]/30',
       icon: <AlertCircle className="h-3 w-3" />,
     },
   };
@@ -202,7 +202,7 @@ function StatusBadge({ status, desc }: { status: TaskStatus; desc?: string | nul
   return (
     <Badge variant="outline" className={cn('gap-1', cfg.className)} title={desc || undefined}>
       {status === 'running' && (
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        <span className="h-1.5 w-1.5 rounded-full bg-[#34C759] animate-pulse" />
       )}
       {status === 'pending' && (
         <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
@@ -968,7 +968,7 @@ export default function SocialMediaPage() {
             <Button
               onClick={handleCreateMonitor}
               disabled={submittingMonitor}
-              className="bg-gradient-to-r from-[#4158D0] to-[#C850C0] hover:opacity-90"
+              className="bg-gradient-to-r from-[#4158D0] to-[rgba(65,88,208,0.55)] hover:opacity-90"
             >
               {submittingMonitor && <Spinner className="mr-1" />}
               创建任务
@@ -1027,13 +1027,13 @@ export default function SocialMediaPage() {
               </div>
 
               {briefError && (
-                <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+                <div className="rounded-md border border-[#F5483B]/30 bg-[#F5483B]/10 px-3 py-2 text-xs text-[#F5483B]">
                   {briefError}
                 </div>
               )}
 
               {briefPolling && (
-                <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
+                <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-[#FF9F0A]">
                   <Spinner />
                   AI 正在解析洞察目标，请稍候...
                 </div>
@@ -1135,7 +1135,7 @@ export default function SocialMediaPage() {
                 <Button
                   onClick={handleSubmitBrief}
                   disabled={submittingBrief || briefPolling}
-                  className="bg-gradient-to-r from-[#4158D0] to-[#C850C0] hover:opacity-90"
+                  className="bg-gradient-to-r from-[#4158D0] to-[rgba(65,88,208,0.55)] hover:opacity-90"
                 >
                   {(submittingBrief || briefPolling) && <Spinner className="mr-1" />}
                   {briefPolling ? '解析中...' : '提交并解析'}
@@ -1153,7 +1153,7 @@ export default function SocialMediaPage() {
                 <Button
                   onClick={handleSubmitInsightTask}
                   disabled={submittingInsight}
-                  className="bg-gradient-to-r from-[#4158D0] to-[#C850C0] hover:opacity-90"
+                  className="bg-gradient-to-r from-[#4158D0] to-[rgba(65,88,208,0.55)] hover:opacity-90"
                 >
                   {submittingInsight && <Spinner className="mr-1" />}
                   开始采集
@@ -1193,9 +1193,9 @@ function StatCards({
 }) {
   const displayCards = [
     { label: '总任务数', value: stats.total, color: 'text-foreground' },
-    { label: '进行中', value: stats.running, color: 'text-emerald-400' },
+    { label: '进行中', value: stats.running, color: 'text-[#34C759]' },
     { label: '已完成', value: stats.completed, color: 'text-zinc-400' },
-    { label: '异常', value: stats.failed, color: 'text-red-400' },
+    { label: '异常', value: stats.failed, color: 'text-[#F5483B]' },
   ];
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1282,7 +1282,7 @@ function Toolbar({
 
           <Button
             onClick={onCreateClick}
-            className="bg-gradient-to-r from-[#4158D0] to-[#C850C0] hover:opacity-90"
+            className="bg-gradient-to-r from-[#4158D0] to-[rgba(65,88,208,0.55)] hover:opacity-90"
           >
             <Plus className="h-4 w-4 mr-1" />
             {createLabel}
@@ -1424,7 +1424,7 @@ function TaskTable({
                         title="删除"
                         onClick={() => onDelete(task)}
                       >
-                        <Trash2 className="h-4 w-4 text-muted-foreground hover:text-red-400" />
+                        <Trash2 className="h-4 w-4 text-muted-foreground hover:text-[#F5483B]" />
                       </Button>
                     </div>
                   </TableCell>

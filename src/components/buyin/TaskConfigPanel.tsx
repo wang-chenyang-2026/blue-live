@@ -135,10 +135,10 @@ const [showRuns, setShowRuns] = useState<Record<string, boolean>>({});
 const [runningId, setRunningId] = useState<string | null>(null);
 
 const STATUS_CN: Record<string, string> = {
-  running: 'text-sky-400',
-  success: 'text-emerald-400',
-  partial: 'text-amber-400',
-  failed: 'text-red-400',
+  running: 'text-[#4158D0]',
+  success: 'text-[#34C759]',
+  partial: 'text-[#FF9F0A]',
+  failed: 'text-[#F5483B]',
   skipped: 'text-zinc-400',
 };
 const STATUS_LABEL: Record<string, string> = {
@@ -535,7 +535,7 @@ async function doRunNow(task: TaskResp) {
             <div>
               <label className={labelCls}>每 N 分钟（下限 5）</label>
               <input type="number" min={5} className={inputCls + ' w-full'} value={intervalValue} onChange={(e) => setIntervalValue(Number(e.target.value))} />
-              <p className="mt-1 text-xs text-amber-500/90">高频可能触发百应风控 11001；分钟级为轮询刷新，出数仍按小时/天聚合。</p>
+              <p className="mt-1 text-xs text-[#FF9F0A]/90">高频可能触发百应风控 11001；分钟级为轮询刷新，出数仍按小时/天聚合。</p>
             </div>
           )}
           {frequency === 'hour' && (
@@ -687,7 +687,7 @@ async function doRunNow(task: TaskResp) {
                       </button>
                       {confirmingDelete === t.id ? (
                         <span className="flex items-center gap-1 text-xs">
-                          <button onClick={() => doDelete(t.id)} className="text-red-500 hover:underline">
+                          <button onClick={() => doDelete(t.id)} className="text-[#F5483B] hover:underline">
                             确认
                           </button>
                           <button onClick={() => setConfirmingDelete(null)} className="text-muted-foreground hover:underline">
@@ -695,7 +695,7 @@ async function doRunNow(task: TaskResp) {
                           </button>
                         </span>
                       ) : (
-                        <button onClick={() => setConfirmingDelete(t.id)} className="text-xs text-red-500 hover:underline">
+                        <button onClick={() => setConfirmingDelete(t.id)} className="text-xs text-[#F5483B] hover:underline">
                           删除
                         </button>
                       )}
@@ -714,7 +714,7 @@ async function doRunNow(task: TaskResp) {
                               <span className="text-muted-foreground">统计日 {(r.stat_dates || []).join(',') || '—'}</span>
                               <span className="text-muted-foreground">行 {r.row_count} · 请求 {r.request_count}</span>
                               <span className="text-muted-foreground">{fmtDate(r.started_at)}</span>
-                              {r.error_summary ? <span className="w-full truncate text-red-400/80" title={r.error_summary}>原因：{r.error_summary}</span> : null}
+                              {r.error_summary ? <span className="w-full truncate text-[#FF9F0A]/80" title={r.error_summary}>原因：{r.error_summary}</span> : null}
                             </li>
                           ))}
                         </ul>

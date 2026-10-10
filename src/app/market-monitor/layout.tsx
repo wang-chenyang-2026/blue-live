@@ -61,7 +61,7 @@ export default function MarketMonitorLayout({
       {/* Module Header */}
       <div className="flex flex-col gap-2 border-b border-border pb-4">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#4158D0] to-[#C850C0]">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#4158D0] to-[rgba(65,88,208,0.55)]">
             <TrendingUp className="h-4 w-4 text-white" />
           </div>
           <div>
@@ -81,7 +81,7 @@ export default function MarketMonitorLayout({
               className={cn(
                 'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all',
                 isActive(item.href)
-                  ? 'bg-gradient-to-r from-[#4158D0]/20 to-[#C850C0]/20 text-foreground border border-[#4158D0]/30'
+                  ? 'bg-gradient-to-r from-[#4158D0]/20 to-[#4158D0]/20 text-foreground border border-[#4158D0]/30'
                   : 'text-muted-foreground hover:bg-accent hover:text-foreground',
               )}
             >

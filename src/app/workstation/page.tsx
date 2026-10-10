@@ -357,10 +357,7 @@ export default function WorkstationPage() {
                   <div key={cat}>
                     <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
                       <span className={cn('h-2 w-2 rounded-full',
-                        cat === '开场' ? 'bg-blue-400' :
-                        cat === '产品介绍' ? 'bg-green-400' :
-                        cat === '互动' ? 'bg-yellow-400' :
-                        cat === '逼单' ? 'bg-red-400' : 'bg-purple-400'
+                        'bg-[#2A2E45]'
                       )} />
                       {cat}
                     </h3>

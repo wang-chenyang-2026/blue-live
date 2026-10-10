@@ -106,20 +106,20 @@ export default function LoginPage() {
           </p>
           <div className="mt-12 grid grid-cols-3 gap-6 text-center">
             <div className="space-y-2">
-              <div className="mx-auto h-10 w-10 rounded-lg bg-[#415FFF]/20 flex items-center justify-center">
-                <span className="text-sm font-bold text-[#415FFF]">V</span>
+              <div className="mx-auto h-10 w-10 rounded-lg bg-[#2A2E45]/20 flex items-center justify-center">
+                <span className="text-sm font-bold text-[#2A2E45]">V</span>
               </div>
               <p className="text-xs text-muted-foreground">vivo</p>
             </div>
             <div className="space-y-2">
-              <div className="mx-auto h-10 w-10 rounded-lg bg-[#FF6B35]/20 flex items-center justify-center">
-                <span className="text-sm font-bold text-[#FF6B35]">Q</span>
+              <div className="mx-auto h-10 w-10 rounded-lg bg-[#2A2E45]/20 flex items-center justify-center">
+                <span className="text-sm font-bold text-[#2A2E45]">Q</span>
               </div>
               <p className="text-xs text-muted-foreground">iQOO</p>
             </div>
             <div className="space-y-2">
-              <div className="mx-auto h-10 w-10 rounded-lg bg-[#00C9A7]/20 flex items-center justify-center">
-                <span className="text-sm font-bold text-[#00C9A7]">I</span>
+              <div className="mx-auto h-10 w-10 rounded-lg bg-[#2A2E45]/20 flex items-center justify-center">
+                <span className="text-sm font-bold text-[#2A2E45]">I</span>
               </div>
               <p className="text-xs text-muted-foreground">IOT</p>
             </div>

@@ -169,15 +169,15 @@ const CONTENT_MODES = [
 
 const CHART_COLORS = [
   '#4158D0',
-  '#FF6B35',
-  '#FF4D4F',
-  '#FAAD14',
-  '#52C41A',
-  '#1890FF',
-  '#722ED1',
-  '#13C2C2',
-  '#EB2F96',
-  '#A0D911',
+  'rgba(65,88,208,0.7)',
+  'rgba(65,88,208,0.55)',
+  'rgba(65,88,208,0.4)',
+  'rgba(65,88,208,0.28)',
+  '#4158D0',
+  'rgba(65,88,208,0.7)',
+  'rgba(65,88,208,0.55)',
+  'rgba(65,88,208,0.4)',
+  'rgba(65,88,208,0.28)',
 ];
 
 /* ============================================================
@@ -279,12 +279,12 @@ function StatusBadge({
   > = {
     pending: {
       label: '等待中',
-      cls: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+      cls: 'bg-amber-500/15 text-[#FF9F0A] border-amber-500/30',
       icon: <Clock className="h-3 w-3" />,
     },
     running: {
       label: '进行中',
-      cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+      cls: 'bg-[#34C759]/15 text-[#34C759] border-[#34C759]/30',
       icon: <Play className="h-3 w-3" />,
     },
     completed: {
@@ -294,7 +294,7 @@ function StatusBadge({
     },
     failed: {
       label: '异常',
-      cls: 'bg-red-500/15 text-red-400 border-red-500/30',
+      cls: 'bg-[#F5483B]/15 text-[#F5483B] border-[#F5483B]/30',
       icon: <AlertCircle className="h-3 w-3" />,
     },
   };
@@ -1301,21 +1301,21 @@ function EcommercePanel() {
           value={formatMoney(kpis.totalSales)}
           icon={<DollarSign className="h-4 w-4" />}
           loading={loadingBrand}
-          accent="from-[#4158D0] to-[#4361EE]"
+          accent="from-[#4158d0] to-[rgba(65,88,208,0.55)]"
         />
         <KpiCard
           label="总销量（件）"
           value={formatNum(kpis.totalVolume, 0) + '件'}
           icon={<Package className="h-4 w-4" />}
           loading={loadingBrand}
-          accent="from-[#FF6B35] to-[#FF8F5E]"
+          accent="from-[#4158d0] to-[rgba(65,88,208,0.55)]"
         />
         <KpiCard
           label="品牌数"
           value={kpis.brandCount < 0 ? '—' : String(kpis.brandCount)}
           icon={<Layers className="h-4 w-4" />}
           loading={loadingBrand}
-          accent="from-[#52C41A] to-[#95DE64]"
+          accent="from-[#4158d0] to-[rgba(65,88,208,0.55)]"
           note={kpis.brandCountNote}
         />
         <KpiCard
@@ -1323,13 +1323,13 @@ function EcommercePanel() {
           value={formatMoney(kpis.avgPrice)}
           icon={<Gauge className="h-4 w-4" />}
           loading={loadingBrand}
-          accent="from-[#722ED1] to-[#B37FEB]"
+          accent="from-[#4158d0] to-[rgba(65,88,208,0.55)]"
         />
       </div>
 
       {error && (
-        <Card className="border-red-500/40 bg-red-500/5">
-          <CardContent className="py-3 text-sm text-red-400">
+        <Card className="border-[#F5483B]/40 bg-[#F5483B]/5">
+          <CardContent className="py-3 text-sm text-[#F5483B]">
             {error}
           </CardContent>
         </Card>
@@ -1364,7 +1364,7 @@ function EcommercePanel() {
                   onClick={() => setSubView(v.key)}
                   className={cn(
                     subView === v.key &&
-                      'bg-gradient-to-r from-[#4158D0] to-[#C850C0] text-white border-0',
+                      'bg-gradient-to-r from-[#4158D0] to-[rgba(65,88,208,0.55)] text-white border-0',
                   )}
                 >
                   {v.label}
@@ -1381,7 +1381,7 @@ function EcommercePanel() {
             </div>
           )}
           {filters.platform && subView === 'brand' && !platformBrandRows && (
-            <div className="mb-4 text-xs text-amber-600 dark:text-amber-400">
+            <div className="mb-4 text-xs text-amber-600 dark:text-[#FF9F0A]">
               {productLoading
                 ? '商品库数据加载中，平台维度即将生效…'
                 : '平台维度暂不可用，当前为全平台品牌排行。'}
@@ -1562,8 +1562,8 @@ function BrandRankingView({
                     className={cn(
                       'text-right font-mono tabular-nums',
                       r.salesYoy != null && r.salesYoy >= 0
-                        ? 'text-emerald-400'
-                        : 'text-red-400',
+                        ? 'text-[#F5483B]'
+                        : 'text-[#34C759]',
                     )}
                   >
                     {r.salesYoy != null ? (
@@ -1581,8 +1581,8 @@ function BrandRankingView({
                     className={cn(
                       'text-right font-mono tabular-nums',
                       r.volumeYoy != null && r.volumeYoy >= 0
-                        ? 'text-emerald-400'
-                        : 'text-red-400',
+                        ? 'text-[#F5483B]'
+                        : 'text-[#34C759]',
                     )}
                   >
                     {formatPercent(r.volumeYoy)}
@@ -1608,7 +1608,7 @@ function TrendView({
 }) {
   const chartConfig = {
     sales: { label: '销售额（元）', color: '#4158D0' },
-    volume: { label: '销量', color: '#FF6B35' },
+    volume: { label: '销量', color: 'rgba(65,88,208,0.7)' },
   };
   if (loading) {
     return <Skeleton className="h-[380px] w-full rounded-lg" />;
@@ -1664,7 +1664,7 @@ function TrendView({
               type="monotone"
               dataKey="volume"
               name="销量"
-              stroke="#FF6B35"
+              stroke="rgba(65,88,208,0.7)"
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 4 }}
@@ -2101,10 +2101,10 @@ function VoicePanel() {
       {/* 统计 */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <StatCard label="全部任务" value={stats.total} />
-        <StatCard label="等待中" value={stats.pending} accent="text-amber-400" />
-        <StatCard label="进行中" value={stats.running} accent="text-emerald-400" />
+        <StatCard label="等待中" value={stats.pending} accent="text-[#FF9F0A]" />
+        <StatCard label="进行中" value={stats.running} accent="text-[#34C759]" />
         <StatCard label="已完成" value={stats.completed} accent="text-zinc-300" />
-        <StatCard label="异常" value={stats.failed} accent="text-red-400" />
+        <StatCard label="异常" value={stats.failed} accent="text-[#F5483B]" />
       </div>
 
       <Card className="bg-card border-border">
@@ -2122,7 +2122,7 @@ function VoicePanel() {
             <Button
               size="sm"
               onClick={openDialog}
-              className="bg-gradient-to-r from-[#4158D0] to-[#C850C0] hover:opacity-90"
+              className="bg-gradient-to-r from-[#4158D0] to-[rgba(65,88,208,0.55)] hover:opacity-90"
             >
               <Plus className="h-4 w-4 mr-1" />
               新建声量任务
@@ -2194,7 +2194,7 @@ function VoicePanel() {
                             size="icon-sm"
                             onClick={() => handleDelete(t)}
                           >
-                            <Trash2 className="h-4 w-4 text-red-400/70" />
+                            <Trash2 className="h-4 w-4 text-[#F5483B]/70" />
                           </Button>
                         </div>
                       </TableCell>
@@ -2302,10 +2302,10 @@ function VoicePanel() {
               </div>
 
               {briefError && (
-                <div className="text-xs text-red-400">{briefError}</div>
+                <div className="text-xs text-[#F5483B]">{briefError}</div>
               )}
               {briefPolling && (
-                <div className="flex items-center gap-2 text-xs text-emerald-400">
+                <div className="flex items-center gap-2 text-xs text-[#34C759]">
                   <Spinner className="h-3 w-3" />
                   AI 正在解析品牌关键词，请稍候...
                 </div>
@@ -2402,7 +2402,7 @@ function VoicePanel() {
                 <Button
                   onClick={handleSubmitBrief}
                   disabled={submittingBrief || briefPolling}
-                  className="bg-gradient-to-r from-[#4158D0] to-[#C850C0] hover:opacity-90"
+                  className="bg-gradient-to-r from-[#4158D0] to-[rgba(65,88,208,0.55)] hover:opacity-90"
                 >
                   {submittingBrief || briefPolling ? (
                     <Spinner className="mr-1" />
@@ -2424,7 +2424,7 @@ function VoicePanel() {
                 <Button
                   onClick={handleSubmitTask}
                   disabled={submittingTask}
-                  className="bg-gradient-to-r from-[#4158D0] to-[#C850C0] hover:opacity-90"
+                  className="bg-gradient-to-r from-[#4158D0] to-[rgba(65,88,208,0.55)] hover:opacity-90"
                 >
                   {submittingTask ? <Spinner className="mr-1" /> : null}
                   提交采集任务

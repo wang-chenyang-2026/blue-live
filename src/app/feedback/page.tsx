@@ -298,22 +298,22 @@ export default function FeedbackPage() {
         </Card>
         <Card className="border-border bg-card">
           <CardContent className="py-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-              <Clock className="h-5 w-5 text-yellow-400" />
+            <div className="h-10 w-10 rounded-lg bg-[#FF9F0A]/20 flex items-center justify-center">
+              <Clock className="h-5 w-5 text-[#FF9F0A]" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-yellow-400">{stats.pending}</p>
+              <p className="text-2xl font-bold text-[#FF9F0A]">{stats.pending}</p>
               <p className="text-xs text-muted-foreground">待处理</p>
             </div>
           </CardContent>
         </Card>
         <Card className="border-border bg-card">
           <CardContent className="py-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-green-500/20 flex items-center justify-center">
-              <CheckCircle className="h-5 w-5 text-green-400" />
+            <div className="h-10 w-10 rounded-lg bg-[#34C759]/20 flex items-center justify-center">
+              <CheckCircle className="h-5 w-5 text-[#34C759]" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-green-400">{stats.resolved}</p>
+              <p className="text-2xl font-bold text-[#34C759]">{stats.resolved}</p>
               <p className="text-xs text-muted-foreground">已处理</p>
             </div>
           </CardContent>
@@ -361,7 +361,7 @@ export default function FeedbackPage() {
                 </TableRow>
               ) : loadError ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-red-400 text-sm py-8">
+                  <TableCell colSpan={9} className="text-center text-[#FF9F0A] text-sm py-8">
                     加载失败：{loadError}
                   </TableCell>
                 </TableRow>
@@ -391,7 +391,7 @@ export default function FeedbackPage() {
                     </TableCell>
                     <TableCell><AttachmentList attachments={f.attachments} compact /></TableCell>
                     <TableCell className="whitespace-nowrap">
-                      <Badge className={cn('text-[10px]', f.status === '待处理' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400')}>
+                      <Badge className={cn('text-[10px]', f.status === '待处理' ? 'bg-[#FF9F0A]/20 text-[#FF9F0A]' : 'bg-[#34C759]/20 text-[#34C759]')}>
                         {f.status}
                       </Badge>
                     </TableCell>
@@ -421,7 +421,7 @@ export default function FeedbackPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label className="text-muted-foreground text-xs">所属模块 <span className="text-red-400">*</span></Label>
+              <Label className="text-muted-foreground text-xs">所属模块 <span className="text-[#FF9F0A]">*</span></Label>
               <Select value={formModule} onValueChange={setFormModule}>
                 <SelectTrigger className="bg-secondary border-border mt-1">
                   <SelectValue placeholder="选择模块" />
@@ -434,7 +434,7 @@ export default function FeedbackPage() {
               </Select>
             </div>
             <div>
-              <Label className="text-muted-foreground text-xs">反馈类别 <span className="text-red-400">*</span></Label>
+              <Label className="text-muted-foreground text-xs">反馈类别 <span className="text-[#FF9F0A]">*</span></Label>
               <Select value={formCategory} onValueChange={setFormCategory}>
                 <SelectTrigger className="bg-secondary border-border mt-1">
                   <SelectValue placeholder="选择反馈类别" />
@@ -447,7 +447,7 @@ export default function FeedbackPage() {
               </Select>
             </div>
             <div>
-              <Label className="text-muted-foreground text-xs">问题描述 <span className="text-red-400">*</span></Label>
+              <Label className="text-muted-foreground text-xs">问题描述 <span className="text-[#FF9F0A]">*</span></Label>
               <Textarea
                 value={formContent}
                 onChange={(e) => setFormContent(e.target.value)}
@@ -478,7 +478,7 @@ export default function FeedbackPage() {
                         <button
                           type="button"
                           onClick={() => removeFile(i)}
-                          className="text-muted-foreground hover:text-red-400 shrink-0"
+                          className="text-muted-foreground hover:text-[#FF9F0A] shrink-0"
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
@@ -498,7 +498,7 @@ export default function FeedbackPage() {
                 </Button>
               </div>
             </div>
-            {submitError && <p className="text-xs text-red-400">{submitError}</p>}
+            {submitError && <p className="text-xs text-[#FF9F0A]">{submitError}</p>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>取消</Button>

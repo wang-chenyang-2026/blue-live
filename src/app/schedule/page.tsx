@@ -59,14 +59,14 @@ function getDaysAgo(days: number): string {
   return localDateStr(d);
 }
 
-// 渠道胶囊颜色配置
+// 渠道胶囊颜色配置（业务线统一中性徽章，不再用颜色区分）
 const CHANNEL_COLORS: Record<string, { bg: string; text: string; bar: string }> = {
-  'vivo（大号）': { bg: 'rgba(65,88,208,0.15)', text: '#4158D0', bar: '#4158D0' },
-  'vivo官方旗舰店（抖音）': { bg: 'rgba(65,88,208,0.1)', text: '#6B7FE8', bar: '#4158D0' },
-  'vivo官方旗舰店（快手）': { bg: 'rgba(65,88,208,0.08)', text: '#8B9BF0', bar: '#4158D0' },
-  'iQOO手机（快手）': { bg: 'rgba(123,97,255,0.15)', text: '#7B61FF', bar: '#7B61FF' },
-  'iQOO手机（抖音）': { bg: 'rgba(123,97,255,0.12)', text: '#9B81FF', bar: '#7B61FF' },
-  'iQOO官方旗舰店（抖音）': { bg: 'rgba(123,97,255,0.1)', text: '#B59FFF', bar: '#7B61FF' },
+  'vivo（大号）': { bg: 'rgba(255,255,255,0.08)', text: 'rgba(255,255,255,0.92)', bar: '#2A2E45' },
+  'vivo官方旗舰店（抖音）': { bg: 'rgba(255,255,255,0.08)', text: 'rgba(255,255,255,0.92)', bar: '#2A2E45' },
+  'vivo官方旗舰店（快手）': { bg: 'rgba(255,255,255,0.08)', text: 'rgba(255,255,255,0.92)', bar: '#2A2E45' },
+  'iQOO手机（快手）': { bg: 'rgba(255,255,255,0.08)', text: 'rgba(255,255,255,0.92)', bar: '#2A2E45' },
+  'iQOO手机（抖音）': { bg: 'rgba(255,255,255,0.08)', text: 'rgba(255,255,255,0.92)', bar: '#2A2E45' },
+  'iQOO官方旗舰店（抖音）': { bg: 'rgba(255,255,255,0.08)', text: 'rgba(255,255,255,0.92)', bar: '#2A2E45' },
 };
 
 // 渠道简称映射
@@ -258,7 +258,7 @@ export default function SchedulePage() {
               onClick={() => setRole('anchor')}
               className={`px-4 py-1.5 text-sm rounded-md transition ${
                 role === 'anchor'
-                  ? 'bg-[#7B61FF] text-white'
+                  ? 'bg-[#4158D0] text-white'
                   : 'text-muted-foreground hover:text-white'
               }`}
             >
@@ -268,7 +268,7 @@ export default function SchedulePage() {
               onClick={() => setRole('control')}
               className={`px-4 py-1.5 text-sm rounded-md transition ${
                 role === 'control'
-                  ? 'bg-[#7B61FF] text-white'
+                  ? 'bg-[#4158D0] text-white'
                   : 'text-muted-foreground hover:text-white'
               }`}
             >
@@ -310,7 +310,7 @@ export default function SchedulePage() {
         >本月</button>
         <button
           onClick={() => fetchSchedule(startDate, endDate, brand, role)}
-          className="px-4 py-2 text-xs rounded-lg bg-[#4158D0] text-white hover:bg-[#5168E0] transition font-medium"
+          className="px-4 py-2 text-xs rounded-lg bg-[#4158D0] text-white hover:bg-[#6A7CDA] transition font-medium"
         >刷新</button>
 
         {/* 人员筛选 */}
@@ -332,18 +332,18 @@ export default function SchedulePage() {
       {/* ===== 全局汇总卡片 ===== */}
       {globalStats && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-          <StatCard label="覆盖天数" value={globalStats.totalDays} suffix="天" color="#4facfe" />
-          <StatCard label="排班人次" value={globalStats.totalPersonDays} suffix="人次" color="#66df7c" />
-          <StatCard label="总时长" value={globalStats.totalHours} suffix="小时" color="#f093fb" />
-          <StatCard label="常规时长" value={globalStats.totalHours - globalStats.totalEarlyMorning} suffix="小时" color="#4facfe" />
-          <StatCard label="凌晨班时长" value={globalStats.totalEarlyMorning} suffix="小时" color="#ffb84d" />
-          <StatCard label="双播时长" value={globalStats.totalDualBroadcast} suffix="小时" color="#c084fc" />
+          <StatCard label="覆盖天数" value={globalStats.totalDays} suffix="天" color="#4158D0" />
+          <StatCard label="排班人次" value={globalStats.totalPersonDays} suffix="人次" color="rgba(65,88,208,0.7)" />
+          <StatCard label="总时长" value={globalStats.totalHours} suffix="小时" color="rgba(65,88,208,0.5)" />
+          <StatCard label="常规时长" value={globalStats.totalHours - globalStats.totalEarlyMorning} suffix="小时" color="#4158D0" />
+          <StatCard label="凌晨班时长" value={globalStats.totalEarlyMorning} suffix="小时" color="rgba(65,88,208,0.7)" />
+          <StatCard label="双播时长" value={globalStats.totalDualBroadcast} suffix="小时" color="rgba(65,88,208,0.5)" />
         </div>
       )}
 
       {/* ===== 加载/错误状态 ===== */}
       {loading && <div className="text-center py-10 text-zinc-400">加载排班数据中...</div>}
-      {error && <div className="text-center py-10 text-red-400">{error}</div>}
+      {error && <div className="text-center py-10 text-[#FF9F0A]">{error}</div>}
 
       {/* ===== 按日期分组展示 ===== */}
       {!loading && !error && dates.length > 0 && (
@@ -427,7 +427,7 @@ function DateGroup({
           <span className="text-sm text-muted-foreground">{weekDay}</span>
         </div>
         {totalEarly > 0 && (
-          <span className="flex items-center gap-1 px-3 py-1 rounded-2xl bg-[rgba(245,158,11,0.15)] text-[#F59E0B] text-sm">
+          <span className="flex items-center gap-1 px-3 py-1 rounded-2xl bg-[rgba(245,158,11,0.15)] text-[#FF9F0A] text-sm">
             🌙 凌晨班 {totalEarly}h
           </span>
         )}
@@ -490,12 +490,12 @@ function DateGroup({
             const accountEarlyHours = account.stats?.earlyMorningHours || 0;
             
             // 状态条颜色
-            let statusBarColor = '#10B981'; // 绿色（正常）
+            let statusBarColor = '#34C759'; // 绿色（正常）
             if (accountEarlyHours > 0) {
-              statusBarColor = '#F59E0B'; // 橙黄（含凌晨班）
+              statusBarColor = '#FF9F0A'; // 橙黄（含凌晨班）
             }
             if (hasOverload) {
-              statusBarColor = '#EF4444'; // 红色（超负荷）
+              statusBarColor = '#F5483B'; // 红色（超负荷）
             }
 
             return (
@@ -547,7 +547,7 @@ function PersonRow({ person, barColor }: { person: PersonSummary; barColor: stri
           className="h-full rounded-full transition-all duration-300"
           style={{ 
             width: `${barWidth}%`,
-            background: hasEarlyMorning ? '#F59E0B' : barColor
+            background: hasEarlyMorning ? '#FF9F0A' : barColor
           }}
         />
       </div>
@@ -560,7 +560,7 @@ function PersonRow({ person, barColor }: { person: PersonSummary; barColor: stri
       {/* 时长 */}
       <span
         className="text-sm font-semibold w-10 text-right flex-shrink-0"
-        style={{ color: hasEarlyMorning ? '#F59E0B' : 'var(--foreground)' }}
+        style={{ color: hasEarlyMorning ? '#FF9F0A' : 'var(--foreground)' }}
       >
         {person.totalHours}h
       </span>

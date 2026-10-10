@@ -25,9 +25,9 @@ import {
 
 const BRAND_COLORS: Record<string, string> = {
   vivo: '#4158D0',
-  iqoo: '#7B61FF',
+  iqoo: '#2A2E45',
   all: '#4158D0',
-  iot: '#10B981',
+  iot: '#34C759',
 };
 
 const CATEGORY_CONFIG: Record<string, {
@@ -53,18 +53,18 @@ const CATEGORY_CONFIG: Record<string, {
     label: '兼职中控',
     icon: null,
     bg: 'rgba(123,97,255,0.15)',
-    text: '#7B61FF',
+    text: '#2A2E45',
     tagBg: 'rgba(123,97,255,0.15)',
-    tagText: '#7B61FF',
+    tagText: '#2A2E45',
     dimKey: 'control',
   },
   '全职主播成本': {
     label: '全职主播',
     icon: null,
     bg: 'rgba(65,88,208,0.1)',
-    text: '#6B7FE8',
+    text: '#2A2E45',
     tagBg: 'rgba(65,88,208,0.1)',
-    tagText: '#6B7FE8',
+    tagText: '#2A2E45',
     dimKey: 'fulltime',
     role: '主播',
   },
@@ -72,9 +72,9 @@ const CATEGORY_CONFIG: Record<string, {
     label: '全职中控',
     icon: null,
     bg: 'rgba(123,97,255,0.1)',
-    text: '#9B85FF',
+    text: '#2A2E45',
     tagBg: 'rgba(123,97,255,0.1)',
-    tagText: '#9B85FF',
+    tagText: '#2A2E45',
     dimKey: 'fulltime',
     role: '中控',
   },
@@ -82,9 +82,9 @@ const CATEGORY_CONFIG: Record<string, {
     label: '全职运营',
     icon: null,
     bg: 'rgba(16,185,129,0.1)',
-    text: '#10B981',
+    text: '#34C759',
     tagBg: 'rgba(16,185,129,0.1)',
-    tagText: '#10B981',
+    tagText: '#34C759',
     dimKey: 'fulltime',
     role: '运营',
   },
@@ -101,9 +101,9 @@ const CATEGORY_CONFIG: Record<string, {
     label: '设计费',
     icon: null,
     bg: 'rgba(245,158,11,0.15)',
-    text: '#F59E0B',
+    text: '#FF9F0A',
     tagBg: 'rgba(245,158,11,0.15)',
-    tagText: '#F59E0B',
+    tagText: '#FF9F0A',
     dimKey: 'design',
   },
   '其它成本': {
@@ -157,16 +157,16 @@ function DocumentIcon({ color }: { color: string }) {
   );
 }
 
-// 分类图标映射
+// 分类图标：统一中性色（装饰色块降灰，白8%底）
 const CATEGORY_ICONS: Record<string, { icon: React.ReactNode; color: string; bg: string }> = {
-  '兼职主播成本': { icon: <PersonIcon color="#4158D0" />, color: '#4158D0', bg: 'rgba(65,88,208,0.15)' },
-  '兼职中控成本': { icon: <MonitorIcon color="#7B61FF" />, color: '#7B61FF', bg: 'rgba(123,97,255,0.15)' },
-  '设计费分摊': { icon: <BoxIcon color="#F59E0B" />, color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
-  '全职主播成本': { icon: <PersonIcon color="#6B7FE8" />, color: '#6B7FE8', bg: 'rgba(65,88,208,0.1)' },
-  '全职中控成本': { icon: <MonitorIcon color="#9B85FF" />, color: '#9B85FF', bg: 'rgba(123,97,255,0.1)' },
-  '全职运营成本': { icon: <PersonIcon color="#10B981" />, color: '#10B981', bg: 'rgba(16,185,129,0.1)' },
-  '日常物料成本': { icon: <BoxIcon color="#9CA3AF" />, color: 'var(--muted-foreground)', bg: 'rgba(107,114,128,0.15)' },
-  '其它成本': { icon: <DocumentIcon color="#9CA3AF" />, color: 'var(--muted-foreground)', bg: 'rgba(107,114,128,0.1)' },
+  '兼职主播成本': { icon: <PersonIcon color="var(--muted-foreground)" />, color: 'var(--muted-foreground)', bg: 'rgb(255 255 255 / 8%)' },
+  '兼职中控成本': { icon: <MonitorIcon color="var(--muted-foreground)" />, color: 'var(--muted-foreground)', bg: 'rgb(255 255 255 / 8%)' },
+  '设计费分摊': { icon: <BoxIcon color="var(--muted-foreground)" />, color: 'var(--muted-foreground)', bg: 'rgb(255 255 255 / 8%)' },
+  '全职主播成本': { icon: <PersonIcon color="var(--muted-foreground)" />, color: 'var(--muted-foreground)', bg: 'rgb(255 255 255 / 8%)' },
+  '全职中控成本': { icon: <MonitorIcon color="var(--muted-foreground)" />, color: 'var(--muted-foreground)', bg: 'rgb(255 255 255 / 8%)' },
+  '全职运营成本': { icon: <PersonIcon color="var(--muted-foreground)" />, color: 'var(--muted-foreground)', bg: 'rgb(255 255 255 / 8%)' },
+  '日常物料成本': { icon: <BoxIcon color="var(--muted-foreground)" />, color: 'var(--muted-foreground)', bg: 'rgb(255 255 255 / 8%)' },
+  '其它成本': { icon: <DocumentIcon color="var(--muted-foreground)" />, color: 'var(--muted-foreground)', bg: 'rgb(255 255 255 / 8%)' },
 };
 
 // ==================== 类型定义 ====================
@@ -566,7 +566,7 @@ export default function CostPagePM() {
             <h1 className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>成本核算</h1>
             <span
               className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-2xl"
-              style={{ backgroundColor: 'rgba(16,185,129,0.15)', color: '#10B981' }}
+              style={{ backgroundColor: 'rgba(16,185,129,0.15)', color: '#34C759' }}
             >
               🛡 完整数据视图
             </span>
@@ -687,7 +687,7 @@ export default function CostPagePM() {
           <div className="flex items-center gap-2">
             <span
               className="inline-flex items-center text-xs px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#EF4444' }}
+              style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#F5483B' }}
             >
               成本占比 {costRatio}%
             </span>
@@ -708,17 +708,17 @@ export default function CostPagePM() {
           <div className="flex items-center gap-2 mb-3">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(16,185,129,0.2)' }}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <polyline points="2,12 5,8 8,10 14,4" stroke="#10B981" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                <polyline points="2,12 5,8 8,10 14,4" stroke="#34C759" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
             <span className="text-xs" style={{ color: 'var(--muted-foreground)', letterSpacing: '1px' }}>利润率</span>
           </div>
-          <p className="font-bold mb-2" style={{ color: profitIsPositive ? '#10B981' : '#EF4444', fontSize: '32px', fontWeight: 700, fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
+          <p className="font-bold mb-2" style={{ color: profitIsPositive ? '#34C759' : '#F5483B', fontSize: '32px', fontWeight: 700, fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
             {profitRatePct}%
           </p>
           <span
             className="inline-flex items-center text-xs px-2 py-0.5 rounded-full"
-            style={{ backgroundColor: profitIsPositive ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: profitIsPositive ? '#10B981' : '#EF4444' }}
+            style={{ backgroundColor: profitIsPositive ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: profitIsPositive ? '#34C759' : '#F5483B' }}
           >
             {profitIsPositive ? '↗盈利' : '↘亏损'}
           </span>
@@ -737,8 +737,8 @@ export default function CostPagePM() {
           <div className="flex items-center gap-2 mb-3">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(123,97,255,0.2)' }}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <rect x="2" y="6" width="12" height="8" rx="1" stroke="#7B61FF" strokeWidth="1.5" fill="none" />
-                <path d="M5 6V4a3 3 0 016 0v2" stroke="#7B61FF" strokeWidth="1.5" fill="none" />
+                <rect x="2" y="6" width="12" height="8" rx="1" stroke="#2A2E45" strokeWidth="1.5" fill="none" />
+                <path d="M5 6V4a3 3 0 016 0v2" stroke="#2A2E45" strokeWidth="1.5" fill="none" />
               </svg>
             </div>
             <span className="text-xs" style={{ color: 'var(--muted-foreground)', letterSpacing: '1px' }}>品牌服务费收入</span>
@@ -762,16 +762,16 @@ export default function CostPagePM() {
           onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--accent)'; }}
           onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--card)'; }}
         >
-          <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl" style={{ backgroundColor: '#EF4444' }} />
+          <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl" style={{ backgroundColor: '#F5483B' }} />
           <div className="flex items-center gap-2 mb-3">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(239,68,68,0.2)' }}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <text x="2" y="13" fill="#EF4444" fontSize="12" fontWeight="bold">$</text>
+                <text x="2" y="13" fill="#F5483B" fontSize="12" fontWeight="bold">$</text>
               </svg>
             </div>
             <span className="text-xs" style={{ color: 'var(--muted-foreground)', letterSpacing: '1px' }}>毛利</span>
           </div>
-          <p className="font-bold mb-2" style={{ color: grossProfit >= 0 ? '#10B981' : '#EF4444', fontSize: '32px', fontWeight: 700, fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
+          <p className="font-bold mb-2" style={{ color: grossProfit >= 0 ? '#34C759' : '#F5483B', fontSize: '32px', fontWeight: 700, fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace' }}>
             {formatSignedCurrency(grossProfit)}
           </p>
           <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
@@ -959,7 +959,7 @@ export default function CostPagePM() {
                                   const tags: React.ReactNode[] = [];
                                   if (ftDetail.workStatus === '离职' || ftDetail.leaveDate) {
                                     tags.push(
-                                      <span key="leave" style={{ marginLeft: 6, padding: '1px 6px', borderRadius: 4, fontSize: 11, backgroundColor: '#FEE2E2', color: '#DC2626' }}>
+                                      <span key="leave" style={{ marginLeft: 6, padding: '1px 6px', borderRadius: 4, fontSize: 11, backgroundColor: 'rgba(245,72,59,0.15)', color: '#F5483B' }}>
                                         离职{ftDetail.leaveDate ? ` ${ftDetail.leaveDate}` : ''}
                                       </span>
                                     );
@@ -1179,7 +1179,7 @@ function DonutChartV2({
   const innerR = 55;
 
   // 蓝色系渐变色
-  const blueGradientColors = ['#1e3a8a', '#3b5bdb', '#4158D0', '#6B7FE8', '#9B85FF', '#C4B5FD'];
+  const blueGradientColors = ['#2A2E45', '#2A2E45', '#4158D0', '#2A2E45', '#2A2E45', '#2A2E45'];
 
   const segmentAngles = validData.map((item) => (total > 0 ? (item.cost / total) * Math.PI * 2 : 0));
 
@@ -1308,7 +1308,7 @@ const KPITab = memo(function KPITab({
                 {kpi.isDeducted ? (
                   <span
                     className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
-                    style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#EF4444' }}
+                    style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#F5483B' }}
                   >
                     <XCircle className="w-3 h-3" />
                     KPI未达标 扣减5%
@@ -1316,7 +1316,7 @@ const KPITab = memo(function KPITab({
                 ) : (
                   <span
                     className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
-                    style={{ backgroundColor: 'rgba(16,185,129,0.15)', color: '#10B981' }}
+                    style={{ backgroundColor: 'rgba(16,185,129,0.15)', color: '#34C759' }}
                   >
                     <CheckCircle2 className="w-3 h-3" />
                     KPI达标
@@ -1345,7 +1345,7 @@ const KPITab = memo(function KPITab({
                     <p className="text-[10px] mb-1" style={{ color: 'var(--muted-foreground)' }}>{m.label}</p>
                     <p
                       className="text-lg font-bold"
-                      style={{ color: passed ? '#10B981' : '#EF4444' }}
+                      style={{ color: passed ? '#34C759' : '#F5483B' }}
                     >
                       {m.actual}{m.unit}
                     </p>
@@ -1357,7 +1357,7 @@ const KPITab = memo(function KPITab({
                         className="h-full rounded-full transition-all"
                         style={{
                           width: `${Math.min(ratio, 100)}%`,
-                          backgroundColor: passed ? '#10B981' : '#EF4444',
+                          backgroundColor: passed ? '#34C759' : '#F5483B',
                         }}
                       />
                     </div>

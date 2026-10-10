@@ -90,9 +90,9 @@ export default function DashboardPage() {
   }, []);
 
   const brandColors: Record<string, string> = {
-    vivo: '#415FFF',
-    iqoo: '#FF6B35',
-    iot: '#00C9A7',
+    vivo: '#2A2E45',
+    iqoo: '#2A2E45',
+    iot: '#2A2E45',
   };
 
   // 根据日期范围推导 month（利润率计算按月）
@@ -321,16 +321,16 @@ function ProfitCard({ data, costLoading, costError }: { data: ProfitCardData; co
               className={cn(
                 'font-bold',
                 data.isSummary ? 'text-3xl' : 'text-2xl',
-                isPositive ? 'text-emerald-400' : 'text-destructive'
+                isPositive ? 'text-[#F5483B]' : 'text-[#34C759]'
               )}
             >
               {rate}%
             </p>
           </div>
           {isPositive ? (
-            <TrendingUp className="h-5 w-5 text-emerald-400" />
+            <TrendingUp className="h-5 w-5 text-[#F5483B]" />
           ) : (
-            <TrendingDown className="h-5 w-5 text-destructive" />
+            <TrendingDown className="h-5 w-5 text-[#34C759]" />
           )}
         </div>
 

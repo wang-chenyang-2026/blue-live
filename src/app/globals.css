@@ -89,38 +89,82 @@
   --sidebar-ring: oklch(0.55 0.2 260);
 }
 
+/* =============================================================
+   Deep / dark theme palette（文档指定的深色主题唯一色值来源）
+   页面底色 #0D0F1A · 侧边栏/筛选栏 #151827 · 卡片/表格容器 #1E2235
+   分割线 白8% · T1白92%/T2白65%/T3白40%
+   主色 #4158D0（悬停 #6A7CDA / 按下 #2C42B2）
+   涨红 #F5483B / 跌绿 #34C759 / 告警 #FF9F0A · 中性徽章 底#2A2E45 白92%
+   ============================================================= */
 .dark {
-  --background: oklch(0.13 0.005 260);
-  --foreground: oklch(0.95 0 0);
-  --card: oklch(0.17 0.006 260);
-  --card-foreground: oklch(0.95 0 0);
-  --popover: oklch(0.17 0.006 260);
-  --popover-foreground: oklch(0.95 0 0);
-  --primary: oklch(0.65 0.2 260);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.22 0.008 260);
-  --secondary-foreground: oklch(0.9 0 0);
-  --muted: oklch(0.22 0.008 260);
-  --muted-foreground: oklch(0.65 0 0);
-  --accent: oklch(0.25 0.01 260);
-  --accent-foreground: oklch(0.95 0 0);
-  --destructive: oklch(0.65 0.22 25);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.65 0.2 260);
-  --chart-1: oklch(0.65 0.2 260);
-  --chart-2: oklch(0.7 0.17 162);
-  --chart-3: oklch(0.75 0.18 70);
-  --chart-4: oklch(0.65 0.24 300);
-  --chart-5: oklch(0.7 0.2 25);
-  --sidebar: oklch(0.11 0.005 260);
-  --sidebar-foreground: oklch(0.9 0 0);
-  --sidebar-primary: oklch(0.65 0.2 260);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.2 0.01 260);
-  --sidebar-accent-foreground: oklch(0.9 0 0);
-  --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: oklch(0.65 0.2 260);
+  --background: #0d0f1a;
+  --foreground: rgb(255 255 255 / 92%); /* T1 白92% */
+  --card: #1e2235;
+  --card-foreground: rgb(255 255 255 / 92%);
+  --popover: #1e2235;
+  --popover-foreground: rgb(255 255 255 / 92%);
+  --primary: #4158d0;
+  --primary-foreground: #ffffff;
+  --secondary: #151827;
+  --secondary-foreground: rgb(255 255 255 / 65%);
+  --muted: #151827;
+  --muted-foreground: rgb(255 255 255 / 65%); /* T2 */
+  --accent: #2a2e45;
+  --accent-foreground: rgb(255 255 255 / 92%);
+  --destructive: #f5483b;
+  --destructive-foreground: #ffffff;
+  --border: rgb(255 255 255 / 8%);
+  --input: rgb(255 255 255 / 12%);
+  --ring: #4158d0;
+  --chart-1: #4158d0;
+  --chart-2: #4158d0cc; /* 80% */
+  --chart-3: #4158d080; /* 50% */
+  --chart-4: #4158d04d; /* 30% */
+  --chart-5: #4158d026; /* 15% */
+  --sidebar: #151827;
+  --sidebar-foreground: rgb(255 255 255 / 92%);
+  --sidebar-primary: #4158d0;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2a2e45;
+  --sidebar-accent-foreground: rgb(255 255 255 / 92%);
+  --sidebar-border: rgb(255 255 255 / 8%);
+  --sidebar-ring: #4158d0;
+
+  /* 文档语义令牌（唯一补充，色值均来自文档调色板） */
+  --text-t1: rgb(255 255 255 / 92%);
+  --text-t2: rgb(255 255 255 / 65%);
+  --text-t3: rgb(255 255 255 / 40%);
+  --primary-hover: #6a7cda;
+  --primary-pressed: #2c42b2;
+  --rise: #f5483b; /* 涨/上升/正向金额 */
+  --fall: #34c759; /* 跌 */
+  --alert: #ff9f0a; /* 告警/警示/缺口 */
+  --badge-bg: #2a2e45; /* 中性徽章（业务线统一底色） */
+  --badge-fg: rgb(255 255 255 / 92%);
+  --divider: rgb(255 255 255 / 8%);
+}
+
+/* 深色下文字三级（T1/T2/T3）工具类：仅当 .dark 生效 */
+.dark .text-t1 { color: var(--text-t1) !important; }
+.dark .text-t2 { color: var(--text-t2) !important; }
+.dark .text-t3 { color: var(--text-t3) !important; }
+.dark .text-rise { color: var(--rise) !important; }
+.dark .text-fall { color: var(--fall) !important; }
+.dark .text-alert { color: var(--alert) !important; }
+.dark .bg-badge { background-color: var(--badge-bg) !important; color: var(--badge-fg) !important; }
+
+/* 主色三态（悬停提亮 / 按下加深）：作用于 primary 语义的元素 */
+.dark .bg-primary { background-color: var(--primary) !important; }
+.dark .hover\:bg-primary\/90:hover,
+.dark .hover\:bg-primary\/95:hover,
+.dark .hover\:bg-primary:hover { background-color: var(--primary-hover) !important; }
+.dark .active\:bg-primary:hover { background-color: var(--primary-pressed) !important; }
+
+/* 业务线标识 → 中性徽章（vivo/iQOO/IOT 统一底色，不再用颜色区分） */
+.dark .brand-dot,
+.dark .brand-chip {
+  background-color: var(--badge-bg) !important;
+  color: var(--badge-fg) !important;
 }
 
 @layer base {
@@ -158,17 +202,11 @@ body {
   background: oklch(0.45 0 0);
 }
 
-/* Glow effect for brand cards */
-.brand-glow-vivo {
-  box-shadow: 0 0 20px oklch(0.55 0.2 260 / 20%);
-}
-
-.brand-glow-iqoo {
-  box-shadow: 0 0 20px oklch(0.6 0.2 25 / 20%);
-}
-
+/* Glow effect for brand cards（业务线统一中性光，不再按品牌分色） */
+.brand-glow-vivo,
+.brand-glow-iqoo,
 .brand-glow-iot {
-  box-shadow: 0 0 20px oklch(0.6 0.15 165 / 20%);
+  box-shadow: 0 0 20px rgb(255 255 255 / 12%);
 }
 
 /* Light mode fallback for hardcoded zinc dark classes */

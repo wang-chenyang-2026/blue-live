@@ -154,15 +154,15 @@ export default function BuyinSpikePage() {
                 <span className="text-muted-foreground">等待扫码…（已轮询 {pollCount} 次）</span>
               </>
             ) : (
-              <span className="font-medium text-emerald-500">登录成功</span>
+              <span className="font-medium text-[#34C759]">登录成功</span>
             )}
           </div>
         </div>
       )}
 
       {phase === 'logged_in' && (
-        <div className="mb-5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm">
-          <p className="mb-1 font-medium text-emerald-500">登录成功！cookie 已保存到后端会话</p>
+        <div className="mb-5 rounded-lg border border-[#34C759]/40 bg-[#34C759]/10 p-4 text-sm">
+          <p className="mb-1 font-medium text-[#34C759]">登录成功！cookie 已保存到后端会话</p>
           <p className="text-muted-foreground">
             识别账号：{accountHint ?? '未知（未识别到 uid/name cookie）'} · cookie 数量：{cookieCount ?? 0}
           </p>
@@ -173,8 +173,8 @@ export default function BuyinSpikePage() {
       )}
 
       {(phase === 'expired' || phase === 'not_found') && (
-        <div className="mb-5 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
-          <p className="mb-1 font-medium text-amber-500">
+        <div className="mb-5 rounded-lg border border-[#FF9F0A]/40 bg-[#FF9F0A]/10 p-4 text-sm">
+          <p className="mb-1 font-medium text-[#FF9F0A]">
             会话已{phase === 'expired' ? '过期（5 分钟未完成）' : '不存在或已清理'}
           </p>
           <p className="text-muted-foreground">请点击上方按钮重新获取二维码。</p>

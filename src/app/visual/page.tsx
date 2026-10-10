@@ -44,10 +44,10 @@ interface VisualItem {
 
 /* ========== Constants ========== */
 const BRAND_FILTERS = [
-  { id: 'top', label: 'TOP视觉', color: '#a78bfa' },
-  { id: 'vivo', label: 'vivo', color: '#415FFF' },
-  { id: 'iQOO抖音', label: 'iQOO抖音', color: '#FF6B35' },
-  { id: 'iQOO快手', label: 'iQOO快手', color: '#FF6B35' },
+  { id: 'top', label: 'TOP视觉', color: '#2A2E45' },
+  { id: 'vivo', label: 'vivo', color: '#2A2E45' },
+  { id: 'iQOO抖音', label: 'iQOO抖音', color: '#2A2E45' },
+  { id: 'iQOO快手', label: 'iQOO快手', color: '#2A2E45' },
 ] as const;
 
 const CATEGORY_OPTIONS = ['日播', '发布会', '主题'] as const;
@@ -340,7 +340,7 @@ export default function VisualPage() {
       {error && allItems.length === 0 && (
         <div className="flex items-center justify-center min-h-[40vh]">
           <div className="text-center space-y-3">
-            <p className="text-red-400">{error}</p>
+            <p className="text-[#FF9F0A]">{error}</p>
             <Button variant="outline" onClick={fetchAllData}>重试</Button>
           </div>
         </div>
@@ -353,7 +353,7 @@ export default function VisualPage() {
             const item = topVisuals[brandKey];
             const brandLabel = brandKey === 'vivo' ? 'vivo' : brandKey;
             const brandColor =
-              brandKey === 'vivo' ? '#415FFF' : '#FF6B35';
+              brandKey === 'vivo' ? '#2A2E45' : '#2A2E45';
 
             if (!item) {
               // Empty placeholder

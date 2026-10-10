@@ -178,7 +178,7 @@ function filterViewByMonthRange(data: any[], from?: string, to?: string): any[] 
 }
 
 /* ========== 图表配色（真实数据视图使用） ========== */
-const CHART_COLORS = ['#4158D0', '#FF6B35', '#FF4D4F', '#FAAD14', '#52C41A', '#1890FF', '#722ED1', '#13C2C2'];
+const CHART_COLORS = ['#4158D0', 'rgba(65,88,208,0.7)', 'rgba(65,88,208,0.6)', 'rgba(65,88,208,0.5)', 'rgba(65,88,208,0.5)', '#4158D0', 'rgba(65,88,208,0.5)', 'rgba(65,88,208,0.3)'];
 
 // 久谦 MCP 脏数据：京东渠道把商品属性/筛选项标签名误当热词统计（同月这些词频次/销售额完全相同），前端过滤
 const HOTWORD_BLOCKLIST = ['品牌', '价格', '报价', '图片'];
@@ -205,9 +205,9 @@ function buildKpiFromTrend(raw: any[], realBrandCount: number, monthFrom?: strin
   if (!Array.isArray(filtered) || filtered.length === 0) {
     return [
       { label: '总销售额', value: '—', change: 0, icon: <DollarSign className="h-5 w-5" />, color: '#4158D0' },
-      { label: '总销量', value: '—', change: 0, icon: <Package className="h-5 w-5" />, color: '#C850C0' },
-      { label: '平均价格', value: '—', change: 0, icon: <Tag className="h-5 w-5" />, color: '#10B981' },
-      { label: '品牌数', value: specificBrand ? '1个' : (realBrandCount > 0 ? `${realBrandCount}个` : '—'), change: 0, icon: <Building2 className="h-5 w-5" />, color: '#F59E0B' },
+      { label: '总销量', value: '—', change: 0, icon: <Package className="h-5 w-5" />, color: 'rgba(65,88,208,0.55)' },
+      { label: '平均价格', value: '—', change: 0, icon: <Tag className="h-5 w-5" />, color: 'rgba(65,88,208,0.6)' },
+      { label: '品牌数', value: specificBrand ? '1个' : (realBrandCount > 0 ? `${realBrandCount}个` : '—'), change: 0, icon: <Building2 className="h-5 w-5" />, color: 'rgba(65,88,208,0.5)' },
     ];
   }
 
@@ -267,9 +267,9 @@ function buildKpiFromTrend(raw: any[], realBrandCount: number, monthFrom?: strin
 
   return [
     { label: '总销售额', value: formatSales(totalSales), change: salesMom, icon: <DollarSign className="h-5 w-5" />, color: '#4158D0' },
-    { label: '总销量', value: formatVolume(totalVolume), change: volumeMom, icon: <Package className="h-5 w-5" />, color: '#C850C0' },
-    { label: '平均价格', value: `¥${Math.round(avgPrice).toLocaleString()}`, change: priceMom, icon: <Tag className="h-5 w-5" />, color: '#10B981' },
-    { label: '品牌数', value: specificBrand ? '1个' : (realBrandCount > 0 ? `${realBrandCount}个` : '—'), change: 0, icon: <Building2 className="h-5 w-5" />, color: '#F59E0B' },
+    { label: '总销量', value: formatVolume(totalVolume), change: volumeMom, icon: <Package className="h-5 w-5" />, color: 'rgba(65,88,208,0.55)' },
+    { label: '平均价格', value: `¥${Math.round(avgPrice).toLocaleString()}`, change: priceMom, icon: <Tag className="h-5 w-5" />, color: 'rgba(65,88,208,0.6)' },
+    { label: '品牌数', value: specificBrand ? '1个' : (realBrandCount > 0 ? `${realBrandCount}个` : '—'), change: 0, icon: <Building2 className="h-5 w-5" />, color: 'rgba(65,88,208,0.5)' },
   ];
 }
 
@@ -306,7 +306,7 @@ function KpiCardComp({ label, value, change, icon, color }: KpiCard) {
             <p className="text-2xl font-bold text-foreground">{value}</p>
             <div className={cn(
               'flex items-center gap-1 text-xs font-medium',
-              isUp ? 'text-emerald-400' : 'text-red-400',
+              isUp ? 'text-[#F5483B]' : 'text-[#34C759]',
             )}>
               {isUp ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
               {isUp ? '+' : ''}{change.toFixed(1)}%
@@ -334,9 +334,9 @@ function KpiCardComp({ label, value, change, icon, color }: KpiCard) {
 // 配色在深色背景下需高饱和、高对比、彼此可区分：
 // 京东-红、天猫-橙、抖音-品牌霓虹青
 const PLATFORM_META: Record<string, { label: string; color: string }> = {
-  jd: { label: '京东', color: '#FF3B30' },
-  tmall: { label: '天猫', color: '#FF9500' },
-  douyin: { label: '抖音', color: '#25F4EE' },
+  jd: { label: '京东', color: '#4158D0' },
+  tmall: { label: '天猫', color: 'rgba(65,88,208,0.7)' },
+  douyin: { label: '抖音', color: 'rgba(65,88,208,0.5)' },
 };
 
 function TrendView({ loading, data }: { loading: boolean; data: any[] }) {
@@ -355,7 +355,7 @@ function TrendView({ loading, data }: { loading: boolean; data: any[] }) {
     }
     return {
       sales: { label: '销售额(万)', color: '#4158D0' },
-      volume: { label: '销量(万件)', color: '#C850C0' },
+      volume: { label: '销量(万件)', color: 'rgba(65,88,208,0.55)' },
     };
   }, [hasPlatformData]);
 
@@ -443,8 +443,8 @@ function TrendView({ loading, data }: { loading: boolean; data: any[] }) {
                 <stop offset="95%" stopColor="#4158D0" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="volumeGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#C850C0" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#C850C0" stopOpacity={0} />
+                <stop offset="5%" stopColor="rgba(65,88,208,0.55)" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="rgba(65,88,208,0.55)" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -464,7 +464,7 @@ function TrendView({ loading, data }: { loading: boolean; data: any[] }) {
               type="monotone"
               dataKey="volume"
               name="销量(万件)"
-              stroke="#C850C0"
+              stroke="rgba(65,88,208,0.55)"
               fill="url(#volumeGradient)"
               strokeWidth={2}
             />
@@ -505,7 +505,7 @@ function BrandRankingView({ loading, data }: { loading: boolean; data: any[] }) 
               className={cn(
                 'flex h-7 w-7 items-center justify-center rounded-md text-xs font-bold',
                 brand.rank <= 3
-                  ? 'bg-gradient-to-br from-[#4158D0] to-[#C850C0] text-white'
+                  ? 'bg-gradient-to-br from-[#4158D0] to-[rgba(65,88,208,0.55)] text-white'
                   : 'bg-secondary text-muted-foreground',
               )}
             >
@@ -581,7 +581,7 @@ function BrandRankingView({ loading, data }: { loading: boolean; data: any[] }) 
 function PriceVolumeView({ loading, data, xKey = 'range' }: { loading: boolean; data: any[]; xKey?: 'range' | 'label' }) {
   const chartConfig = {
     sales: { label: '销售额(万)', color: '#4158D0' },
-    volume: { label: '销量(万件)', color: '#C850C0' },
+    volume: { label: '销量(万件)', color: 'rgba(65,88,208,0.55)' },
   };
 
   const chartData = useMemo(() => {
@@ -635,7 +635,7 @@ function PriceVolumeView({ loading, data, xKey = 'range' }: { loading: boolean; 
           <ChartTooltip content={<ChartTooltipContent />} />
           <ChartLegend content={<ChartLegendContent />} />
           <Bar dataKey="sales" name="销售额(万)" fill="#4158D0" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="volume" name="销量(万件)" fill="#C850C0" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="volume" name="销量(万件)" fill="rgba(65,88,208,0.55)" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ChartContainer>
     </div>
@@ -744,7 +744,7 @@ function HotwordsView({ loading, data }: { loading: boolean; data: any[] }) {
                   className="font-bold mb-1 truncate"
                   style={{
                     fontSize: `${size}px`,
-                    background: 'linear-gradient(to right, #4158D0, #C850C0)',
+                    background: 'linear-gradient(to right, #4158D0, rgba(65,88,208,0.55))',
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                   }}
@@ -787,9 +787,9 @@ function PriceCrossView({ loading, data }: { loading: boolean; data: any[] }) {
     const sample = data[0];
     const candidate = [
       { match: /^\s*<\s*1849/, label: '<1849', color: '#4158D0' },
-      { match: /1849[\s\-]*3379/, label: '1849-3379', color: '#C850C0' },
-      { match: /3379[\s\-]*5658/, label: '3379-5658', color: '#FF9A3C' },
-      { match: />\s*5658/, label: '>5658', color: '#10B981' },
+      { match: /1849[\s\-]*3379/, label: '1849-3379', color: 'rgba(65,88,208,0.55)' },
+      { match: /3379[\s\-]*5658/, label: '3379-5658', color: 'rgba(65,88,208,0.5)' },
+      { match: />\s*5658/, label: '>5658', color: 'rgba(65,88,208,0.6)' },
     ];
     const keys = Object.keys(sample);
     return candidate
@@ -1731,7 +1731,7 @@ export default function EcommercePage() {
                 onClick={() => handleViewChange(view.key)}
                 className={cn(
                   activeView === view.key &&
-                    'bg-gradient-to-r from-[#4158D0] to-[#C850C0] text-white border-0',
+                    'bg-gradient-to-r from-[#4158D0] to-[rgba(65,88,208,0.55)] text-white border-0',
                 )}
               >
                 {view.label}

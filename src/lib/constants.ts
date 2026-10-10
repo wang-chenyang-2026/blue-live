@@ -1,11 +1,13 @@
 import type { Brand, Role, ModuleKey, RoleKey, User } from './types';
 
 // ==================== 品牌与账号（级联分组结构） ====================
+// 业务线标识统一为中性徽章色（不再用颜色区分品牌）
+const NEUTRAL_BRAND_COLOR = '#2A2E45';
 export const BRANDS: Brand[] = [
   {
     id: 'vivo',
     name: 'vivo',
-    color: '#415FFF',
+    color: NEUTRAL_BRAND_COLOR,
     accounts: [
       { id: 'vivo-main', brandId: 'vivo', name: 'vivo（大号）', platform: '其他' },
       { id: 'vivo-douyin', brandId: 'vivo', name: 'vivo官方旗舰店（抖音）', platform: '抖音' },
@@ -15,7 +17,7 @@ export const BRANDS: Brand[] = [
   {
     id: 'iqoo',
     name: 'iQOO',
-    color: '#FF6B35',
+    color: NEUTRAL_BRAND_COLOR,
     groups: [
       {
         id: 'iqoo-douyin-group',
@@ -42,7 +44,7 @@ export const BRANDS: Brand[] = [
   {
     id: 'iot',
     name: 'IOT',
-    color: '#00C9A7',
+    color: NEUTRAL_BRAND_COLOR,
     accounts: [
       { id: 'iot-tablet', brandId: 'iot', name: 'IOT平板', platform: '其他' },
       { id: 'iot-watch', brandId: 'iot', name: 'IOT手表', platform: '其他' },

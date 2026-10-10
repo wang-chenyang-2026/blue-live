@@ -30,16 +30,18 @@ const formatCurrency = (value: number): string => {
 };
 
 const BRAND_COLORS: Record<string, string> = {
-  vivo: "#415FFF",
-  iQOO: "#FF6B35",
-  IOT: "#00C9A7",
+  vivo: "#2A2E45",
+  iQOO: "#2A2E45",
+  IOT: "#2A2E45",
+  // 业务线统一中性徽章，不再按品牌分色
 };
 
+// 图表多色系列 → 单一主色 #4158D0 四档透明度区分维度
 const DIMENSION_COLORS = {
-  anchor: "#EC4899", // 玫红
-  control: "#F59E0B", // 琥珀
-  fulltime: "#3B82F6", // 蓝
-  purchase: "#10B981", // 绿
+  anchor: "#4158d0",
+  control: "#4158d0b3",
+  fulltime: "#4158d080",
+  purchase: "#4158d04d",
 };
 
 export function CostOverview() {

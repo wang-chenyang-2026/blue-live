@@ -32,8 +32,8 @@ export default function GlobalError({
       <body
         style={{
           margin: 0,
-          background: '#0a0a0f',
-          color: '#e5e7eb',
+          background: '#0d0f1a',
+          color: 'rgba(255,255,255,0.92)',
           fontFamily:
             'system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif',
         }}
@@ -64,7 +64,7 @@ export default function GlobalError({
           <p
             style={{
               fontSize: '14px',
-              color: '#9ca3af',
+              color: 'rgba(255,255,255,0.65)',
               maxWidth: '440px',
               margin: '0 0 28px',
               lineHeight: 1.7,
@@ -72,7 +72,7 @@ export default function GlobalError({
           >
             系统更新后，浏览器可能缓存了旧版本资源导致页面异常。
             请先点击「重新加载」整页刷新；若仍异常，请按
-            <strong style={{ color: '#d1d5db' }}> Ctrl/Cmd + Shift + R </strong>
+            <strong style={{ color: 'rgba(255,255,255,0.92)' }}> Ctrl/Cmd + Shift + R </strong>
             强制刷新，或清除浏览器缓存后重试。
           </p>
           <div style={{ display: 'flex', gap: '12px' }}>
@@ -82,7 +82,7 @@ export default function GlobalError({
                 padding: '10px 26px',
                 borderRadius: '10px',
                 border: 'none',
-                background: 'linear-gradient(135deg,#4158D0,#4361EE)',
+                background: 'linear-gradient(135deg,#4158d0,rgba(65,88,208,0.6))',
                 color: '#fff',
                 fontSize: '14px',
                 fontWeight: 500,
@@ -96,9 +96,9 @@ export default function GlobalError({
               style={{
                 padding: '10px 26px',
                 borderRadius: '10px',
-                border: '1px solid #374151',
+                border: '1px solid rgba(255,255,255,0.08)',
                 background: 'transparent',
-                color: '#e5e7eb',
+                color: 'rgba(255,255,255,0.92)',
                 fontSize: '14px',
                 cursor: 'pointer',
               }}

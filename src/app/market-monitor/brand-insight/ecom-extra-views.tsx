@@ -553,8 +553,8 @@ function SalesView({ rows }: { rows: SalesPoint[] }) {
                 labelStyle={{ color: '#152033' }}
               />
               <Legend />
-              <Line yAxisId="left" type="monotone" dataKey="销售额" stroke="#2F6BFF" strokeWidth={2.5} dot={{ r: 3 }} />
-              <Line yAxisId="right" type="monotone" dataKey="销量" stroke="#16A37B" strokeWidth={2.5} dot={{ r: 3 }} />
+              <Line yAxisId="left" type="monotone" dataKey="销售额" stroke="#4158D0" strokeWidth={2.5} dot={{ r: 3 }} />
+              <Line yAxisId="right" type="monotone" dataKey="销量" stroke="rgba(65,88,208,0.6)" strokeWidth={2.5} dot={{ r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -598,7 +598,7 @@ function SalesView({ rows }: { rows: SalesPoint[] }) {
 
 function yoyColor(v: number | null): string {
   if (v == null) return '';
-  return v >= 0 ? 'text-emerald-600' : 'text-red-500';
+  return v >= 0 ? 'text-[#F5483B]' : 'text-[#34C759]';
 }
 
 /* ---------------- 店铺列表 ---------------- */
@@ -645,8 +645,8 @@ function ShopView({ rows, globalPlatform }: { rows: ShopRow[]; globalPlatform?: 
               className={cn(
                 'px-3 py-1 rounded-full text-xs font-medium border transition-colors',
                 plat === p
-                  ? 'bg-[#2F6BFF] border-[#2F6BFF] text-white'
-                  : 'bg-card border-border text-muted-foreground hover:border-[#2F6BFF] hover:text-[#2F6BFF]',
+                  ? 'bg-[#4158D0] border-[#4158D0] text-white'
+                  : 'bg-card border-border text-muted-foreground hover:border-[#4158D0] hover:text-[#4158D0]',
               )}
             >
               {p}
@@ -790,8 +790,8 @@ function HotwordView({ data, globalPlatform }: { data: { platforms: string[]; by
               className={cn(
                 'px-3 py-1 rounded-full text-xs font-medium border transition-colors',
                 plat === p
-                  ? 'bg-[#C850C0] border-[#C850C0] text-white'
-                  : 'bg-card border-border text-muted-foreground hover:border-[#C850C0] hover:text-[#C850C0]',
+                  ? 'bg-[#4158D0] border-[#4158D0] text-white'
+                  : 'bg-card border-border text-muted-foreground hover:border-[#4158D0] hover:text-[#4158D0]',
               )}
             >
               {p}
@@ -805,7 +805,7 @@ function HotwordView({ data, globalPlatform }: { data: { platforms: string[]; by
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2.5">
         {rows.map((r, i) => (
           <div key={r.word} className="flex items-center gap-3">
-            <div className={cn('w-6 text-right font-mono text-xs', i < 3 ? 'text-[#C850C0] font-bold' : 'text-muted-foreground')}>
+            <div className={cn('w-6 text-right font-mono text-xs', i < 3 ? 'text-[#4158D0] font-bold' : 'text-muted-foreground')}>
               {i + 1}
             </div>
             <div className="flex-1 min-w-0">
@@ -817,7 +817,7 @@ function HotwordView({ data, globalPlatform }: { data: { platforms: string[]; by
               </div>
               <div className="mt-1 h-1.5 rounded-full bg-muted overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#4158D0] to-[#C850C0]"
+                  className="h-full rounded-full bg-gradient-to-r from-[#4158D0] to-[#4158D0]/50"
                   style={{ width: `${Math.max(3, (r.count / maxCount) * 100)}%` }}
                 />
               </div>
@@ -887,14 +887,14 @@ function Pager({ page, totalPages, onChange }: { page: number; totalPages: numbe
         <button
           onClick={() => onChange(Math.max(1, page - 1))}
           disabled={page <= 1}
-          className="px-3 py-1.5 rounded-md text-xs font-medium border border-border bg-card text-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#2F6BFF] hover:text-[#2F6BFF] transition-colors"
+          className="px-3 py-1.5 rounded-md text-xs font-medium border border-border bg-card text-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#4158D0] hover:text-[#4158D0] transition-colors"
         >
           上一页
         </button>
         <button
           onClick={() => onChange(Math.min(totalPages, page + 1))}
           disabled={page >= totalPages}
-          className="px-3 py-1.5 rounded-md text-xs font-medium border border-border bg-card text-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#2F6BFF] hover:text-[#2F6BFF] transition-colors"
+          className="px-3 py-1.5 rounded-md text-xs font-medium border border-border bg-card text-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#4158D0] hover:text-[#4158D0] transition-colors"
         >
           下一页
         </button>

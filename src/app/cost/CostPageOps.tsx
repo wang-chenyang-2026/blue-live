@@ -25,9 +25,9 @@ import {
 
 const BRAND_COLORS: Record<string, string> = {
   vivo: '#4158D0',
-  iqoo: '#7B61FF',
+  iqoo: '#2A2E45',
   all: '#4158D0',
-  iot: '#10B981',
+  iot: '#34C759',
 };
 
 const CATEGORY_CONFIG: Record<string, {
@@ -53,18 +53,18 @@ const CATEGORY_CONFIG: Record<string, {
     label: '兼职中控',
     icon: <Monitor className="w-4 h-4" />,
     bg: 'rgba(123,97,255,0.15)',
-    text: '#7B61FF',
+    text: '#2A2E45',
     tagBg: 'rgba(123,97,255,0.15)',
-    tagText: '#7B61FF',
+    tagText: '#2A2E45',
     dimKey: 'control',
   },
   '全职主播成本': {
     label: '全职主播',
     icon: <Users className="w-4 h-4" />,
     bg: 'rgba(65,88,208,0.1)',
-    text: '#6B7FE8',
+    text: '#2A2E45',
     tagBg: 'rgba(65,88,208,0.1)',
-    tagText: '#6B7FE8',
+    tagText: '#2A2E45',
     dimKey: 'fulltime',
     role: '主播',
   },
@@ -72,9 +72,9 @@ const CATEGORY_CONFIG: Record<string, {
     label: '全职中控',
     icon: <Monitor className="w-4 h-4" />,
     bg: 'rgba(123,97,255,0.1)',
-    text: '#9B85FF',
+    text: '#2A2E45',
     tagBg: 'rgba(123,97,255,0.1)',
-    tagText: '#9B85FF',
+    tagText: '#2A2E45',
     dimKey: 'fulltime',
     role: '中控',
   },
@@ -82,9 +82,9 @@ const CATEGORY_CONFIG: Record<string, {
     label: '全职运营',
     icon: <Users className="w-4 h-4" />,
     bg: 'rgba(16,185,129,0.1)',
-    text: '#10B981',
+    text: '#34C759',
     tagBg: 'rgba(16,185,129,0.1)',
-    tagText: '#10B981',
+    tagText: '#34C759',
     dimKey: 'fulltime',
     role: '运营',
   },
@@ -101,9 +101,9 @@ const CATEGORY_CONFIG: Record<string, {
     label: '设计费',
     icon: <Package className="w-4 h-4" />,
     bg: 'rgba(245,158,11,0.15)',
-    text: '#F59E0B',
+    text: '#FF9F0A',
     tagBg: 'rgba(245,158,11,0.15)',
-    tagText: '#F59E0B',
+    tagText: '#FF9F0A',
     dimKey: 'design',
   },
   '其它成本': {
@@ -575,7 +575,7 @@ export default function CostPageOps() {
               ...BRANDS.map((b) => ({
                 id: b.id,
                 name: b.name,
-                color: b.id === 'vivo' ? '#4158D0' : b.id === 'iqoo' ? '#7B61FF' : '#10B981',
+                color: b.id === 'vivo' ? '#4158D0' : b.id === 'iqoo' ? '#2A2E45' : '#34C759',
               })),
             ].map((b) => (
               <button
@@ -620,7 +620,7 @@ export default function CostPageOps() {
                 className="text-xs px-2 py-0.5 rounded-full"
                 style={{
                   backgroundColor: momChange >= 0 ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)',
-                  color: momChange >= 0 ? '#EF4444' : '#10B981',
+                  color: momChange >= 0 ? '#F5483B' : '#34C759',
                 }}
               >
                 {momChange >= 0 ? '↑' : '↓'} {Math.abs(momChange).toFixed(1)}%
@@ -858,7 +858,7 @@ export default function CostPageOps() {
                                 return (
                                   <>
                                     {(d.workStatus === '离职' || d.leaveDate) && (
-                                      <span style={{ marginLeft: 6, padding: '1px 6px', borderRadius: 4, fontSize: 11, backgroundColor: '#FEE2E2', color: '#DC2626' }}>
+                                      <span style={{ marginLeft: 6, padding: '1px 6px', borderRadius: 4, fontSize: 11, backgroundColor: 'rgba(245,72,59,0.15)', color: '#F5483B' }}>
                                         离职{leaveDateStr ? ` ${leaveDateStr}` : ''}
                                       </span>
                                     )}
@@ -1172,7 +1172,7 @@ const KPITab = memo(function KPITab({
                 {kpi.isDeducted ? (
                   <span
                     className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
-                    style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#EF4444' }}
+                    style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#F5483B' }}
                   >
                     <XCircle className="w-3 h-3" />
                     KPI未达标 扣减5%
@@ -1180,7 +1180,7 @@ const KPITab = memo(function KPITab({
                 ) : (
                   <span
                     className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
-                    style={{ backgroundColor: 'rgba(16,185,129,0.15)', color: '#10B981' }}
+                    style={{ backgroundColor: 'rgba(16,185,129,0.15)', color: '#34C759' }}
                   >
                     <CheckCircle2 className="w-3 h-3" />
                     KPI达标
@@ -1210,7 +1210,7 @@ const KPITab = memo(function KPITab({
                     <p className="text-[10px] mb-1" style={{ color: 'var(--muted-foreground)' }}>{m.label}</p>
                     <p
                       className="text-lg font-bold"
-                      style={{ color: passed ? '#10B981' : '#EF4444' }}
+                      style={{ color: passed ? '#34C759' : '#F5483B' }}
                     >
                       {m.actual}{m.unit}
                     </p>
@@ -1223,7 +1223,7 @@ const KPITab = memo(function KPITab({
                         className="h-full rounded-full transition-all"
                         style={{
                           width: `${Math.min(ratio, 100)}%`,
-                          backgroundColor: passed ? '#10B981' : '#EF4444',
+                          backgroundColor: passed ? '#34C759' : '#F5483B',
                         }}
                       />
                     </div>

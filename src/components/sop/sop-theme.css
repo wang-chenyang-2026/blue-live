@@ -59,15 +59,15 @@
   --sop-overlay: rgba(0, 0, 0, 0.55);
 }
 
-/* 业务线圆点（日/夜各一套，保持品牌识别） */
+/* 业务线圆点（日/夜各一套）——深色下统一中性徽章，不再用颜色区分 */
 .sop-scope .dot-general { background-color: #86909c; }
 .sop-scope .dot-vivo { background-color: #4e5fff; }
 .sop-scope .dot-iqoo_douyin { background-color: #fe2c55; }
 .sop-scope .dot-iqoo_kuaishou { background-color: #ff7d00; }
-.dark .sop-scope .dot-general { background-color: oklch(0.66 0 0); }
-.dark .sop-scope .dot-vivo { background-color: #6a8cff; }
-.dark .sop-scope .dot-iqoo_douyin { background-color: #ff4d6a; }
-.dark .sop-scope .dot-iqoo_kuaishou { background-color: #ff9a3c; }
+.dark .sop-scope .dot-general { background-color: #2a2e45; }
+.dark .sop-scope .dot-vivo { background-color: #2a2e45; }
+.dark .sop-scope .dot-iqoo_douyin { background-color: #2a2e45; }
+.dark .sop-scope .dot-iqoo_kuaishou { background-color: #2a2e45; }
 /* 在线正文 Markdown 长文排版（仅作用于 body，沿用双主题变量） */
 .sop-scope .sop-md { color: var(--sop-t2); overflow-wrap: anywhere; word-break: normal; }
 .sop-scope .sop-md > :first-child { margin-top: 0; }
