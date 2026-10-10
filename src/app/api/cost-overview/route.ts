@@ -727,6 +727,18 @@ async function buildCostRules(feishuToken: string): Promise<CostRules> {
   return result;
 }
 
+// 统计 [start, end] 区间内应出勤天数：周一~周五且非法定节假日
+function countExpectedDays(start: Date, end: Date): number {
+  let n = 0;
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    const dow = cursor.getDay();
+    if (dow >= 1 && dow <= 5 && !isLegalHoliday(cursor)) n++;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return n;
+}
+
 // Dimension C: 全职员工成本
 async function calcFulltimeCost(
   feishuToken: string,
@@ -741,8 +753,14 @@ async function calcFulltimeCost(
   const monthNum = primary.month;
   const daysInMonth = new Date(year, monthNum, 0).getDate();
   const { saturdays, sundays } = countWeekendDays(year, monthNum);
-  const legalHolidays = getLegalHolidayCount(year, monthNum);
-  const workDays = daysInMonth - saturdays - sundays - legalHolidays;
+  // 法定假日可能落在周末，只扣减落在工作日(周一~周五)的法定假日，避免与 saturday/sunday 双扣
+  let weekdayLegalHolidays = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dt = new Date(year, monthNum - 1, d);
+    const dow = dt.getDay();
+    if (dow >= 1 && dow <= 5 && isLegalHoliday(dt)) weekdayLegalHolidays++;
+  }
+  const workDays = daysInMonth - saturdays - sundays - weekdayLegalHolidays;
 
   // 统计所有排班表（主播+中控）里全职员工的出勤
   const anchorData = await collectScheduleHours(feishuToken, brand === "all" ? "all" : brand, "anchor", range, nicknameMapping);
@@ -791,26 +809,14 @@ async function calcFulltimeCost(
     const effectiveEnd = leaveDate && leaveDate < range.end ? leaveDate : range.end;
     if (effectiveStart > effectiveEnd) continue;
 
-    // 3.2 应出勤天数计算：遍历 effectiveStart 到 effectiveEnd 的每一天
-    // 如果是周一到周五（getDay() 1-5）且不是法定节假日，计入 expectedDays
-    let expectedDays = 0;
-    const cursor = new Date(effectiveStart);
-    while (cursor <= effectiveEnd) {
-      const dow = cursor.getDay();
-      if (dow >= 1 && dow <= 5 && !isLegalHoliday(cursor)) {
-        expectedDays++;
-      }
-      cursor.setDate(cursor.getDate() + 1);
-    }
+    // 3.2 查询范围内（且在职区间内）应出勤天数
+    const expectedDays = countExpectedDays(effectiveStart, effectiveEnd);
 
-    // 整月workDays用于主播按比例折算
-    const totalMonthWorkDays = Math.max(1, workDays);
+    // 整月应出勤天数：作为月薪折算与加班费门槛的固定分母（不随查询范围缩小）
+    const monthWorkDays = Math.max(1, workDays);
 
-    // 主播expectedHours按比例 = 90 / 整月workDays * expectedDays
-    // 中控expectedHours = expectedDays * 8
-    const expectedHours = config.role === "主播"
-      ? (90 / totalMonthWorkDays) * expectedDays
-      : expectedDays * 8;
+    // 加班费门槛：中控 = 整月应出勤天数 × 8；主播固定 90h（不再随查询范围缩小）
+    const expectedHours = config.role === "主播" ? 90 : monthWorkDays * 8;
 
     // 3.4 实际出勤裁剪：过滤掉入职前和离职后的出勤
     const rawDays = nameDays[name] || new Set<string>();
@@ -887,7 +893,14 @@ async function calcFulltimeCost(
       continue;
     }
 
-    const holidayDays = nameHolidayDays[name]?.size || 0;
+    // 整月在职整发判定：查询覆盖整月且员工整月在职
+    const monthStart = new Date(year, monthNum - 1, 1);
+    const monthEnd = new Date(year, monthNum - 1, daysInMonth);
+    const isFullMonthQuery =
+      range.start.getTime() === monthStart.getTime() &&
+      range.end.getTime() === monthEnd.getTime();
+    const employedWholeMonth =
+      (!hireDate || hireDate <= monthStart) && (!leaveDate || leaveDate >= monthEnd);
 
     // 主播加班费 170/h，中控加班费 35/h
     const otherSalary =
@@ -895,16 +908,20 @@ async function calcFulltimeCost(
         ? Math.max(0, (actualHours - expectedHours) * 170)
         : Math.max(0, (actualHours - expectedHours) * 35);
 
-    // 主播无法定节假日薪资
+    // 法定节假日薪资：固定按 底薪/整月应出勤天数 × 3（中控），主播不参与
     const holidaySalary =
-      config.role === "主播" ? 0 : (config.base / Math.max(1, expectedDays)) * holidayDays * 3;
+      config.role === "主播" ? 0 : (config.base / monthWorkDays) * 3;
 
-    // 主播：底薪+补贴+加班费（不按出勤天折算）
-    // 中控/其他：(底薪+补贴)/应出勤天数*实际出勤天数 + 加班费 + 节假日薪资
-    const realTimeSalary =
+    // 月标准工资：
+    // 主播整月发放；中控整月查询且整月在职按整月发放；
+    // 否则按 底薪+补贴 / 整月应出勤天数 × 范围内应出勤天数(expectedDays) 折算（分母用整月，避免非整月放大）
+    const salaryBase =
       config.role === "主播"
-        ? config.base + config.subsidy + otherSalary
-        : (config.base + config.subsidy) / Math.max(1, expectedDays) * effectiveAttendanceDays + otherSalary + holidaySalary;
+        ? config.base + config.subsidy
+        : isFullMonthQuery && employedWholeMonth
+          ? config.base + config.subsidy
+          : (config.base + config.subsidy) / monthWorkDays * expectedDays;
+    const realTimeSalary = salaryBase + otherSalary + holidaySalary;
 
     const tax = Math.round(realTimeSalary * 0.0318 * 100) / 100;
     const totalCost = Math.round((realTimeSalary + socialInsuranceRealTime + tax) * 100) / 100;

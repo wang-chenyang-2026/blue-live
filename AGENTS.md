@@ -257,3 +257,16 @@ src/
 - 图表多色系（CHART_COLORS/GROUP_COLORS/brand KPI 渐变/平台多色系列）→ 主色+透明度四档（#4158D0、rgba(65,88,208,0.7/0.55/0.4/0.28)）；二色渐变全改「主色+透明度」（non-允许 2 色渐变）。唯一保留非白非灰/非语义色：`#94A3B8`/`#9CA3AF`/`#6B7280`/`#152033`（中性无彩色，误伤成本/轴），sop-theme.css 日间浅色令牌（浅色主题，按约束不改）。
 - 状态徽章映射：pending/等待→#FF9F0A、running/进行中→#4158D0、success/已处理/达标→#34C759、failed/超负荷/拒绝→#F5483B（表内色、按区域语义）。
 - 注意：`--foreground` 深色改为白92%；primary 按钮 hover/pressed 经 `.dark` 辅助类(#6A7CDA/#2C42B2)提升。测试 `test_run` 通过（lint/ts-check/service_probe/`/`·`/login`·`/sop`·`/api/buyin-spike/data` 200）。dev server=tsx watch src/server.ts(5000)。
+
+## 成本核算·全职薪资非整月放大 Bug 修复（`src/app/api/cost-overview/route.ts` 的 `calcFulltimeCost`）
+- **根因**：非整月查询（如 2026-10-01~10-09）把「查询范围内应出勤天数」当月薪分母，且法定节假日薪资多乘 holidayDays。
+- **修复**（仅逻辑，未动 UI/颜色/文案/结构/其他成本类型）：
+  - 新增 `countExpectedDays(start,end)`：统计范围内周一~周五且非法定节假日天数。
+  - `expectedDays = countExpectedDays(effectiveStart,effectiveEnd)`（在职区间裁剪）；`monthWorkDays = max(1, workDays)` 作固定分母。
+  - 加班门槛 `expectedHours`：中控 = `monthWorkDays*8`（10月136/9月168），主播固定 90h，不再随查询范围缩放。
+  - `holidaySalary`：中控 = `base/monthWorkDays*3`（固定3，去掉 ×holidayDays），主播 = 0。
+  - 月薪 `salaryBase`：主播全额 `base+subsidy`；中控整月查询 + 整月在职 → 全额；否则 = `(base+subsidy)/monthWorkDays * expectedDays`（分母与"范围内应出勤天数"均用工作日口径，非实际出勤天数——实际出勤含节假日/周末，会导致偏高，踩过坑）。
+  - 运营分支、社保1600、税3.18% 不变。
+- **`workDays` 修正**：原式 `daysInMonth - sat(周六) - sun(周日) - legalHolidays` 会把落在周末的法定假日重复扣（10月算出15，实际应17）；改为只扣「落在工作日(周一~五)的法定假日」（遍历1..daysInMonth 用 `isLegalHoliday`+dow 判定）。9月=21 不变，10月=17。此前 10月 `monthWorkDays=15` 直接导致全职成本对不上目标。
+- **isFullMonthQuery 时间口径坑**：`parseDateParam(end,true)` 带 23:59:59，而 `monthEnd = new Date(y,m,d)` 为 00:00:00，故 `range.end===monthEnd` 恒 false → 整月查询也走折算分支。但整月查询时 `expectedDays==monthWorkDays`，折算结果==全额，数值等价，无需特判修复。
+- **验证（dev 实测）**：10月分段全职=61,636.48（中控14,836.48/张厚羿3785·刘慈航3481·倪休4088·洪元媛3481，运营46,800）；9月整月=93,060（中控46,260，含真实加班如张厚羿202h加班1190）。lint/ts-check/service_probe/成本接口 smoke 全绿。dev 库原状未动。
