@@ -289,3 +289,16 @@ src/
   - 已在 5 处替换：`feishu-sheets.ts` 的 getFeishuToken / listAllSheets / readSheet，`schedule/route.ts` 的 findColIndexForDate / readColumn（含 B 列时间段）。未做批量合并重构（治本项后续）。
 - 注意：`safeFeishuFetch` 返回 `unknown`，调用处需按各自接口 `as` 类型化（如 readSheet/listAllSheets/getFeishuToken 已 cast），勿强转 `Record<string,unknown>` 再访问字段（会触发 TS2322/TS2362）。
 - 验证（test_run 全绿：lint/ts-check/探活）：31 天整月 vivo/anchor、iQOO/anchor、iQOO/control 均 success:true 无 Unexpected end；60 天（09-01~10-31）iQOO/control、50 天（08-15~10-05）iQOO/anchor 均 success:true。成功路径数据与改动前一致（仅换获取方式，未动取数范围/解析/返回结构/字段名）。只动排班读取链路，未碰首页拆分/成本/UI/数据概览 sheets-data。仅预览验证未部署。
+
+## 成本对账修复：iQOO 抖音/快手拆卡后 dy+ks 与合并/直查对齐（5330 元，仅 cost-overview/route.ts）
+- 症状：brand=all 的 `byBrand.iQOO`(＝dy+ks) 比 `brand=iqoo` 直查恒多 5330（9、10 月均是系统性差异）。
+- 根因（插桩按组件拆解证实）：差异 100% 落在兼职中控维（split 25935.78 vs 合并 20605.78），其余四维（主播/全职/采买/设计）完全相等。原因是「整月底薪型」兼职中控 **卞云龙** 同时出现在 iQOO 抖音(47h)与快手(61h)两张中控表：合并路径 `calcControlCost("iQOO")` 合并两表只计他一次（108h→整月底薪 5000+服务费=5330），而分平台路径 dy、ks 各自都按整月底薪计了一遍（两个 5330）→ 多算 5330。
+- 修复（`src/app/api/cost-overview/route.ts`）：
+  1）`calcControlCost` 对拆分品牌 `iQOO-ks` 跳过整月底薪型兼职中控（**洪媛媛/杨子洬/卞云龙**，即 `proratedBase` 底薪特殊分支那几位）——统一归入 iQOO-dy，避免跨 dy/ks 双计；合并路径(品牌 iQOO/all)不受影响。属“整月跨平台按整月底薪计费”的通用去重规则，非按金额硬编码。
+  2）`normalizeBrand` 补 `iqoo-dy→iQOO-dy`、`iqoo-ks→iQOO-ks`，使 `brand=iqoo-dy/ks` 直查从“全 0”变为与 byBrand 分项一致。
+- 全职/曾令飞：核验 hire/leave 过滤本就正确（曾令飞 08-31 离职，9/10月已排除、8月计 10690.51），fulltime dy+ks==合并==54262.32（10月），无需改（工单 B 假设不构成差异）。
+- 验证（test_run 全绿：lint/ts-check/探活）：
+  - 2026-09：byBrand iQOO = dy+ks = **269783.92** = 直查 **269783.92**，差额 0
+  - 2026-10：byBrand iQOO = dy+ks = **216209.04** = 直查 **216209.04**，差额 0
+  - 卞云龙 10月仅在 iqoo-dy(ctr 13516.88, 卞 cost 5330)、iqoo-ks ctr=7088.9 无卞云龙。
+- 时长/兼职人数未回退（brand-schedule-stats 本次未动）：dy 228h PT 7/3、合并 436h。注：快手 ks 时长 191→208 系上次 `safeFeishuFetch` 使快手表(RYPvqw)读取更完整（此前 191 为限流少读），非本次改动、属读取健壮性提升。只读飞书、未插假数据；仅预览验证未部署。

@@ -542,6 +542,9 @@ async function calcControlCost(
 
     // 用去数字后的纯中文姓名匹配特殊薪资规则（排班表中"杨子洬"→薪资表"杨子洬1325"）
     const baseName = stripNumbers(name);
+    // 兼职中控"整月底薪型"人员（洪媛媛/杨子洬/卞云龙）：月薪按整月计费、可跨 iQOO 子平台排班。
+    // 拆分 iQOO 时统一归入 iQOO-dy，iQOO-ks 跳过，避免同一人跨 dy/ks 双计（合并路径 iQOO/all 混排计时边界之外）。
+    if (brand === "iQOO-ks" && ["洪媛媛", "杨子洬", "卞云龙"].includes(baseName)) continue;
     let salary = 0;
     let mode = "";
     if (baseName === "洪媛媛") {
@@ -1014,6 +1017,8 @@ function normalizeBrand(input: string): string {
   if (lower === "all") return "all";
   if (lower === "vivo") return "vivo";
   if (lower === "iqoo") return "iQOO";
+  if (lower === "iqoo-dy") return "iQOO-dy";
+  if (lower === "iqoo-ks") return "iQOO-ks";
   if (lower === "iot") return "IOT";
   return raw;
 }
