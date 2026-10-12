@@ -252,3 +252,14 @@ export function getRoleModules(roleKey: RoleKey): ModuleKey[] {
 export function getAllAccounts() {
   return BRANDS.flatMap((b) => b.accounts);
 }
+
+// iQOO 子分组 → 首页卡片元数据（首页把 iQOO 拆成「抖音/快手」两张卡）
+export const IQOO_GROUP_META: Record<string, { brandKey: string; name: string }> = {
+  'iqoo-douyin-group': { brandKey: 'iQOO-dy', name: 'iQOO抖音汇总' },
+  'iqoo-kuaishou-group': { brandKey: 'iQOO-ks', name: 'iQOO快手汇总' },
+};
+
+// 飞书时长表 C 列账号缩写归一为标准账号名
+export const ACCOUNT_ALIAS_NORMALIZE: Record<string, string> = {
+  'iQOO官旗': 'iQOO官方旗舰店（抖音）',
+};

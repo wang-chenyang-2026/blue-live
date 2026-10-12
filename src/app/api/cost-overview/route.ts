@@ -139,8 +139,10 @@ async function buildFulltimeConfig(feishuToken: string): Promise<
       if (!name || !rawProject || !role || isNaN(base) || base <= 0) continue;
 
       let brand = rawProject;
-      if (rawProject.includes("iQOO")) brand = "iQOO";
-      else if (rawProject.includes("vivo")) brand = "vivo";
+      if (rawProject.includes("iQOO")) {
+        // iQOO 按项目细分：快手项目→iQOO-ks，其余（如 iQOO手机）→iQOO-dy
+        brand = rawProject.includes("快手") ? "iQOO-ks" : "iQOO-dy";
+      } else if (rawProject.includes("vivo")) brand = "vivo";
       else if (rawProject.toUpperCase().includes("IOT")) brand = "IOT";
 
       // 从备注列提取花名（格式如：花名为"芙芙"或花名为"芙芙"）
@@ -667,6 +669,10 @@ async function calcDesignCost(
     filteredNames = new Set(projectList.map((p) => p.name));
   } else if (brand === "iQOO") {
     filteredNames = new Set(projectList.filter((p) => p.name.includes("iQOO")).map((p) => p.name));
+  } else if (brand === "iQOO-dy") {
+    filteredNames = new Set(projectList.filter((p) => p.name.includes("iQOO") && !p.name.includes("快手")).map((p) => p.name));
+  } else if (brand === "iQOO-ks") {
+    filteredNames = new Set(projectList.filter((p) => p.name.includes("iQOO") && p.name.includes("快手")).map((p) => p.name));
   } else {
     // vivo / IOT: case-insensitive match
     const lower = brand.toLowerCase();
@@ -785,7 +791,11 @@ async function calcFulltimeCost(
   const details: Array<{ name: string; base: number; subsidy: number; cost: number; role: string; hours: number; days: number; workStatus: string; hireDate: string | null; leaveDate: string | null; socialInsurance: number; expectedDays: number }> = [];
 
   for (const [name, config] of Object.entries(fulltimeConfig)) {
-    if (brand !== "all" && config.brand !== brand) continue;
+    if (brand !== "all" && config.brand !== brand) {
+      // "iQOO" 视为 iQOO-dy + iQOO-ks 的合并口径（首页 byBrand 拆分后仍保留 iQOO 合计）
+      const isIQOOMerge = brand === "iQOO" && (config.brand === "iQOO-dy" || config.brand === "iQOO-ks");
+      if (!isIQOOMerge) continue;
+    }
 
     // 特殊：洪元媛/曾令飞 7月起才算全职
     const isFulltimeMonth =
@@ -1073,19 +1083,28 @@ export async function GET(request: NextRequest) {
 
     const byBrand: Record<string, number> = {};
     if (brand === "all") {
-      const subBrands = ["vivo", "iQOO", "IOT"] as const;
-      await Promise.all(
-        subBrands.map(async (b) => {
-          const [a, c, f, p, d] = await Promise.all([
-            calcAnchorCost(feishuToken, b, range, nicknameMapping, anchorRates),
-            calcControlCost(feishuToken, b, range, nicknameMapping, fulltimeConfig),
-            calcFulltimeCost(feishuToken, b, range, fulltimeConfig, nicknameMapping),
-            calcPurchaseCost(feishuToken, b, range),
-            calcDesignCost(feishuToken, b, range, projectList),
-          ]);
-          byBrand[b] = a.total + c.total + f.total + p.total + d.total;
-        }),
-      );
+      const computeBrandCost = async (b: string): Promise<number> => {
+        const [a, c, f, p, d] = await Promise.all([
+          calcAnchorCost(feishuToken, b, range, nicknameMapping, anchorRates),
+          calcControlCost(feishuToken, b, range, nicknameMapping, fulltimeConfig),
+          calcFulltimeCost(feishuToken, b, range, fulltimeConfig, nicknameMapping),
+          calcPurchaseCost(feishuToken, b, range),
+          calcDesignCost(feishuToken, b, range, projectList),
+        ]);
+        return a.total + c.total + f.total + p.total + d.total;
+      };
+      const [vivoCost, dyCost, ksCost, iotCost] = await Promise.all([
+        computeBrandCost("vivo"),
+        computeBrandCost("iQOO-dy"),
+        computeBrandCost("iQOO-ks"),
+        computeBrandCost("IOT"),
+      ]);
+      byBrand.vivo = vivoCost;
+      byBrand.IOT = iotCost;
+      byBrand["iQOO-dy"] = dyCost;
+      byBrand["iQOO-ks"] = ksCost;
+      // 保留原 iQOO 合并键，数值 = 抖音 + 快手分项之和
+      byBrand.iQOO = dyCost + ksCost;
     }
 
     const responseData = {

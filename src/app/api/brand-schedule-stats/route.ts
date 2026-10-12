@@ -5,6 +5,7 @@ import {
   resolveScheduleSheet,
 } from "@/lib/feishu-sheets";
 import { maskExternalBusiness } from "@/lib/api-permission";
+import { ACCOUNT_ALIAS_NORMALIZE } from "@/lib/constants";
 
 const NICKNAME_SHEET_TOKEN = "QmESw57otiab5WkLVqdcblCmnue";
 const NICKNAME_SHEETS = {
@@ -33,6 +34,8 @@ const DATA_SOURCES: Record<string, DataSource[]> = {
     { token: "EEDWwUGZHiFy0Xk6fQAcjH9NnZd", sheetId: "RYPvqw", label: "iQOO快手" },
     { token: "EEDWwUGZHiFy0Xk6fQAcjH9NnZd", sheetId: "0a2100", label: "iQOO抖音" },
   ],
+  "iQOO-dy": [{ token: "EEDWwUGZHiFy0Xk6fQAcjH9NnZd", sheetId: "0a2100", label: "iQOO抖音" }],
+  "iQOO-ks": [{ token: "EEDWwUGZHiFy0Xk6fQAcjH9NnZd", sheetId: "RYPvqw", label: "iQOO快手" }],
   IOT: [
     { token: "H7cpwf3rwiDvGOkZVYlcqJASnaf", sheetId: "0a2100", label: "IOT平板" },
     { token: "H7cpwf3rwiDvGOkZVYlcqJASnaf", sheetId: "RYPvqw", label: "IOT手表" },
@@ -47,6 +50,8 @@ const FULLTIME_NAMES = new Set<string>([
 const BRAND_TO_SCHEDULES: Record<string, string[]> = {
   vivo: ["vivo"],
   iQOO: ["iQOO-ks", "iQOO-dy"],
+  "iQOO-dy": ["iQOO-dy"],
+  "iQOO-ks": ["iQOO-ks"],
   IOT: [],
 };
 
@@ -177,7 +182,7 @@ async function readLiveHours(
     if (!dateInRange(parsed, start, end)) continue;
     const hours = toNum(row[3]);
     if (hours <= 0) continue;
-    const account = String(row[2] || "未命名账号").trim() || "未命名账号";
+    const account = ACCOUNT_ALIAS_NORMALIZE[String(row[2] || "未命名账号").trim()] || String(row[2] || "未命名账号").trim() || "未命名账号";
     total += hours;
     rows++;
     const key = `${parsed.y}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
@@ -371,6 +376,16 @@ async function calcBrand(
   };
 }
 
+function dumpBrand(cc: CrossCheck) {
+  return {
+    totalHours: cc.liveHours,
+    scheduleHours: cc.scheduleHours,
+    partTimeAnchor: cc.partTimeAnchor,
+    partTimeControl: cc.partTimeControl,
+    crossCheck: { severity: cc.severity, ratio: cc.ratio, messages: cc.messages },
+  };
+}
+
 export async function GET(request: NextRequest) {
   const externalMask = maskExternalBusiness(request);
   if (externalMask) return externalMask;
@@ -410,9 +425,11 @@ export async function GET(request: NextRequest) {
     const feishuToken = await getFeishuToken();
     const nicknameMapping = await buildNicknameMapping(feishuToken);
 
-    const [vivo, iQOO, IOT] = await Promise.all([
+    const [vivo, iQOO, iQOOdy, iQOOks, IOT] = await Promise.all([
       calcBrand("vivo", start, end, year, monthNum, nicknameMapping),
       calcBrand("iQOO", start, end, year, monthNum, nicknameMapping),
+      calcBrand("iQOO-dy", start, end, year, monthNum, nicknameMapping),
+      calcBrand("iQOO-ks", start, end, year, monthNum, nicknameMapping),
       calcBrand("IOT", start, end, year, monthNum, nicknameMapping),
     ]);
 
@@ -422,39 +439,12 @@ export async function GET(request: NextRequest) {
       end: end.toISOString().slice(0, 10),
       // 备注：日期均按 UTC 构造，等价于北京时间自然日
       brands: {
-        vivo: {
-          totalHours: vivo.liveHours,
-          scheduleHours: vivo.scheduleHours,
-          partTimeAnchor: vivo.partTimeAnchor,
-          partTimeControl: vivo.partTimeControl,
-          crossCheck: {
-            severity: vivo.severity,
-            ratio: vivo.ratio,
-            messages: vivo.messages,
-          },
-        },
-        iQOO: {
-          totalHours: iQOO.liveHours,
-          scheduleHours: iQOO.scheduleHours,
-          partTimeAnchor: iQOO.partTimeAnchor,
-          partTimeControl: iQOO.partTimeControl,
-          crossCheck: {
-            severity: iQOO.severity,
-            ratio: iQOO.ratio,
-            messages: iQOO.messages,
-          },
-        },
-        IOT: {
-          totalHours: IOT.liveHours,
-          scheduleHours: IOT.scheduleHours,
-          partTimeAnchor: IOT.partTimeAnchor,
-          partTimeControl: IOT.partTimeControl,
-          crossCheck: {
-            severity: IOT.severity,
-            ratio: IOT.ratio,
-            messages: IOT.messages,
-          },
-        },
+        vivo: dumpBrand(vivo),
+        // iQOO 合并值保持供其它用途，另输出抖音/快手分项
+        iQOO: dumpBrand(iQOO),
+        "iqoo-dy": dumpBrand(iQOOdy),
+        "iqoo-ks": dumpBrand(iQOOks),
+        IOT: dumpBrand(IOT),
       },
     };
     cache.set(cacheKey, { data, expireAt: Date.now() + CACHE_TTL_MS });

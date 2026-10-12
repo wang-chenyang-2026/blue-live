@@ -366,6 +366,34 @@ export function calcProfitRateByAccount(brandId: string, accountId: string, mont
   };
 }
 
+export function calcProfitRateByAccounts(brandId: string, accountIds: string[], month: string): {
+  revenue: number;
+  totalCost: number;
+  profitRate: number;
+  kpiDeducted: boolean;
+} {
+  const brandData = calcProfitRate(brandId, month);
+  const acctSet = new Set(accountIds);
+  const revenues = getRevenueByBrandMonth(brandId, month).filter((r) => acctSet.has(r.accountId));
+  const kpis = getKPIByBrandMonth(brandId, month).filter((k) => acctSet.has(k.accountId));
+
+  const groupRevenue = revenues.reduce((sum, r) => sum + r.revenue, 0);
+  const brandRevenue = getRevenueByBrandMonth(brandId, month).reduce((sum, r) => sum + r.revenue, 0);
+  const costRatio = brandRevenue > 0 ? groupRevenue / brandRevenue : 0;
+  const groupCost = brandData.totalCost * costRatio;
+
+  const kpiDeducted = kpis.some((k) => k.isDeducted);
+  const effectiveRevenue = kpiDeducted ? groupRevenue * 0.95 : groupRevenue;
+  const profitRate = effectiveRevenue > 0 ? (effectiveRevenue - groupCost) / effectiveRevenue : 0;
+
+  return {
+    revenue: effectiveRevenue,
+    totalCost: Math.round(groupCost),
+    profitRate,
+    kpiDeducted,
+  };
+}
+
 // ==================== 用户 & 认证 ====================
 const AUTH_KEY = 'lm_auth';
 

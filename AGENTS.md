@@ -270,3 +270,13 @@ src/
 - **`workDays` 修正**：原式 `daysInMonth - sat(周六) - sun(周日) - legalHolidays` 会把落在周末的法定假日重复扣（10月算出15，实际应17）；改为只扣「落在工作日(周一~五)的法定假日」（遍历1..daysInMonth 用 `isLegalHoliday`+dow 判定）。9月=21 不变，10月=17。此前 10月 `monthWorkDays=15` 直接导致全职成本对不上目标。
 - **isFullMonthQuery 时间口径坑**：`parseDateParam(end,true)` 带 23:59:59，而 `monthEnd = new Date(y,m,d)` 为 00:00:00，故 `range.end===monthEnd` 恒 false → 整月查询也走折算分支。但整月查询时 `expectedDays==monthWorkDays`，折算结果==全额，数值等价，无需特判修复。
 - **验证（dev 实测）**：10月分段全职=61,636.48（中控14,836.48/张厚羿3785·刘慈航3481·倪休4088·洪元媛3481，运营46,800）；9月整月=93,060（中控46,260，含真实加班如张厚羿202h加班1190）。lint/ts-check/service_probe/成本接口 smoke 全绿。dev 库原状未动。
+
+## 首页概览：iQOO 拆分为「抖音/快手」两张卡（仅首页）
+- 背景：首页原为三张品牌卡，现把 iQOO 拆成「iQOO抖音汇总」(iQOO-dy) 与「iQOO快手汇总」(iQOO-ks) 两张，vivo/IOT 不变，共 4 张卡（布局 `md:grid-cols-2 xl:grid-cols-4`）。
+- constants.ts：新增 `IQOO_GROUP_META`（iQOO 子分组 id → `{brandKey:'iQOO-dy'|'iQOO-ks', name}`）与 `ACCOUNT_ALIAS_NORMALIZE`（`iQOO官旗`→`iQOO官方旗舰店（抖音）`）。
+- store.ts：新增 `calcProfitRateByAccounts(brandId, accountIds, month)`（按账号集合汇总收入；不破坏 calcProfitRate/calcProfitRateByAccount）。
+- brand-schedule-stats/route.ts：在 DATA_SOURCES 增加 `iQOO-dy`(sheet 0a2100)/`iQOO-ks`(sheet RYPvqw)，BRAND_TO_SCHEDULES 加子键；readLiveHours 归一账号别名；输出 `brands["iqoo-dy"]`/`brands["iqoo-ks"]` 分项（保留合并 `iQOO`）。抖音=0a2100 表（iQOO手机+iQOO官旗），快手=RYPvqw 表（iQOO官方旗舰店（快手））。
+- cost-overview/route.ts：buildFulltimeConfig 全职品牌按项目细分（iQOO快手→iQOO-ks，其余 iQOO→iQOO-dy）；calcFulltimeCost 过滤把 brand="iQOO" 视为 iQOO-dy+iQOO-ks 合并口径；calcDesignCost 加 iQOO-dy/iQOO-ks 关键字映射（iQOO手机→dy、iQOO快手→ks）；GET byBrand 对 brand=all 输出 iQOO-dy/iQOO-ks，且 `byBrand.iQOO = dy+ks`（原 iQOO 合计数值不变）。
+- page.tsx：BRANDS 里 iqoo 按 groups 拆两张卡，vivo/IOT 维持单卡；卡片字段沿用（利润率/收入/成本/直播时长/兼职主播·中控/交叉校验）；收入用 calcProfitRateByAccounts（iQOO 收入当前=0）。
+- 验证（2026-10 实测）：brand-schedule-stats 抖音228h/快手191h/合并419(dy+ks=合并)；cost-overview byBrand iQOO-dy=118365.19 + iQOO-ks=103173.85 = iQOO=221539.04。lint/ts-check/探活/接口冒烟全绿。
+- 红线已守：只动首页链路 4 个文件；未改 feishu/sheets-data/route.ts；未碰颜色/UI 风格/成本公式/费率；成本页 brand=iQOO 的 dimensions 输出与改动前完全一致（全职 aggregate 过滤 + collectScheduleHours("iQOO") 合并、设计 iQOO 全项目、采买合并均保留）；仅预览验证未部署。

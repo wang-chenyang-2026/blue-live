@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { BRANDS } from '@/lib/constants';
-import { calcProfitRate } from '@/lib/store';
+import { BRANDS, IQOO_GROUP_META } from '@/lib/constants';
+import { calcProfitRate, calcProfitRateByAccounts } from '@/lib/store';
 
 import {
   TrendingUp,
@@ -175,28 +175,49 @@ export default function DashboardPage() {
     const cards: ProfitCardData[] = [];
 
     BRANDS.forEach((brand) => {
-      const localData = calcProfitRate(brand.id, selectedMonth);
-      const stats = brandStats[brand.id.toLowerCase()];
-      // 优先使用飞书 API 返回的品牌成本（若已加载），否则回退到 localStorage
-      const apiCost = costByBrand[brand.id.toLowerCase()];
-      const totalCost = apiCost !== undefined ? apiCost : localData.totalCost;
-      const revenue = localData.revenue;
-      const profitRate = revenue > 0 ? (revenue - totalCost) / revenue : 0;
+      const pushCard = (
+        id: string,
+        name: string,
+        localData: { revenue: number; totalCost: number; profitRate: number; kpiDeducted: boolean },
+        statKey: string,
+      ) => {
+        const stats = brandStats[statKey];
+        // 优先使用飞书 API 返回的品牌成本（若已加载），否则回退到 localStorage
+        const apiCost = costByBrand[statKey];
+        const totalCost = apiCost !== undefined ? apiCost : localData.totalCost;
+        const profitRate = localData.revenue > 0 ? (localData.revenue - totalCost) / localData.revenue : 0;
+        cards.push({
+          id,
+          name,
+          color: brandColors[brand.id] || '#888',
+          revenue: localData.revenue,
+          totalCost,
+          profitRate,
+          kpiDeducted: localData.kpiDeducted,
+          totalHours: stats?.totalHours ?? 0,
+          scheduleHours: stats?.scheduleHours ?? 0,
+          partTimeAnchor: stats?.partTimeAnchor ?? 0,
+          partTimeControl: stats?.partTimeControl ?? 0,
+          crossCheck: stats?.crossCheck,
+        });
+      };
 
-      cards.push({
-        id: brand.id,
-        name: `${brand.name}汇总`,
-        color: brandColors[brand.id] || '#888',
-        revenue,
-        totalCost,
-        profitRate,
-        kpiDeducted: localData.kpiDeducted,
-        totalHours: stats?.totalHours ?? 0,
-        scheduleHours: stats?.scheduleHours ?? 0,
-        partTimeAnchor: stats?.partTimeAnchor ?? 0,
-        partTimeControl: stats?.partTimeControl ?? 0,
-        crossCheck: stats?.crossCheck,
-      });
+      // iQOO 拆成「抖音/快手」两张卡，vivo/IOT 维持单卡
+      if (brand.id === 'iqoo' && brand.groups?.length) {
+        for (const group of brand.groups) {
+          const meta = IQOO_GROUP_META[group.id];
+          if (!meta) continue;
+          const groupData = calcProfitRateByAccounts(
+            brand.id,
+            group.accounts.map((a) => a.id),
+            selectedMonth,
+          );
+          pushCard(group.id, meta.name, groupData, meta.brandKey.toLowerCase());
+        }
+        return;
+      }
+
+      pushCard(brand.id, `${brand.name}汇总`, calcProfitRate(brand.id, selectedMonth), brand.id.toLowerCase());
     });
 
     return cards;
@@ -210,8 +231,8 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-foreground">首页概览</h1>
           <p className="text-sm text-muted-foreground mt-1">加载中...</p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
             <div key={i} className="rounded-xl border border-border bg-card p-5 h-48 animate-pulse" />
           ))}
         </div>
@@ -272,7 +293,7 @@ export default function DashboardPage() {
       </div>
 
       {/* 利润率卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {profitCards.map((card) => (
           <ProfitCard key={card.id} data={card} costLoading={costLoading} costError={costError} />
         ))}
