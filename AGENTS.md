@@ -280,3 +280,12 @@ src/
 - page.tsx：BRANDS 里 iqoo 按 groups 拆两张卡，vivo/IOT 维持单卡；卡片字段沿用（利润率/收入/成本/直播时长/兼职主播·中控/交叉校验）；收入用 calcProfitRateByAccounts（iQOO 收入当前=0）。
 - 验证（2026-10 实测）：brand-schedule-stats 抖音228h/快手191h/合并419(dy+ks=合并)；cost-overview byBrand iQOO-dy=118365.19 + iQOO-ks=103173.85 = iQOO=221539.04。lint/ts-check/探活/接口冒烟全绿。
 - 红线已守：只动首页链路 4 个文件；未改 feishu/sheets-data/route.ts；未碰颜色/UI 风格/成本公式/费率；成本页 brand=iQOO 的 dimensions 输出与改动前完全一致（全职 aggregate 过滤 + collectScheduleHours("iQOO") 合并、设计 iQOO 全项目、采买合并均保留）；仅预览验证未部署。
+
+## 排班链路：飞书请求容错重试（治标，只动排班数据读取）
+- 根因：iQOO 快手+抖音两张排班表，飞书调用数约为 vivo 2 倍，日期越长调用越多（30天约182次、60天约362次）。触发飞书限流时返回空 body，旧代码 `res.json()` 直接 `SyntaxError: Unexpected end of JSON input`，导致 iQOO 中控几乎必挂、主播间歇失败。
+- 新增 `src/lib/feishu-sheets.ts` 的 `safeFeishuFetch(url, fetchInit, {timeout=15000, retries=2})`（导出）：
+  - 超时 15s（AbortController）；先 `res.text()` 再判断：空 body / 非 `{` `[` 开头（HTML 反爬）/ HTTP 429/>=500 / 飞书 `code` ∈{429,99991400,99991401,99991600} 视为可重试；
+  - 最多额外 2 次（共 3 次），退避 600ms→1200ms + 0~300ms 随机抖动；3 次仍失败抛错，错误对外表现与原来一致，不伪造数据；
+  - 已在 5 处替换：`feishu-sheets.ts` 的 getFeishuToken / listAllSheets / readSheet，`schedule/route.ts` 的 findColIndexForDate / readColumn（含 B 列时间段）。未做批量合并重构（治本项后续）。
+- 注意：`safeFeishuFetch` 返回 `unknown`，调用处需按各自接口 `as` 类型化（如 readSheet/listAllSheets/getFeishuToken 已 cast），勿强转 `Record<string,unknown>` 再访问字段（会触发 TS2322/TS2362）。
+- 验证（test_run 全绿：lint/ts-check/探活）：31 天整月 vivo/anchor、iQOO/anchor、iQOO/control 均 success:true 无 Unexpected end；60 天（09-01~10-31）iQOO/control、50 天（08-15~10-05）iQOO/anchor 均 success:true。成功路径数据与改动前一致（仅换获取方式，未动取数范围/解析/返回结构/字段名）。只动排班读取链路，未碰首页拆分/成本/UI/数据概览 sheets-data。仅预览验证未部署。

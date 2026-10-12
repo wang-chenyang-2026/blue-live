@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveScheduleSheet } from '@/lib/feishu-sheets';
+import { resolveScheduleSheet, safeFeishuFetch } from '@/lib/feishu-sheets';
 import { maskExternalBusiness } from '@/lib/api-permission';
 
 // 多品牌排班表格配置（sheet ID 运行时动态解析，不再硬编码）
@@ -110,8 +110,11 @@ async function findColIndexForDate(
 ): Promise<number> {
   // 读取表头行（row 1）足够宽的范围，找出所有日期列
   const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${sheetId}!A1:CZ1`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-  const json = await res.json();
+  const json = (await safeFeishuFetch(url, { headers: { Authorization: `Bearer ${token}` } })) as {
+    code: number;
+    msg?: string;
+    data?: { valueRange?: { values?: Array<Array<string | number>> } };
+  };
   if (json.code !== 0 || !json.data?.valueRange?.values?.[0]) {
     throw new Error(`读取表头失败: ${json.msg}`);
   }
@@ -181,8 +184,11 @@ async function readColumn(
   const colName = colToLetter(colIndex);
   const range = `${colName}${startRow}:${colName}${endRow}`;
   const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${sheetId}!${range}?valueRenderOption=FormattedValue`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-  const json = await res.json();
+  const json = (await safeFeishuFetch(url, { headers: { Authorization: `Bearer ${token}` } })) as {
+    code: number;
+    msg?: string;
+    data?: { valueRange?: { values?: string[][] } };
+  };
   if (json.code !== 0 || !json.data?.valueRange?.values) return [];
   const values: string[][] = json.data.valueRange.values;
 
@@ -190,8 +196,11 @@ async function readColumn(
   const bColName = 'B';
   const bRange = `${bColName}${startRow}:${bColName}${endRow}`;
   const bUrl = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${sheetId}!${bRange}?valueRenderOption=FormattedValue`;
-  const bRes = await fetch(bUrl, { headers: { Authorization: `Bearer ${token}` } });
-  const bJson = await bRes.json();
+  const bJson = (await safeFeishuFetch(bUrl, { headers: { Authorization: `Bearer ${token}` } })) as {
+    code: number;
+    msg?: string;
+    data?: { valueRange?: { values?: string[][] } };
+  };
   const bValues: string[][] = bJson.data?.valueRange?.values || [];
 
   return values.map((r, idx) => ({

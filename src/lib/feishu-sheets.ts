@@ -47,11 +47,84 @@ const SHEET_LIST_TTL = 5 * 60 * 1000;
 
 let cachedToken: { token: string; expireAt: number } | null = null;
 
+// 飞书频控/限流相关返回码（服务端 JSON 的 code 字段），命中则自动重试
+const RATE_LIMIT_CODES = new Set([429, 99991400, 99991401, 99991600]);
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * 统一的飞书只读请求安全函数（治标容错）。
+ * - 带超时（默认 15s，AbortController）；
+ * - 先读 text，空 body / 非 JSON / HTTP 4xx-5xx 限流 / 飞书频控码 均视为失败；
+ * - 失败自动重试，最多 retries 次（默认额外 2 次，共 3 次），间隔温和退避 + 随机抖动；
+ * - 3 次仍失败才抛出，保持调用方现有错误对外表现。
+ */
+export async function safeFeishuFetch(
+  url: string,
+  fetchInit: RequestInit = {},
+  options: { timeout?: number; retries?: number } = {},
+): Promise<unknown> {
+  const timeout = options.timeout ?? 15_000;
+  const retries = options.retries ?? 2;
+  let lastError: Error = new Error("飞书请求失败");
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0) {
+      const base = attempt === 1 ? 600 : 1200;
+      const jitter = Math.floor(Math.random() * 300);
+      await sleep(base + jitter);
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    try {
+      const res = await fetch(url, { ...fetchInit, signal: controller.signal });
+      const status = res.status;
+      const text = await res.text();
+      const trimmed = text.trimStart();
+
+      if (status === 429 || status >= 500) {
+        lastError = new Error(`飞书请求 HTTP ${status}: ${text.slice(0, 120)}`);
+        continue;
+      }
+      if (trimmed === "" || (trimmed[0] !== "{" && trimmed[0] !== "[")) {
+        lastError = new Error(`飞书返回空/非JSON: ${text.slice(0, 120)}`);
+        continue;
+      }
+      const parsed: unknown = JSON.parse(trimmed);
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        "code" in parsed &&
+        typeof (parsed as Record<string, unknown>).code === "number" &&
+        (parsed as Record<string, unknown>).code !== 0 &&
+        RATE_LIMIT_CODES.has((parsed as Record<string, unknown>).code as number)
+      ) {
+        lastError = new Error(`飞书频控 code=${(parsed as Record<string, unknown>).code}`);
+        continue;
+      }
+      return parsed;
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      if (e instanceof DOMException && e.name === "AbortError") {
+        lastError = new Error(`飞书请求超时(${timeout}ms)`);
+      }
+      // 超时/网络错误：重试；最终尝试后跳出
+      if (attempt < retries) continue;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw lastError;
+}
+
 export async function getFeishuToken(): Promise<string> {
   if (cachedToken && cachedToken.expireAt > Date.now() + 30_000) {
     return cachedToken.token;
   }
-  const res = await fetch(
+  const data = (await safeFeishuFetch(
     "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal/",
     {
       method: "POST",
@@ -61,8 +134,7 @@ export async function getFeishuToken(): Promise<string> {
         app_secret: FEISHU_APP_SECRET,
       }),
     },
-  );
-  const data = await res.json();
+  )) as { tenant_access_token?: string; msg?: string; expire?: number };
   if (!data.tenant_access_token) {
     throw new Error(`获取飞书 token 失败: ${data.msg || JSON.stringify(data)}`);
   }
@@ -79,10 +151,9 @@ async function listAllSheets(wikiToken: string): Promise<Array<{ sheet_id: strin
 
   const token = await getFeishuToken();
   const url = `https://open.feishu.cn/open-apis/sheets/v3/spreadsheets/${wikiToken}/sheets/query`;
-  const res = await fetch(url, {
+  const data = (await safeFeishuFetch(url, {
     headers: { Authorization: `Bearer ${token}` },
-  });
-  const data: SheetListResponse = await res.json();
+  })) as SheetListResponse;
   if (data.code !== 0 || !data.data?.sheets) {
     throw new Error(`查询 sheet 列表失败 (${wikiToken}): ${data.msg || "unknown"}`);
   }
@@ -180,10 +251,9 @@ export async function readSheet(
 ): Promise<string[][]> {
   const token = await getFeishuToken();
   const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${wikiToken}/values/${sheetId}!${range}`;
-  const res = await fetch(url, {
+  const data = (await safeFeishuFetch(url, {
     headers: { Authorization: `Bearer ${token}` },
-  });
-  const data = await res.json();
+  })) as { code: number; msg?: string; data?: { valueRange?: { values?: string[][] } } };
   if (data.code !== 0) {
     throw new Error(`读取 sheet ${sheetId} 失败: ${data.msg || "unknown"}`);
   }
