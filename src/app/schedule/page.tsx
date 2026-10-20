@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Moon, ChevronLeft, ChevronRight, Search, SlidersHorizontal, RefreshCw } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
-import { BRANDS } from '@/lib/constants';
 
-// ===== 类型定义 =====
+// ===== 类型定义（与 /api/schedule 返回保持一致） =====
 interface PersonSummary {
   name: string;
   timeSlots: string[];
@@ -16,7 +16,12 @@ interface PersonSummary {
 interface AccountData {
   accountName: string;
   personSummary: PersonSummary[];
-  stats: { personCount: number; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number };
+  stats: {
+    personCount: number;
+    totalHours: number;
+    earlyMorningHours: number;
+    dualBroadcastHours: number;
+  };
 }
 
 interface DateData {
@@ -41,603 +46,729 @@ interface ScheduleResponse {
     brand: string;
     role: string;
   };
+  error?: string;
 }
 
 // ===== 工具函数 =====
 function localDateStr(d: Date): string {
-  // Local YYYY-MM-DD — toISOString() is UTC and shifts early-morning dates back one day.
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function parseLocal(dateStr: string): Date {
+  return new Date(dateStr + 'T00:00:00');
 }
 
 function getToday(): string {
   return localDateStr(new Date());
 }
 
-function getDaysAgo(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - days + 1);
+function addDays(dateStr: string, n: number): string {
+  const d = parseLocal(dateStr);
+  d.setDate(d.getDate() + n);
   return localDateStr(d);
 }
 
-// 渠道胶囊颜色配置（业务线统一中性徽章，不再用颜色区分）
-const CHANNEL_COLORS: Record<string, { bg: string; text: string; bar: string }> = {
-  'vivo（大号）': { bg: 'rgba(255,255,255,0.08)', text: 'rgba(255,255,255,0.92)', bar: '#2A2E45' },
-  'vivo官方旗舰店（抖音）': { bg: 'rgba(255,255,255,0.08)', text: 'rgba(255,255,255,0.92)', bar: '#2A2E45' },
-  'vivo官方旗舰店（快手）': { bg: 'rgba(255,255,255,0.08)', text: 'rgba(255,255,255,0.92)', bar: '#2A2E45' },
-  'iQOO手机（快手）': { bg: 'rgba(255,255,255,0.08)', text: 'rgba(255,255,255,0.92)', bar: '#2A2E45' },
-  'iQOO手机（抖音）': { bg: 'rgba(255,255,255,0.08)', text: 'rgba(255,255,255,0.92)', bar: '#2A2E45' },
-  'iQOO官方旗舰店（抖音）': { bg: 'rgba(255,255,255,0.08)', text: 'rgba(255,255,255,0.92)', bar: '#2A2E45' },
-};
+function getDaysAgo(days: number): string {
+  return addDays(getToday(), -(days - 1));
+}
 
-// 渠道简称映射
-const CHANNEL_SHORT_NAMES: Record<string, string> = {
-  'vivo（大号）': 'vivo大号',
-  'vivo官方旗舰店（抖音）': '抖音',
-  'vivo官方旗舰店（快手）': '快手',
-  'iQOO手机（快手）': 'iQOO快手',
-  'iQOO手机（抖音）': 'iQOO抖音',
-  'iQOO官方旗舰店（抖音）': 'iQOO抖音',
-};
+// 本周周一
+function weekMonday(base: Date): string {
+  const d = new Date(base);
+  const offset = (d.getDay() + 6) % 7; // 周一=0
+  d.setDate(d.getDate() - offset);
+  return localDateStr(d);
+}
 
-// ===== 组件 =====
+// [start, end] 区间内所有日期
+function getDatesBetween(start: string, end: string): string[] {
+  const out: string[] = [];
+  for (let d = parseLocal(start); d <= parseLocal(end); d.setDate(d.getDate() + 1)) {
+    out.push(localDateStr(d));
+  }
+  return out;
+}
+
+const WEEKDAYS_SHORT = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
+// 时段起始小时（如 "8-9点" → 8，无法解析 → -1）
+function slotStartHour(slot: string): number {
+  const m = slot.match(/^(\d{1,2})-/);
+  if (!m) return -1;
+  return parseInt(m[1], 10);
+}
+
+// 取一个人的全部时段起止范围，用于周视图标签（如 "00:00-24:00"）
+function personRangeLabel(slots: string[]): string {
+  if (slots.length === 0) return '';
+  let minH = 24;
+  let maxH = 0;
+  for (const s of slots) {
+    const h = slotStartHour(s);
+    if (h >= 0) {
+      if (h < minH) minH = h;
+      if (h + 1 > maxH) maxH = h + 1;
+    }
+  }
+  if (minH === 24) return '';
+  return `${String(minH).padStart(2, '0')}:00-${String(maxH).padStart(2, '0')}:00`;
+}
+
+function formatHms(h: number): string {
+  return `${String(h).padStart(2, '0')}:00`;
+}
+
+// 渠道名 → 业务线（仅用于中性徽章展示）
+function brandOfChannel(name: string): string {
+  if (name.startsWith('vivo')) return 'vivo';
+  if (name.startsWith('iQOO')) return 'iQOO';
+  return 'IOT';
+}
+
+// 中性业务线徽章
+function BrandBadge({ brand }: { brand: string }) {
+  return (
+    <span className="inline-flex items-center rounded bg-[#2A2E45] px-1.5 py-0.5 text-[11px] font-normal leading-none text-white/[0.92]">
+      {brand}
+    </span>
+  );
+}
+
+// ===== 悬浮详情 =====
+function HoverCard({ person, channel }: { person: PersonSummary; channel: string }) {
+  const rows: { label: string; node: React.ReactNode }[] = [
+    { label: '主播', node: <span className="text-white/[0.92]">{person.name}</span> },
+    { label: '起止时段', node: <span className="text-white/[0.92]">{personRangeLabel(person.timeSlots)}</span> },
+    { label: '实际时长', node: <span className="text-white/[0.92]">{person.totalHours}h</span> },
+    { label: '账号渠道', node: <span className="text-white/[0.92]">{channel}</span> },
+    { label: '业务线', node: <BrandBadge brand={brandOfChannel(channel)} /> },
+  ];
+  return (
+    <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-52 -translate-x-1/2 rounded-xl border border-white/[0.08] bg-[#1E2235] p-3 shadow-2xl opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+      <div className="space-y-1.5">
+        {rows.map((r) => (
+          <div key={r.label} className="flex items-center justify-between gap-3">
+            <span className="text-[11px] text-white/[0.40]">{r.label}</span>
+            {r.node}
+          </div>
+        ))}
+      </div>
+      <div className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 rotate-45 -mt-1 bg-[#1E2235] border-r border-b border-white/[0.08]" />
+    </div>
+  );
+}
+
+// ===== 主组件 =====
 export default function SchedulePage() {
   const { getVisibleBrands, currentRole } = useApp();
   const isExternal = currentRole === '外部合作';
-  // 品牌和角色状态
-  const [brand, setBrand] = useState<'vivo' | 'iQOO'>('vivo');
+
+  // 品牌（含「全部」聚合选项）与角色
+  const [brandFilter, setBrandFilter] = useState<'全部' | 'vivo' | 'iQOO'>('vivo');
   const [role, setRole] = useState<'anchor' | 'control'>('anchor');
 
-  // 根据用户权限过滤可用品牌
   const availableBrands = useMemo(() => {
     const allowed = getVisibleBrands('schedule');
-    const brandOptions: { id: 'vivo' | 'iQOO'; label: string }[] = [];
-    if (allowed.includes('vivo')) brandOptions.push({ id: 'vivo', label: 'vivo' });
-    if (allowed.includes('iqoo')) brandOptions.push({ id: 'iQOO', label: 'iQOO' });
-    return brandOptions;
+    const opts: { id: 'vivo' | 'iQOO'; label: string }[] = [];
+    if (allowed.includes('vivo')) opts.push({ id: 'vivo', label: 'vivo' });
+    if (allowed.includes('iqoo')) opts.push({ id: 'iQOO', label: 'iQOO' });
+    return opts;
   }, [getVisibleBrands]);
 
-  // 如果当前选中品牌不在可用列表中，自动切换到第一个可用品牌
-  useEffect(() => {
-    if (availableBrands.length > 0 && !availableBrands.find(b => b.id === brand)) {
-      setBrand(availableBrands[0].id);
-    }
-  }, [availableBrands, brand]);
-
-  // 日期区间
-  const [startDate, setStartDate] = useState('2026-05-01');
-  const [endDate, setEndDate] = useState('2026-05-07');
+  // 默认本周一~周日（今天所在自然周）
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [mounted, setMounted] = useState(false);
 
-  const [scheduleData, setScheduleData] = useState<ScheduleResponse | null>(null);
+  const [scheduleData, setScheduleData] = useState<{ dates: DateData[]; globalStats: GlobalStats } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
-  const [selectedPerson, setSelectedPerson] = useState('全部');
 
-  // 客户端挂载后设置今天日期
+  const [searchQuery, setSearchQuery] = useState('');
+  const [view, setView] = useState<'week' | 'day'>('week');
+  const [moreOpen, setMoreOpen] = useState(false);
+
   useEffect(() => {
-    setStartDate(getDaysAgo(6));
-    setEndDate(getToday());
+    const mon = weekMonday(new Date());
+    setStartDate(mon);
+    setEndDate(addDays(mon, 6));
     setMounted(true);
   }, []);
 
-  // 获取排班数据
+  // 当前要拉取的真实品牌 id（「全部」= 两个品牌分别请求后在前端聚合，统计口径不变）
+  const activeBrandIds = useMemo(() => {
+    if (brandFilter === '全部') return availableBrands.map((b) => b.id);
+    return [brandFilter];
+  }, [brandFilter, availableBrands]);
+
   const fetchSchedule = useCallback(async (start: string, end: string, b: string, r: string) => {
     if (!start || !end) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/schedule?start=${start}&end=${end}&brand=${b}&role=${r}`);
-      const json: ScheduleResponse = await res.json();
-      if (json.success) {
-        setScheduleData(json);
-        // 初始化展开状态：含凌晨班的默认展开，其余默认收起
-        const initialExpanded: Record<string, boolean> = {};
-        json.data.dates.forEach((d: DateData) => {
-          const totalEarly = d.accounts.reduce((s, a) => s + (a.stats?.earlyMorningHours || 0), 0);
-          initialExpanded[d.date] = totalEarly > 0;
-        });
-        setExpandedDates(initialExpanded);
-      } else {
-        setError(json.data ? '数据格式错误' : '获取数据失败');
+      // 「全部」品牌：分别请求每个可用品牌再前端聚合（每个品牌的统计口径不变）
+      const ids = (b === '全部' ? availableBrands.map((x) => x.id) : [b as 'vivo' | 'iQOO']);
+      const results = await Promise.all(
+        ids.map(async (id) => {
+          const res = await fetch(`/api/schedule?start=${start}&end=${end}&brand=${id}&role=${r}`);
+          const json: ScheduleResponse = await res.json();
+          if (!json.success) return null;
+          return json.data;
+        }),
+      );
+      const valid = results.filter((x): x is NonNullable<typeof x> => !!x);
+      if (valid.length === 0) {
+        setError('获取数据失败');
+        return;
       }
+      // 按日期合并 accounts
+      const byDate = new Map<string, AccountData[]>();
+      for (const res of valid) {
+        for (const d of res.dates) {
+          byDate.set(d.date, [...(byDate.get(d.date) || []), ...d.accounts]);
+        }
+      }
+      const mergedDates: DateData[] = getDatesBetween(start, end)
+        .filter((day) => byDate.has(day))
+        .map((day) => ({ date: day, display: undefined, accounts: byDate.get(day) || [] }));
+      const globalStats = valid.reduce<GlobalStats>(
+        (acc, res) => {
+          acc.totalPersonDays += res.globalStats.totalPersonDays;
+          acc.totalHours += res.globalStats.totalHours;
+          acc.totalEarlyMorning += res.globalStats.totalEarlyMorning;
+          acc.totalDualBroadcast += res.globalStats.totalDualBroadcast;
+          return acc;
+        },
+        { totalPersonDays: 0, totalHours: 0, totalEarlyMorning: 0, totalDualBroadcast: 0, totalDays: getDatesBetween(start, end).length },
+      );
+      setScheduleData({ dates: mergedDates, globalStats });
     } catch (e) {
       setError(e instanceof Error ? e.message : '网络错误');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [availableBrands]);
 
-  // 日期、品牌或角色变化时自动获取
   useEffect(() => {
     if (mounted && startDate && endDate) {
-      fetchSchedule(startDate, endDate, brand, role);
+      fetchSchedule(startDate, endDate, brandFilter, role);
     }
-  }, [startDate, endDate, mounted, brand, role, fetchSchedule]);
+  }, [startDate, endDate, mounted, brandFilter, role, fetchSchedule]);
 
-  const rawDates = scheduleData?.data?.dates || [];
+  const rawDates = scheduleData?.dates || [];
 
-  // 提取去重人员名单
-  const allPersons = useMemo(() => {
-    const nameSet = new Set<string>();
-    rawDates.forEach((d: { accounts?: { personSummary?: { name: string }[] }[] }) => {
-      (d.accounts || []).forEach((a: { personSummary?: { name: string }[] }) => {
-        (a.personSummary || []).forEach((p: { name: string }) => {
-          if (p.name) nameSet.add(p.name);
-        });
-      });
-    });
-    return Array.from(nameSet).sort();
+  // 全部渠道（用于周视图行 / 缺口判定，不受搜索影响）
+  const channels = useMemo(() => {
+    const seen: string[] = [];
+    for (const d of rawDates) {
+      for (const a of d.accounts) {
+        if (!seen.includes(a.accountName)) seen.push(a.accountName);
+      }
+    }
+    return seen;
   }, [rawDates]);
 
-  // 按选中人员筛选
-  const dates = useMemo(() => {
-    if (selectedPerson === '全部') return rawDates;
-    return rawDates.map((d: { date: string; display?: string; accounts?: { accountName: string; personSummary?: { name: string; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number; timeSlots: string[] }[]; stats?: { personCount: number; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number } }[] }) => ({
+  // 按主播搜索过滤（仅过滤展示明细；缺口判定基于未过滤数据）
+  const viewDates = useMemo(() => {
+    const q = searchQuery.trim();
+    if (!q) return rawDates;
+    return rawDates.map<DateData>((d) => ({
       ...d,
-      accounts: (d.accounts || []).map((a: { accountName: string; personSummary?: { name: string; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number; timeSlots: string[] }[]; stats?: { personCount: number; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number } }) => {
-        const filtered = (a.personSummary || []).filter((p: { name: string }) => p.name === selectedPerson);
-        const personCount = filtered.length;
-        const totalHours = filtered.reduce((s: number, p: { totalHours: number }) => s + (p.totalHours || 0), 0);
-        const earlyMorningHours = filtered.reduce((s: number, p: { earlyMorningHours: number }) => s + (p.earlyMorningHours || 0), 0);
-        const dualBroadcastHours = filtered.reduce((s: number, p: { dualBroadcastHours: number }) => s + (p.dualBroadcastHours || 0), 0);
-        return {
+      accounts: d.accounts
+        .map((a) => ({
           ...a,
-          personSummary: filtered,
-          stats: { personCount, totalHours, earlyMorningHours, dualBroadcastHours },
-        };
-      }),
+          personSummary: a.personSummary.filter((p) => p.name.includes(q)),
+          stats: (() => {
+            const list = a.personSummary.filter((p) => p.name.includes(q));
+            return {
+              personCount: list.length,
+              totalHours: list.reduce((s, p) => s + p.totalHours, 0),
+              earlyMorningHours: list.reduce((s, p) => s + p.earlyMorningHours, 0),
+              dualBroadcastHours: list.reduce((s, p) => s + p.dualBroadcastHours, 0),
+            };
+          })(),
+        }))
+        .filter((a) => a.stats.personCount > 0),
     }));
-  }, [rawDates, selectedPerson]);
+  }, [rawDates, searchQuery]);
 
-  // 根据筛选结果计算汇总
-  const globalStats = useMemo(() => {
-    if (selectedPerson === '全部' && scheduleData?.data?.globalStats) {
-      return scheduleData.data.globalStats;
+  // 汇总六项（口径与现状完全一致）
+  const summary = useMemo(() => {
+    if (scheduleData && !searchQuery.trim()) {
+      const g = scheduleData.globalStats;
+      return {
+        totalDays: g.totalDays,
+        totalPersonDays: g.totalPersonDays,
+        totalHours: g.totalHours,
+        regularHours: g.totalHours - g.totalEarlyMorning,
+        earlyMorningHours: g.totalEarlyMorning,
+        dualBroadcastHours: g.totalDualBroadcast,
+      };
     }
+    if (!scheduleData) return null;
     let totalDays = 0;
     let totalPersonDays = 0;
     let totalHours = 0;
-    let totalEarlyMorning = 0;
-    let totalDualBroadcast = 0;
-    dates.forEach((d: { accounts?: { personSummary?: unknown[]; stats?: { personCount: number; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number } }[] }) => {
-      const hasPerson = (d.accounts || []).some((a: { personSummary?: unknown[] }) => (a.personSummary || []).length > 0);
+    let totalEarly = 0;
+    let totalDual = 0;
+    for (const d of scheduleData.dates) {
+      let hasPerson = false;
+      for (const a of d.accounts) {
+        totalPersonDays += a.stats.personCount;
+        totalHours += a.stats.totalHours;
+        totalEarly += a.stats.earlyMorningHours;
+        totalDual += a.stats.dualBroadcastHours;
+        if (a.stats.personCount > 0) hasPerson = true;
+      }
       if (hasPerson) totalDays++;
-      (d.accounts || []).forEach((a: { stats?: { personCount: number; totalHours: number; earlyMorningHours: number; dualBroadcastHours: number } }) => {
-        totalPersonDays += (a.stats?.personCount || 0);
-        totalHours += (a.stats?.totalHours || 0);
-        totalEarlyMorning += (a.stats?.earlyMorningHours || 0);
-        totalDualBroadcast += (a.stats?.dualBroadcastHours || 0);
-      });
-    });
-    return { totalDays, totalPersonDays, totalHours, totalEarlyMorning, totalDualBroadcast };
-  }, [dates, selectedPerson, scheduleData]);
+    }
+    return {
+      totalDays,
+      totalPersonDays,
+      totalHours,
+      regularHours: totalHours - totalEarly,
+      earlyMorningHours: totalEarly,
+      dualBroadcastHours: totalDual,
+    };
+  }, [scheduleData, searchQuery]);
 
-  // 切换日期展开/收起
-  const toggleDateExpanded = (dateStr: string) => {
-    setExpandedDates(prev => ({
-      ...prev,
-      [dateStr]: !prev[dateStr],
-    }));
-  };
+  // 周视图缺口：某渠道×某天在未过滤数据中完全无排班 → 缺口
+  const weekGapCount = useMemo(() => {
+    const days = getDatesBetween(startDate, endDate);
+    let n = 0;
+    for (const ch of channels) {
+      for (const day of days) {
+        const d = rawDates.find((x) => x.date === day);
+        const acc = d?.accounts.find((a) => a.accountName === ch);
+        if (!acc || acc.personSummary.length === 0) n++;
+      }
+    }
+    return n;
+  }, [channels, rawDates, startDate, endDate]);
 
-  // 角色显示名称
+  const weekDays = useMemo(() => getDatesBetween(startDate, endDate), [startDate, endDate]);
+  const todayStr = getToday();
+  const rangeLabel = `${startDate.replace(/-/g, '/')} - ${endDate.replace(/-/g, '/')}`;
   const roleLabel = role === 'anchor' ? '主播' : '中控';
 
+  // 一周视图内某天某渠道的排班对象（过滤后）
+  const personsOf = (day: string, channel: string): PersonSummary[] => {
+    const d = viewDates.find((x) => x.date === day);
+    const acc = d?.accounts.find((a) => a.accountName === channel);
+    return acc ? acc.personSummary : [];
+  };
+  const unfilteredPersonsOf = (day: string, channel: string): PersonSummary[] => {
+    const d = rawDates.find((x) => x.date === day);
+    const acc = d?.accounts.find((a) => a.accountName === channel);
+    return acc ? acc.personSummary : [];
+  };
+
+  const prevWeek = () => {
+    setStartDate(addDays(startDate, -7));
+    setEndDate(addDays(endDate, -7));
+  };
+  const nextWeek = () => {
+    setStartDate(addDays(startDate, 7));
+    setEndDate(addDays(endDate, 7));
+  };
+  const quick7d = () => {
+    setStartDate(getDaysAgo(6));
+    setEndDate(getToday());
+  };
+  const quickMonth = () => {
+    const now = new Date();
+    setStartDate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`);
+    setEndDate(getToday());
+  };
+
   if (!mounted) {
-    return <div className="p-8 text-center text-zinc-500">加载中...</div>;
+    return <div className="min-h-screen bg-background p-8 text-center text-white/[0.40]">加载中...</div>;
   }
 
+  const filterItem =
+    'h-9 rounded-lg border border-white/[0.08] bg-[#151827] px-3 text-sm text-white/[0.92] outline-none transition focus:border-[#4158D0]';
+
   return (
-    <div className="min-h-screen bg-background text-foreground p-6">
-      {/* 标题行：标题 + 品牌Tab + 角色Toggle */}
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-        <h1 className="text-2xl font-bold">主播排班管理</h1>
-        
-        <div className="flex items-center gap-4">
-          {/* 品牌切换 Tab */}
-          <div className="flex items-center bg-card rounded-lg p-1">
-            {availableBrands.map((b) => (
+    <div className="min-h-screen bg-[#0D0F1A] text-foreground">
+      <div className="mx-auto max-w-[1440px] space-y-6 px-6 py-6">
+        {/* L1 页面标题 */}
+        <h1 className="text-[20px] font-medium text-white/[0.92]">排班管理</h1>
+
+        {/* ===== 筛选栏（外露 ≤4：业务线 / 角色 / 日期快捷 / 搜索 + 刷新 + 更多筛选） ===== */}
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/[0.08] bg-[#151827] px-4 py-3">
+            {/* 业务线 */}
+            <select
+              value={brandFilter}
+              onChange={(e) => setBrandFilter(e.target.value as typeof brandFilter)}
+              className={filterItem}
+              aria-label="业务线"
+            >
+              {availableBrands.length > 1 && <option value="全部">全部</option>}
+              {availableBrands.map((b) => (
+                <option key={b.id} value={b.id}>{b.label}</option>
+              ))}
+            </select>
+
+            {/* 角色 */}
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value as typeof role)}
+              className={filterItem}
+              aria-label="角色"
+            >
+              <option value="anchor">主播</option>
+              <option value="control">中控</option>
+            </select>
+
+            {/* 日期快捷 */}
+            <div className="flex items-center gap-1">
               <button
-                key={b.id}
-                onClick={() => setBrand(b.id)}
-                className={`px-4 py-1.5 text-sm rounded-md transition ${
-                  brand === b.id
-                    ? 'bg-[#4158D0] text-white'
-                    : 'text-muted-foreground hover:text-white'
+                onClick={quick7d}
+                className="h-9 rounded-lg px-3 text-sm text-white/[0.65] transition hover:bg-white/[0.05] hover:text-white/[0.92]"
+              >
+                近7天
+              </button>
+              <button
+                onClick={quickMonth}
+                className="h-9 rounded-lg px-3 text-sm text-white/[0.65] transition hover:bg-white/[0.05] hover:text-white/[0.92]"
+              >
+                本月
+              </button>
+            </div>
+
+            {/* 主播搜索 */}
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/[0.40]" />
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={`搜索${roleLabel}`}
+                className={`${filterItem} pl-8 w-44`}
+              />
+            </div>
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => fetchSchedule(startDate, endDate, brandFilter, role)}
+                className="flex h-9 items-center gap-1.5 rounded-lg bg-[#4158D0] px-3 text-sm font-medium text-white transition hover:bg-[#6A7CDA] active:bg-[#2C42B2]"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                刷新
+              </button>
+              <button
+                onClick={() => setMoreOpen((v) => !v)}
+                className={`flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm transition ${
+                  moreOpen ? 'bg-[#4158D0] text-white' : 'text-white/[0.65] hover:bg-white/[0.05] hover:text-white/[0.92]'
                 }`}
               >
-                {b.label}
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                更多筛选
               </button>
-            ))}
+            </div>
           </div>
 
-          {/* 角色切换 Toggle */}
-          <div className="flex items-center bg-card rounded-lg p-1">
-            <button
-              onClick={() => setRole('anchor')}
-              className={`px-4 py-1.5 text-sm rounded-md transition ${
-                role === 'anchor'
-                  ? 'bg-[#4158D0] text-white'
-                  : 'text-muted-foreground hover:text-white'
-              }`}
-            >
-              主播
-            </button>
-            <button
-              onClick={() => setRole('control')}
-              className={`px-4 py-1.5 text-sm rounded-md transition ${
-                role === 'control'
-                  ? 'bg-[#4158D0] text-white'
-                  : 'text-muted-foreground hover:text-white'
-              }`}
-            >
-              中控
-            </button>
+          {/* 更多筛选：展开后提供自定义日期区间 */}
+          {moreOpen && (
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/[0.08] bg-[#151827] px-4 py-3 text-sm">
+              <span className="text-white/[0.40]">日期区间</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className={`${filterItem} bg-[#1E2235]`}
+              />
+              <span className="text-white/[0.40]">~</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className={`${filterItem} bg-[#1E2235]`}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* ===== 汇总六项（两组） ===== */}
+        {summary && (
+          <div className="space-y-4">
+            <SummaryGroup title="规模" items={[
+              { name: '覆盖天数', value: summary.totalDays, unit: '天' },
+              { name: '排班人次', value: summary.totalPersonDays, unit: '人次' },
+              { name: '总时长', value: summary.totalHours, unit: 'h' },
+            ]} />
+            <SummaryGroup title="结构" items={[
+              { name: '常规班', value: summary.regularHours, unit: 'h' },
+              { name: '凌晨班', value: summary.earlyMorningHours, unit: 'h', moon: true },
+              { name: '双播', value: summary.dualBroadcastHours, unit: 'h' },
+            ]} />
           </div>
-        </div>
-      </div>
-
-      {/* ===== 日期区间选择器 ===== */}
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <span className="text-sm text-muted-foreground">日期范围</span>
-        <input
-          type="date"
-          value={startDate}
-          onChange={e => setStartDate(e.target.value)}
-          className="bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-[#4158D0] focus:outline-none"
-        />
-        <span className="text-muted-foreground">~</span>
-        <input
-          type="date"
-          value={endDate}
-          onChange={e => setEndDate(e.target.value)}
-          className="bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-[#4158D0] focus:outline-none"
-        />
-        <button
-          onClick={() => { setStartDate(getDaysAgo(6)); setEndDate(getToday()); }}
-          className="px-3 py-2 text-xs rounded-lg bg-card border border-border text-zinc-300 hover:bg-zinc-700 transition"
-        >近7天</button>
-        <button
-          onClick={() => {
-            const d = new Date();
-            const m = d.getMonth();
-            const y = d.getFullYear();
-            setStartDate(`${y}-${String(m + 1).padStart(2, '0')}-01`);
-            setEndDate(getToday());
-          }}
-          className="px-3 py-2 text-xs rounded-lg bg-card border border-border text-zinc-300 hover:bg-zinc-700 transition"
-        >本月</button>
-        <button
-          onClick={() => fetchSchedule(startDate, endDate, brand, role)}
-          className="px-4 py-2 text-xs rounded-lg bg-[#4158D0] text-white hover:bg-[#6A7CDA] transition font-medium"
-        >刷新</button>
-
-        {/* 人员筛选 */}
-        <div className="flex items-center gap-2 ml-4">
-          <span className="text-sm text-muted-foreground">{roleLabel}筛选</span>
-          <select
-            value={selectedPerson}
-            onChange={e => setSelectedPerson(e.target.value)}
-            className="bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-[#4158D0] focus:outline-none min-w-[140px]"
-          >
-            <option value="全部">全部{roleLabel}</option>
-            {allPersons.map((name: string) => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* ===== 全局汇总卡片 ===== */}
-      {globalStats && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-          <StatCard label="覆盖天数" value={globalStats.totalDays} suffix="天" color="#4158D0" />
-          <StatCard label="排班人次" value={globalStats.totalPersonDays} suffix="人次" color="rgba(65,88,208,0.7)" />
-          <StatCard label="总时长" value={globalStats.totalHours} suffix="小时" color="rgba(65,88,208,0.5)" />
-          <StatCard label="常规时长" value={globalStats.totalHours - globalStats.totalEarlyMorning} suffix="小时" color="#4158D0" />
-          <StatCard label="凌晨班时长" value={globalStats.totalEarlyMorning} suffix="小时" color="rgba(65,88,208,0.7)" />
-          <StatCard label="双播时长" value={globalStats.totalDualBroadcast} suffix="小时" color="rgba(65,88,208,0.5)" />
-        </div>
-      )}
-
-      {/* ===== 加载/错误状态 ===== */}
-      {loading && <div className="text-center py-10 text-zinc-400">加载排班数据中...</div>}
-      {error && <div className="text-center py-10 text-[#FF9F0A]">{error}</div>}
-
-      {/* ===== 按日期分组展示 ===== */}
-      {!loading && !error && dates.length > 0 && (
-        <div className="space-y-4">
-          {dates.map((dateItem: DateData) => (
-            <DateGroup
-              key={dateItem.date}
-              dateItem={dateItem}
-              isExpanded={expandedDates[dateItem.date] || false}
-              onToggleExpand={() => toggleDateExpanded(dateItem.date)}
-            />
-          ))}
-        </div>
-      )}
-
-      {!loading && !error && dates.length === 0 && scheduleData && (
-        isExternal ? (
-          <ExternalScheduleSkeleton startDate={startDate} endDate={endDate} />
-        ) : (
-          <div className="text-center py-10 text-zinc-500">所选日期范围内暂无排班数据</div>
-        )
-      )}
-
-      {/* ===== 页脚 ===== */}
-      <div className="text-center mt-8 text-xs text-muted-foreground">
-        © 2026 Blue直播 · 排班管理系统
-      </div>
-    </div>
-  );
-}
-
-// ===== 汇总卡片 =====
-function StatCard({ label, value, suffix, color }: { label: string; value: number; suffix: string; color: string }) {
-  return (
-    <div className="bg-card rounded-xl p-4 border border-border hover:border-zinc-600/50 transition">
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-        <span className="inline-block w-2 h-2 rounded-full" style={{ background: color }} />
-        <span>{label}</span>
-      </div>
-      <div className="flex items-baseline gap-1">
-        <span className="text-2xl font-bold text-foreground">{value}</span>
-        <span className="text-xs text-muted-foreground">{suffix}</span>
-      </div>
-    </div>
-  );
-}
-
-// ===== 日期分组（方案D设计） =====
-function DateGroup({
-  dateItem,
-  isExpanded,
-  onToggleExpand,
-}: {
-  dateItem: DateData;
-  isExpanded: boolean;
-  onToggleExpand: () => void;
-}) {
-  const totalPersons = dateItem.accounts.reduce((s, a) => s + (a.stats?.personCount || 0), 0);
-  const totalHours = dateItem.accounts.reduce((s, a) => s + (a.stats?.totalHours || 0), 0);
-  const totalEarly = dateItem.accounts.reduce((s, a) => s + (a.stats?.earlyMorningHours || 0), 0);
-
-  // 解析日期显示
-  const dateObj = new Date(dateItem.date);
-  const month = dateObj.getMonth() + 1;
-  const day = dateObj.getDate();
-  const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-  const weekDay = weekDays[dateObj.getDay()];
-
-  // 检查是否有超负荷（单人>10h或同日3+渠道）
-  const hasOverload = dateItem.accounts.some(a => {
-    const hasLongHours = (a.personSummary || []).some(p => (p.totalHours || 0) > 10);
-    return hasLongHours;
-  }) || dateItem.accounts.filter(a => (a.stats?.personCount || 0) > 0).length >= 3;
-
-  return (
-    <article className="bg-card rounded-xl border border-border overflow-hidden">
-      {/* 标题行 */}
-      <header className="px-5 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-lg font-semibold text-foreground">{month}月{day}日</span>
-          <span className="text-sm text-muted-foreground">{weekDay}</span>
-        </div>
-        {totalEarly > 0 && (
-          <span className="flex items-center gap-1 px-3 py-1 rounded-2xl bg-[rgba(245,158,11,0.15)] text-[#FF9F0A] text-sm">
-            🌙 凌晨班 {totalEarly}h
-          </span>
         )}
-      </header>
 
-      {/* 汇总统计行（可点击折叠/展开） */}
-      <button
-        onClick={onToggleExpand}
-        className="w-full px-5 py-3 flex items-center justify-between border-t border-border hover:bg-white/[0.02] transition-colors"
-        aria-expanded={isExpanded}
-      >
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* 当日统计 */}
-          <span className="text-sm text-foreground">
-            {totalPersons}人次 · {totalHours}小时
-          </span>
-          
-          {/* 渠道胶囊标签 */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {dateItem.accounts.map(account => {
-              const colors = CHANNEL_COLORS[account.accountName] || { bg: 'rgba(100,100,100,0.15)', text: 'var(--muted-foreground)', bar: 'var(--muted-foreground)' };
-              const shortName = CHANNEL_SHORT_NAMES[account.accountName] || account.accountName;
-              const personCount = account.stats?.personCount || 0;
-              if (personCount === 0) return null;
+        {/* ===== 视图切换 ===== */}
+        <div className="flex items-center justify-between">
+          <div className="inline-flex items-center rounded-lg border border-white/[0.08] bg-[#151827] p-1">
+            <button
+              onClick={() => setView('week')}
+              className={`h-8 rounded-md px-4 text-sm transition ${
+                view === 'week' ? 'bg-[#4158D0] font-medium text-white' : 'text-white/[0.65] hover:text-white/[0.92]'
+              }`}
+            >
+              周视图
+            </button>
+            <button
+              onClick={() => setView('day')}
+              className={`h-8 rounded-md px-4 text-sm transition ${
+                view === 'day' ? 'bg-[#4158D0] font-medium text-white' : 'text-white/[0.65] hover:text-white/[0.92]'
+              }`}
+            >
+              日视图
+            </button>
+          </div>
+        </div>
+
+        {/* ===== 加载 / 错误 ===== */}
+        {loading && <div className="py-10 text-center text-white/[0.40]">加载排班数据中...</div>}
+        {error && <div className="py-10 text-center text-[#FF9F0A]">{error}</div>}
+
+        {/* ===== 视图主体 ===== */}
+        {!loading && !error && (isExternal ? (
+          <div className="flex items-start gap-2 rounded-xl border border-white/[0.08] bg-[#151827] p-4 text-sm text-white/[0.65]">
+            <span>ℹ️</span>
+            <span>外部合作视图：仅展示页面格式，数据已隐藏。</span>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {view === 'week' ? (
+              <WeekView
+                channels={channels}
+                weekDays={weekDays}
+                todayStr={todayStr}
+                rangeLabel={rangeLabel}
+                gapCount={weekGapCount}
+                personsOf={personsOf}
+                unfilteredPersonsOf={unfilteredPersonsOf}
+                onPrev={prevWeek}
+                onNext={nextWeek}
+              />
+            ) : (
+              <DayView viewDates={viewDates} roleLabel={roleLabel} />
+            )}
+            {view === 'week' && weekDays.length === 0 && !loading && !error && (
+              <div className="py-10 text-center text-white/[0.40]">所选日期范围内暂无排班数据</div>
+            )}
+            {view === 'day' && viewDates.length === 0 && !loading && !error && (
+              <div className="py-10 text-center text-white/[0.40]">所选日期范围内暂无排班数据</div>
+            )}
+          </div>
+        ))}
+
+        </div>
+    </div>
+  );
+}
+
+// ===== 汇总组卡片（4段：组标题 L6灰 + 指标名 L5/T2 + 数值 L4/T1 + 单位 L6灰） =====
+function SummaryGroup({
+  title,
+  items,
+}: {
+  title: string;
+  items: { name: string; value: number; unit: string; moon?: boolean }[];
+}) {
+  return (
+    <div className="grid grid-cols-3 gap-4">
+      {items.map((it) => (
+        <div key={it.name} className="flex min-h-[88px] flex-col justify-between rounded-xl border border-white/[0.08] bg-[#1E2235] px-4 py-3.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[12px] font-normal text-white/[0.40]">{title}</span>
+            {it.moon && <Moon className="h-3.5 w-3.5 text-white/[0.40]" />}
+          </div>
+          <div className="mt-1">
+            <div className="text-[13px] text-white/[0.65]">{it.name}</div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[20px] font-semibold tabular-nums text-white/[0.92]">{it.value}</span>
+              <span className="text-[12px] text-white/[0.40]">{it.unit}</span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ===== 周视图 =====
+function WeekView({
+  channels,
+  weekDays,
+  todayStr,
+  rangeLabel,
+  gapCount,
+  personsOf,
+  unfilteredPersonsOf,
+  onPrev,
+  onNext,
+}: {
+  channels: string[];
+  weekDays: string[];
+  todayStr: string;
+  rangeLabel: string;
+  gapCount: number;
+  personsOf: (day: string, channel: string) => PersonSummary[];
+  unfilteredPersonsOf: (day: string, channel: string) => PersonSummary[];
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  if (channels.length === 0 || weekDays.length === 0) {
+    return <div className="py-10 text-center text-white/[0.40]">所选范围内暂无排班数据</div>;
+  }
+  const colMinW = weekDays.length >= 7 ? 128 : Math.max(96, Math.floor(960 / weekDays.length));
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-[#1E2235]">
+      {/* 周切换行 */}
+      <div className="flex items-center justify-between border-b border-white/[0.08] px-4 py-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onPrev}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-white/[0.65] transition hover:bg-white/[0.05] hover:text-white/[0.92]"
+            aria-label="上一周"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="text-[13px] tabular-nums text-white/[0.65]">{rangeLabel}</span>
+          <button
+            onClick={onNext}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-white/[0.65] transition hover:bg-white/[0.05] hover:text-white/[0.92]"
+            aria-label="下一周"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+        <span className="text-[12px] text-white/[0.40]">本周缺口 {gapCount} 处</span>
+      </div>
+
+      {/* 网格 */}
+      <div className="overflow-x-auto">
+        <div className="min-w-max">
+          {/* 表头首列 + 天 */}
+          <div className="grid items-stretch border-b border-white/[0.08]" style={{ gridTemplateColumns: `180px repeat(${weekDays.length}, minmax(${colMinW}px,1fr))` }}>
+            <div className="flex items-center px-4 py-2.5 text-[12px] text-white/[0.40]">账号渠道</div>
+            {weekDays.map((day) => {
+              const isToday = day === todayStr;
               return (
-                <span
-                  key={account.accountName}
-                  className="px-3 py-1 rounded-2xl text-sm"
-                  style={{ background: colors.bg, color: colors.text }}
-                >
-                  {shortName} <span className="font-bold">{personCount}</span>
-                </span>
+                <div key={day} className="flex flex-col items-center justify-center border-l border-white/[0.08] py-2.5">
+                  <span className={`text-[13px] tabular-nums ${isToday ? 'font-semibold text-[#4158D0]' : 'text-white/[0.92]'}`}>
+                    {day.slice(5).replace('-', '/')}
+                  </span>
+                  <span className={`text-[11px] ${isToday ? 'text-[#4158D0]' : 'text-white/[0.40]'}`}>
+                    {WEEKDAYS_SHORT[parseLocal(day).getDay()]}
+                  </span>
+                </div>
               );
             })}
           </div>
-        </div>
 
-        {/* 折叠箭头 */}
-        <span
-          className={`text-muted-foreground hover:text-foreground transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`}
-          style={{ display: 'inline-block' }}
-        >
-          ▼
-        </span>
-      </button>
-
-      {/* 展开后的渠道与个人详情 */}
-      <div
-        className={`transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}
-      >
-        <div className="px-5 pb-4 space-y-4 overflow-x-auto">
-          <div className="min-w-[600px]">
-          {dateItem.accounts.map(account => {
-            const personCount = account.stats?.personCount || 0;
-            if (personCount === 0) return null;
-            
-            const colors = CHANNEL_COLORS[account.accountName] || { bg: 'rgba(100,100,100,0.15)', text: 'var(--muted-foreground)', bar: 'var(--muted-foreground)' };
-            const shortName = CHANNEL_SHORT_NAMES[account.accountName] || account.accountName;
-            const accountTotalHours = account.stats?.totalHours || 0;
-            const accountEarlyHours = account.stats?.earlyMorningHours || 0;
-            
-            // 状态条颜色
-            let statusBarColor = '#34C759'; // 绿色（正常）
-            if (accountEarlyHours > 0) {
-              statusBarColor = '#FF9F0A'; // 橙黄（含凌晨班）
-            }
-            if (hasOverload) {
-              statusBarColor = '#F5483B'; // 红色（超负荷）
-            }
-
-            return (
-              <section key={account.accountName} className="relative">
-                {/* 渠道标题行 */}
-                <div className="flex items-center gap-3 mb-3">
-                  {/* 左侧状态条 */}
-                  <div
-                    className="absolute left-0 top-0 bottom-0 w-1 rounded-full"
-                    style={{ background: statusBarColor }}
-                  />
-                  <div className="pl-4">
-                    <span className="text-sm font-semibold text-foreground">{shortName}</span>
-                    <span className="text-sm text-muted-foreground ml-2">· {personCount}人 · {accountTotalHours}H</span>
+          {/* 渠道行 */}
+          {channels.map((ch) => (
+            <div key={ch} className="grid items-stretch border-b border-white/[0.08] last:border-0" style={{ gridTemplateColumns: `180px repeat(${weekDays.length}, minmax(${colMinW}px,1fr))` }}>
+              <div className="flex items-center gap-2 px-4 py-2">
+                <span className="text-[13px] text-white/[0.92]">{ch}</span>
+                <BrandBadge brand={brandOfChannel(ch)} />
+              </div>
+              {weekDays.map((day) => {
+                const hasBlocks = unfilteredPersonsOf(day, ch).length > 0;
+                const blocks = personsOf(day, ch);
+                if (!hasBlocks) {
+                  return (
+                    <div key={day} className="flex min-h-[56px] items-center justify-center border-l border-dashed border-[#FF9F0A]/60 p-1.5">
+                      <span className="text-[11px] text-[#FF9F0A]/70" />
+                    </div>
+                  );
+                }
+                return (
+                  <div key={day} className="flex flex-col justify-center gap-1 border-l border-white/[0.08] p-1.5">
+                    {blocks.length === 0 ? (
+                      <div className="text-[11px] text-white/[0.40]">—</div>
+                    ) : (
+                      blocks.map((p) => (
+                        <div key={p.name} className="group relative flex min-h-[34px] flex-col justify-center rounded-md bg-[#4158D0] px-2 py-1">
+                          <div className="text-[12px] font-medium leading-tight text-white">{p.name}</div>
+                          <div className="text-[10px] leading-tight text-white/85 tabular-nums">
+                            {personRangeLabel(p.timeSlots) || '-'} · {p.totalHours}h
+                          </div>
+                          <HoverCard person={p} channel={ch} />
+                        </div>
+                      ))
+                    )}
                   </div>
-                </div>
-
-                {/* 个人排班行 */}
-                <div className="pl-4 space-y-1">
-                  {(account.personSummary || []).map(person => (
-                    <PersonRow key={person.name} person={person} barColor={colors.bar} />
-                  ))}
-                </div>
-              </section>
-            );
-          })}
-          </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
       </div>
-    </article>
-  );
-}
-
-// ===== 个人排班行 =====
-function PersonRow({ person, barColor }: { person: PersonSummary; barColor: string }) {
-  const hasEarlyMorning = (person.earlyMorningHours || 0) > 0;
-  
-  // 计算时段条宽度比例（以24h为满宽）
-  const barWidth = Math.min((person.totalHours / 24) * 100, 100);
-
-  return (
-    <div className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-white/[0.03] transition-colors group">
-      {/* 姓名 */}
-      <span className="text-sm text-foreground w-16 flex-shrink-0">{person.name}</span>
-      
-      {/* 时段色块条 */}
-      <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
-        <div
-          className="h-full rounded-full transition-all duration-300"
-          style={{ 
-            width: `${barWidth}%`,
-            background: hasEarlyMorning ? '#FF9F0A' : barColor
-          }}
-        />
-      </div>
-      
-      {/* 时段文字 */}
-      <span className="text-xs text-muted-foreground w-24 flex-shrink-0">
-        {person.timeSlots.length > 0 ? formatTimeSlots(person.timeSlots) : ''}
-      </span>
-      
-      {/* 时长 */}
-      <span
-        className="text-sm font-semibold w-10 text-right flex-shrink-0"
-        style={{ color: hasEarlyMorning ? '#FF9F0A' : 'var(--foreground)' }}
-      >
-        {person.totalHours}h
-      </span>
     </div>
   );
 }
 
-// 格式化时段显示
-function formatTimeSlots(slots: string[]): string {
-  if (slots.length === 0) return '';
-  // 提取起始和结束时间
-  const startSlot = slots[0];
-  const endSlot = slots[slots.length - 1];
-  
-  // 解析时段格式（如 "8-9点"）
-  const startMatch = startSlot.match(/(\d+)-/);
-  const endMatch = endSlot.match(/-(\d+)/);
-  
-  if (startMatch && endMatch) {
-    const startHour = parseInt(startMatch[1]);
-    const endHour = parseInt(endMatch[1]);
-    return `${String(startHour).padStart(2, '0')}:00-${String(endHour).padStart(2, '0')}:00`;
-  }
-  
-  return slots.join(', ');
-}
+// ===== 日视图（保留 0:00-24:00 横轴时间条；0-8 点背景加深；无轮班角标） =====
+const HOUR_MARKS = Array.from({ length: 25 }, (_, i) => i);
 
-// ===== 外部合作视图：排班格式骨架（无真实数据） =====
-function ExternalScheduleSkeleton({ startDate, endDate }: { startDate: string; endDate: string }) {
-  const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-  const cols: { label: string; week: string }[] = [];
-  const cursor = new Date(startDate + 'T00:00:00');
-  const end = new Date(endDate + 'T00:00:00');
-  let guard = 0;
-  while (cursor <= end && guard < 31) {
-    cols.push({
-      label: `${cursor.getMonth() + 1}/${cursor.getDate()}`,
-      week: weekDays[cursor.getDay()],
-    });
-    cursor.setDate(cursor.getDate() + 1);
-    guard++;
-  }
-
+function DayView({ viewDates, roleLabel }: { viewDates: DateData[]; roleLabel: string }) {
   return (
-    <div className="space-y-3">
-      <div className="text-xs text-muted-foreground flex items-start gap-1.5 rounded-md border border-border bg-muted/40 px-3 py-2">
-        <span>ℹ️</span>
-        <span>外部合作视图：仅展示页面格式，数据已隐藏</span>
-      </div>
-      <div className="bg-card rounded-xl border border-border overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-sm">
-            <thead>
-              <tr className="border-b border-border bg-white/[0.02]">
-                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground sticky left-0 bg-card whitespace-nowrap">主播</th>
-                {cols.map((c) => (
-                  <th key={c.label} className="px-3 py-2.5 text-center font-medium text-muted-foreground whitespace-nowrap">
-                    {c.label}<span className="ml-1 text-xs text-muted-foreground/70">{c.week}</span>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {[0, 1, 2].map((row) => (
-                <tr key={row} className="border-b border-border last:border-0 hover:bg-white/[0.02] transition-colors">
-                  <td className="px-4 py-3 text-muted-foreground sticky left-0 bg-card whitespace-nowrap">—</td>
-                  {cols.map((c) => (
-                    <td key={c.label} className="px-3 py-3 text-center">
-                      <span className="inline-block h-2 w-full max-w-[40px] rounded bg-secondary/70" />
-                    </td>
-                  ))}
-                </tr>
+    <div className="space-y-4">
+      {viewDates.map((d) => {
+        const active = d.accounts.filter((a) => a.personSummary.length > 0);
+        if (active.length === 0) return null;
+        const dateObj = parseLocal(d.date);
+        return (
+          <div key={d.date} className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#1E2235]">
+            <div className="flex items-center justify-between border-b border-white/[0.08] px-4 py-3">
+              <div className="flex items-baseline gap-2">
+                <span className="text-[16px] font-medium text-white/[0.92]">{dateObj.getMonth() + 1}月{dateObj.getDate()}日</span>
+                <span className="text-[12px] text-white/[0.40]">{WEEKDAYS_SHORT[dateObj.getDay()]}</span>
+              </div>
+              <span className="text-[12px] text-white/[0.40]">{roleLabel}</span>
+            </div>
+
+            <div className="space-y-4 p-4">
+              {active.map((acc) => (
+                <div key={acc.accountName} className="flex items-center gap-3">
+                  <div className="w-44 shrink-0">
+                    <div className="text-[13px] text-white/[0.92]">{acc.accountName}</div>
+                  </div>
+                  <div className="relative flex-1 overflow-hidden">
+                    {/* 0:00-8:00 背景加深 */}
+                    <div className="absolute inset-y-0 left-0 bg-white/[0.04]" style={{ width: `${(8 / 24) * 100}%` }} />
+                    {/* 时间刻度 */}
+                    <div className="relative flex">
+                      {HOUR_MARKS.slice(0, 24).map((h) => (
+                        <div key={h} className="h-14 flex-1 border-l border-white/[0.04] first:border-l-0" />
+                      ))}
+                    </div>
+                    {/* 人员时间段 */}
+                    <div className="absolute inset-0 flex flex-col justify-center gap-1 px-px">
+                      {acc.personSummary.map((p) =>
+                        p.timeSlots.map((slot) => {
+                          const sh = slotStartHour(slot);
+                          if (sh < 0 || sh > 23) return null;
+                          return (
+                            <div key={`${p.name}-${slot}`} className="group relative h-4">
+                              <div className="absolute top-0 h-4 rounded-sm bg-[#4158D0]" style={{ left: `${(sh / 24) * 100}%`, width: `${100 / 24}%` }} />
+                              <HoverCard person={p} channel={acc.accountName} />
+                            </div>
+                          );
+                        }),
+                      )}
+                    </div>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            </div>
+          </div>
+        );
+      })}
+      {viewDates.length === 0 && <div className="py-10 text-center text-white/[0.40]">所选日期范围内暂无排班数据</div>}
     </div>
   );
 }

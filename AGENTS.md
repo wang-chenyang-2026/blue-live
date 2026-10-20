@@ -302,3 +302,17 @@ src/
   - 2026-10：byBrand iQOO = dy+ks = **216209.04** = 直查 **216209.04**，差额 0
   - 卞云龙 10月仅在 iqoo-dy(ctr 13516.88, 卞 cost 5330)、iqoo-ks ctr=7088.9 无卞云龙。
 - 时长/兼职人数未回退（brand-schedule-stats 本次未动）：dy 228h PT 7/3、合并 436h。注：快手 ks 时长 191→208 系上次 `safeFeishuFetch` 使快手表(RYPvqw)读取更完整（此前 191 为限流少读），非本次改动、属读取健壮性提升。只读飞书、未插假数据；仅预览验证未部署。
+
+## 排班管理页 + 全局外框 UI 改版（周视图/日视图/汇总卡/悬浮）
+- **红线遵守**：仅改呈现层。`/api/schedule`、`/api/brand-schedule-stats`、`/api/cost-overview`、`/api/feishu/sheets-data` 等所有接口的取数范围/过滤/公式/聚合口径/字段名/费率/飞书读取逻辑**全部未动**。数字全部来自真实 `/api/schedule`。未做轮班角标（用户明确要求不做）。
+- **主题令牌已全局就绪**（globals.css `.dark` 早已按 #0D0F1A/#151827/#1E2235、白8%分割线、T1白92%/T2白65%/T3白40%、唯一强调色 #4158D0、hover #6A7CDA/按下 #2C42B2、涨#F5483B跌#34C759告警#FF9F0A），本次只新增了 `--text-t1/t2/t3`、`--primary-hover/pressed`、`--rise/fall` 语义令牌，未覆盖既有变量，**不影响其它页面**。
+- **外框**：只改 `src/components/layout/AppSidebar.tsx` 结构——品牌头(Blue直播/管理平台) + 角色/账号卡(角色取 `roleConfig?.label`，姓名+手机号取登录用户，卡底 #1E2235/内边距≥20，不可写死)+ 三分组导航：经营(首页概览/排班管理/成本核算/数据概览/buyin-spike)、市场(市场监测/视觉统计)、协同与管理(SOP管理/主播工作台/问题反馈/注册人员管理/用户审批)。**分组仅重排样式，各组入口的 href 与 `getAccessibleModules` 权限门控不变**；buyin-spike 归入经营组。选中项=#4158D0 填充白字，未选中=白65%/hover 白92%。底部保留 ThemeToggle + 账号管理 Popover + 版权。AppShell 只留原顶栏(包含 bell)未改动。
+- **排班页** `src/app/schedule/page.tsx` 全面重做：
+  - L1 标题「排班管理」；筛选栏外露≤4：业务线(全部/vivo/iQOO)、角色(主播/中控)、日期快捷(近7天/本月)、主播搜索；「刷新」主按钮(accent 填充)、「更多筛选」折叠自定义日期区间输入（`moreOpen` 状态）。**请求参数与默认值与现状一致**：默认业务线=首个可见品牌、角色=anchor、日期=今天所在自然周(周一~周日，`weekMonday()`)。`brand='全部'` 后端无此品牌，故前端 `Promise.all` 分品牌请求 `/api/schedule` 各一次再按日期合并 accounts（各品牌单品牌统计口径不变；合并 globalStats=各品牌 server globalStats 求和、totalDays=区间天数）。IOT 无排班接口配置(BRAND_CONFIGS 仅 vivo/iQOO)，下拉不展示，选择会 400。
+  - 汇总六项两组（字段映射与现状完全一致，未改统计）：规模组(覆盖天数=globalStats.totalDays·天 / 排班人次=totalPersonDays·人次 / 总时长=totalHours·h)、结构组(常规班=totalHours-totalEarlyMorning·h / 凌晨班=totalEarlyMorning·h+月亮图标Moon / 双播=totalDualBroadcast·h 保持现网小时单位)。卡片四段：组标题L6灰+指标名L5白65%+数值L4白92%+单位L6灰，行高≥44。
+  - 周视图 `WeekView`：周切换(prev/next ±7天)+区间标签+右上「本周缺口 N 处」(L6灰)；列=区间内每天(默认周一~周日7列，今天强调 #4158D0)，行=渠道(由接口真实返回的 accounts 动态生成，非写死；每渠道右侧中性灰徽章)；每渠道×天有排班→#4158D0 色块(主播名+起止+时长，多人堆叠)；**该渠道×该天在未过滤数据中完全无排班→ #FF9F0A 虚线空框(缺口)**（`weekGapCount` 基于未过滤 `rawDates`，不受主播搜索影响）。周视图色块 count= ∑personCount=totalPersonDays、色块时长和= ∑totalHours=totalHours（与 globalStats 恒等）。
+  - 日视图 `DayView`：保留 0:00-24:00 横轴时间条，0:00-8:00 背景 `bg-white/[0.04]` 加深；渠道为行分组，每人员每个 timeSlot 各一个 #4158D0 小时条(定位 left=slotStart/24)；无轮班角标。
+  - 悬浮详情 `HoverCard`：hover 色块/小时条显示 主播/起止时段(personRangeLabel)/实际时长/账号渠道/业务线(中性徽章)，字段全部来自现有 personSummary/timeSlots，缺字段不展示该行。
+- **数据对账（真实验证）**：`vivo/anchor/2026-09-23~2026-09-28` 接口 globalStats=覆盖6天/32人次/154h/凌晨42h/双播0→常规=112，与文档基准一致（改前改后该接口输出恒等，仅展示方式改了）。iQOO 主播/中控短区间均 success。首页 cost-overview byBrand iQOO-dy+iQOO-ks==iQOO 保持（dy+ks==iQOO 恒等，本次未改 cost 逻辑）。
+- **验证**：ts-check 0 错、lint(改动文件 0 告警)、生产 build(61 页/含 /schedule 静态预渲染)全绿、test_run(lint/ts-check/service_probe=5000 ready + 排班/cost 接口冒烟) pass。回归探测全部 14 个主路由均 200（首页/成本/数据概览/市场/视觉/SOP/工作台/反馈/人员管理/审批/buyin-spike/register）。
+- **验收要点**：缺口判定=某渠道×某天完全无排班(真实空)，不是逗号角标；`全部`品牌为纯前端聚合(展示层)不对任何接口新增统计逻辑；外部合作角色仍由 route 侧 maskExternalBusiness 屏蔽数据，页面仅展示格式占位。

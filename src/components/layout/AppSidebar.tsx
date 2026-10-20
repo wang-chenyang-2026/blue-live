@@ -71,6 +71,13 @@ const SIDEBAR_ORDER: ModuleKey[] = [
   'approval',
 ];
 
+// 分组导航（仅分组与样式，各入口 href / 角色可见域与原来完全一致）
+const SIDEBAR_GROUPS: { title: string; modules: ModuleKey[] }[] = [
+  { title: '经营', modules: ['dashboard', 'schedule', 'cost', 'data-overview', 'buyin-spike'] },
+  { title: '市场', modules: ['market-monitor', 'visual'] },
+  { title: '协同与管理', modules: ['sop', 'workstation', 'problem-feedback', 'personnel', 'approval'] },
+];
+
 export function AppSidebar() {
   const pathname = usePathname();
   const { currentRole, currentUser, pendingCount, handleLogout } = useApp();
@@ -96,49 +103,62 @@ export function AppSidebar() {
         </div>
       </div>
 
-      {/* User info */}
-      <div className="px-4 py-3 space-y-2">
-        <div className="flex items-center gap-2 rounded-md bg-secondary px-2 py-1.5">
-          <div className="h-2 w-2 rounded-full bg-primary" />
-          <span className="text-xs text-muted-foreground">当前角色：</span>
-          <span className="text-xs font-medium text-foreground">{roleConfig?.label}</span>
-        </div>
-        {currentUser && (
-          <div className="text-xs text-muted-foreground truncate px-1">
-            {currentUser.name} · {currentUser.phone || '未绑定手机'}
+      {/* 角色 / 账号信息卡 */}
+      <div className="px-3 py-3">
+        <div className="rounded-xl border border-white/[0.08] bg-[#1E2235] px-3 py-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-white/[0.40]">当前角色</span>
+            <span className="rounded-md bg-[#2A2E45] px-2 py-0.5 text-xs font-medium text-white/[0.92]">
+              {roleConfig?.label ?? resolvedRole}
+            </span>
           </div>
-        )}
+          {currentUser && (
+            <div className="space-y-1">
+              <div className="text-sm font-semibold text-white/[0.92]">{currentUser.name || '-'}</div>
+              <div className="text-[11px] text-white/[0.40]">{currentUser.phone || '未绑定手机'}</div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-2">
+      {/* 分组导航 */}
+      <nav className="flex-1 space-y-4 overflow-y-auto px-3 pb-2">
         {!roleConfig && resolvedRole && (
           <div className="px-3 py-2 text-xs text-destructive bg-destructive/10 rounded-lg mb-2">
             角色配置异常: {resolvedRole}
           </div>
         )}
-        {visibleModules.map((mod) => {
-          const path = MODULE_PATHS[mod];
-          const isActive =
-            mod === 'dashboard' ? pathname === '/' : pathname.startsWith(path);
-
+        {SIDEBAR_GROUPS.map((group) => {
+          const visible = group.modules.filter((m) => visibleModules.includes(m));
+          if (visible.length === 0) return null;
           return (
-            <Link
-              key={mod}
-              href={path}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-                isActive
-                  ? 'bg-primary/15 text-primary font-medium'
-                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-              )}
-            >
-              {MODULE_ICONS[mod]}
-              {MODULE_LABELS[mod]}
-            </Link>
+            <div key={group.title}>
+              <div className="px-3 pb-1.5 text-[11px] font-normal text-white/[0.40]">{group.title}</div>
+              <div className="space-y-0.5">
+                {visible.map((mod) => {
+                  const path = MODULE_PATHS[mod];
+                  const isActive =
+                    mod === 'dashboard' ? pathname === '/' : pathname.startsWith(path);
+                  return (
+                    <Link
+                      key={mod}
+                      href={path}
+                      className={cn(
+                        'flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition-colors',
+                        isActive
+                          ? 'bg-[#4158D0] font-medium text-white'
+                          : 'text-white/[0.65] hover:bg-white/[0.05] hover:text-white/[0.92]'
+                      )}
+                    >
+                      {MODULE_ICONS[mod]}
+                      {MODULE_LABELS[mod]}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
           );
         })}
-
       </nav>
 
       {/* Footer */}
