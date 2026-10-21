@@ -199,7 +199,6 @@ export default function SchedulePage() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [view, setView] = useState<'month' | 'day'>('month');
-  const [isMonthLabel, setIsMonthLabel] = useState(false);
 
   useEffect(() => {
     const mon = weekMonday(new Date());
@@ -361,7 +360,9 @@ export default function SchedulePage() {
 
   const weekDays = useMemo(() => getDatesBetween(startDate, endDate), [startDate, endDate]);
   const todayStr = getToday();
-  const gapLabel = `${isMonthLabel ? '本月' : '本周期'}缺口 ${weekGapCount} 处`;
+  // 仅当区间恰为「当月1号 ~ 今天」时显示「本月缺口」，否则一律「本周期缺口」（依实际区间判定，兼容快捷钮与手填）
+  const isMonthRange = startDate === `${todayStr.slice(0, 7)}-01` && endDate === todayStr;
+  const gapLabel = `${isMonthRange ? '本月' : '本周期'}缺口 ${weekGapCount} 处`;
   const roleLabel = role === 'anchor' ? '主播' : '中控';
 
   // 一周视图内某天某渠道的排班对象（过滤后）
@@ -377,22 +378,18 @@ export default function SchedulePage() {
   };
 
   const quick7d = () => {
-    setIsMonthLabel(false);
-    setStartDate(getDaysAgo(6));
+    setStartDate(getDaysAgo(7));
     setEndDate(getToday());
   };
   const quickMonth = () => {
-    setIsMonthLabel(true);
     const now = new Date();
     setStartDate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`);
     setEndDate(getToday());
   };
   const onStartChanged = (v: string) => {
-    setIsMonthLabel(false);
     setStartDate(v);
   };
   const onEndChanged = (v: string) => {
-    setIsMonthLabel(false);
     setEndDate(v);
   };
 
