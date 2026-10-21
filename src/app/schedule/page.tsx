@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Moon, ChevronLeft, ChevronRight, Search, SlidersHorizontal, RefreshCw } from 'lucide-react';
+import { Search, RefreshCw } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 
 // ===== 类型定义（与 /api/schedule 返回保持一致） =====
@@ -134,6 +134,19 @@ function BrandBadge({ brand }: { brand: string }) {
   );
 }
 
+// 渠道简称（日视图角标/明细展示用，仅展示层）
+const CHANNEL_SHORT_NAMES: Record<string, string> = {
+  'vivo（大号）': 'vivo大号',
+  'vivo官方旗舰店（抖音）': '抖音',
+  'vivo官方旗舰店（快手）': '快手',
+  'iQOO手机（快手）': 'iQOO快手',
+  'iQOO手机（抖音）': 'iQOO抖音',
+  'iQOO官方旗舰店（抖音）': 'iQOO抖音',
+};
+function shortChannel(name: string): string {
+  return CHANNEL_SHORT_NAMES[name] || name;
+}
+
 // ===== 悬浮详情 =====
 function HoverCard({ person, channel }: { person: PersonSummary; channel: string }) {
   const rows: { label: string; node: React.ReactNode }[] = [
@@ -185,8 +198,8 @@ export default function SchedulePage() {
   const [error, setError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [view, setView] = useState<'week' | 'day'>('week');
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [view, setView] = useState<'month' | 'day'>('month');
+  const [isMonthLabel, setIsMonthLabel] = useState(false);
 
   useEffect(() => {
     const mon = weekMonday(new Date());
@@ -348,7 +361,7 @@ export default function SchedulePage() {
 
   const weekDays = useMemo(() => getDatesBetween(startDate, endDate), [startDate, endDate]);
   const todayStr = getToday();
-  const rangeLabel = `${startDate.replace(/-/g, '/')} - ${endDate.replace(/-/g, '/')}`;
+  const gapLabel = `${isMonthLabel ? '本月' : '本周期'}缺口 ${weekGapCount} 处`;
   const roleLabel = role === 'anchor' ? '主播' : '中控';
 
   // 一周视图内某天某渠道的排班对象（过滤后）
@@ -363,22 +376,24 @@ export default function SchedulePage() {
     return acc ? acc.personSummary : [];
   };
 
-  const prevWeek = () => {
-    setStartDate(addDays(startDate, -7));
-    setEndDate(addDays(endDate, -7));
-  };
-  const nextWeek = () => {
-    setStartDate(addDays(startDate, 7));
-    setEndDate(addDays(endDate, 7));
-  };
   const quick7d = () => {
+    setIsMonthLabel(false);
     setStartDate(getDaysAgo(6));
     setEndDate(getToday());
   };
   const quickMonth = () => {
+    setIsMonthLabel(true);
     const now = new Date();
     setStartDate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`);
     setEndDate(getToday());
+  };
+  const onStartChanged = (v: string) => {
+    setIsMonthLabel(false);
+    setStartDate(v);
+  };
+  const onEndChanged = (v: string) => {
+    setIsMonthLabel(false);
+    setEndDate(v);
   };
 
   if (!mounted) {
@@ -422,6 +437,26 @@ export default function SchedulePage() {
             </select>
 
             {/* 日期快捷 */}
+            {/* 日期区间 */}
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => onStartChanged(e.target.value)}
+                className={`${filterItem} bg-[#1E2235]`}
+                aria-label="开始日期"
+              />
+              <span className="text-white/[0.40]">~</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => onEndChanged(e.target.value)}
+                className={`${filterItem} bg-[#1E2235]`}
+                aria-label="结束日期"
+              />
+            </div>
+
+            {/* 日期快捷 */}
             <div className="flex items-center gap-1">
               <button
                 onClick={quick7d}
@@ -448,45 +483,14 @@ export default function SchedulePage() {
               />
             </div>
 
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => fetchSchedule(startDate, endDate, brandFilter, role)}
-                className="flex h-9 items-center gap-1.5 rounded-lg bg-[#4158D0] px-3 text-sm font-medium text-white transition hover:bg-[#6A7CDA] active:bg-[#2C42B2]"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                刷新
-              </button>
-              <button
-                onClick={() => setMoreOpen((v) => !v)}
-                className={`flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm transition ${
-                  moreOpen ? 'bg-[#4158D0] text-white' : 'text-white/[0.65] hover:bg-white/[0.05] hover:text-white/[0.92]'
-                }`}
-              >
-                <SlidersHorizontal className="h-3.5 w-3.5" />
-                更多筛选
-              </button>
-            </div>
+            <button
+              onClick={() => fetchSchedule(startDate, endDate, brandFilter, role)}
+              className="flex h-9 items-center gap-1.5 rounded-lg bg-[#4158D0] px-3 text-sm font-medium text-white transition hover:bg-[#6A7CDA] active:bg-[#2C42B2]"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              刷新
+            </button>
           </div>
-
-          {/* 更多筛选：展开后提供自定义日期区间 */}
-          {moreOpen && (
-            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/[0.08] bg-[#151827] px-4 py-3 text-sm">
-              <span className="text-white/[0.40]">日期区间</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className={`${filterItem} bg-[#1E2235]`}
-              />
-              <span className="text-white/[0.40]">~</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className={`${filterItem} bg-[#1E2235]`}
-              />
-            </div>
-          )}
         </div>
 
         {/* ===== 汇总六项（两组） ===== */}
@@ -499,7 +503,7 @@ export default function SchedulePage() {
             ]} />
             <SummaryGroup title="结构" items={[
               { name: '常规班', value: summary.regularHours, unit: 'h' },
-              { name: '凌晨班', value: summary.earlyMorningHours, unit: 'h', moon: true },
+              { name: '凌晨班', value: summary.earlyMorningHours, unit: 'h' },
               { name: '双播', value: summary.dualBroadcastHours, unit: 'h' },
             ]} />
           </div>
@@ -509,12 +513,12 @@ export default function SchedulePage() {
         <div className="flex items-center justify-between">
           <div className="inline-flex items-center rounded-lg border border-white/[0.08] bg-[#151827] p-1">
             <button
-              onClick={() => setView('week')}
+              onClick={() => setView('month')}
               className={`h-8 rounded-md px-4 text-sm transition ${
-                view === 'week' ? 'bg-[#4158D0] font-medium text-white' : 'text-white/[0.65] hover:text-white/[0.92]'
+                view === 'month' ? 'bg-[#4158D0] font-medium text-white' : 'text-white/[0.65] hover:text-white/[0.92]'
               }`}
             >
-              周视图
+              月视图
             </button>
             <button
               onClick={() => setView('day')}
@@ -539,22 +543,19 @@ export default function SchedulePage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {view === 'week' ? (
-              <WeekView
+            {view === 'month' ? (
+              <MonthView
                 channels={channels}
                 weekDays={weekDays}
                 todayStr={todayStr}
-                rangeLabel={rangeLabel}
-                gapCount={weekGapCount}
+                gapLabel={gapLabel}
                 personsOf={personsOf}
                 unfilteredPersonsOf={unfilteredPersonsOf}
-                onPrev={prevWeek}
-                onNext={nextWeek}
               />
             ) : (
-              <DayView viewDates={viewDates} roleLabel={roleLabel} />
+              <DayView viewDates={viewDates} />
             )}
-            {view === 'week' && weekDays.length === 0 && !loading && !error && (
+            {view === 'month' && weekDays.length === 0 && !loading && !error && (
               <div className="py-10 text-center text-white/[0.40]">所选日期范围内暂无排班数据</div>
             )}
             {view === 'day' && viewDates.length === 0 && !loading && !error && (
@@ -574,16 +575,13 @@ function SummaryGroup({
   items,
 }: {
   title: string;
-  items: { name: string; value: number; unit: string; moon?: boolean }[];
+  items: { name: string; value: number; unit: string }[];
 }) {
   return (
     <div className="grid grid-cols-3 gap-4">
       {items.map((it) => (
         <div key={it.name} className="flex min-h-[88px] flex-col justify-between rounded-xl border border-white/[0.08] bg-[#1E2235] px-4 py-3.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[12px] font-normal text-white/[0.40]">{title}</span>
-            {it.moon && <Moon className="h-3.5 w-3.5 text-white/[0.40]" />}
-          </div>
+          <span className="text-[12px] font-normal text-white/[0.40]">{title}</span>
           <div className="mt-1">
             <div className="text-[13px] text-white/[0.65]">{it.name}</div>
             <div className="flex items-baseline gap-1.5">
@@ -597,27 +595,21 @@ function SummaryGroup({
   );
 }
 
-// ===== 周视图 =====
-function WeekView({
+// ===== 月视图 =====
+function MonthView({
   channels,
   weekDays,
   todayStr,
-  rangeLabel,
-  gapCount,
+  gapLabel,
   personsOf,
   unfilteredPersonsOf,
-  onPrev,
-  onNext,
 }: {
   channels: string[];
   weekDays: string[];
   todayStr: string;
-  rangeLabel: string;
-  gapCount: number;
+  gapLabel: string;
   personsOf: (day: string, channel: string) => PersonSummary[];
   unfilteredPersonsOf: (day: string, channel: string) => PersonSummary[];
-  onPrev: () => void;
-  onNext: () => void;
 }) {
   if (channels.length === 0 || weekDays.length === 0) {
     return <div className="py-10 text-center text-white/[0.40]">所选范围内暂无排班数据</div>;
@@ -625,26 +617,9 @@ function WeekView({
   const colMinW = weekDays.length >= 7 ? 128 : Math.max(96, Math.floor(960 / weekDays.length));
   return (
     <div className="rounded-xl border border-white/[0.08] bg-[#1E2235]">
-      {/* 周切换行 */}
-      <div className="flex items-center justify-between border-b border-white/[0.08] px-4 py-3">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onPrev}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-white/[0.65] transition hover:bg-white/[0.05] hover:text-white/[0.92]"
-            aria-label="上一周"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <span className="text-[13px] tabular-nums text-white/[0.65]">{rangeLabel}</span>
-          <button
-            onClick={onNext}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-white/[0.65] transition hover:bg-white/[0.05] hover:text-white/[0.92]"
-            aria-label="下一周"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-        <span className="text-[12px] text-white/[0.40]">本周缺口 {gapCount} 处</span>
+      {/* 顶部行：缺口计数 */}
+      <div className="flex items-center justify-end border-b border-white/[0.08] px-4 py-2.5">
+        <span className="text-[12px] text-white/[0.40]">{gapLabel}</span>
       </div>
 
       {/* 网格 */}
@@ -711,64 +686,97 @@ function WeekView({
   );
 }
 
-// ===== 日视图（保留 0:00-24:00 横轴时间条；0-8 点背景加深；无轮班角标） =====
-const HOUR_MARKS = Array.from({ length: 25 }, (_, i) => i);
-
-function DayView({ viewDates, roleLabel }: { viewDates: DateData[]; roleLabel: string }) {
+// ===== 日视图（逐日卡片列表，可展开查看明细） =====
+function DayView({ viewDates }: { viewDates: DateData[] }) {
   return (
     <div className="space-y-4">
       {viewDates.map((d) => {
         const active = d.accounts.filter((a) => a.personSummary.length > 0);
         if (active.length === 0) return null;
-        const dateObj = parseLocal(d.date);
+        const dayHours = active.reduce((s, a) => s + a.stats.totalHours, 0);
+        const dayPerson = active.reduce((s, a) => s + a.stats.personCount, 0);
+        const dayEarly = active.reduce((s, a) => s + a.stats.earlyMorningHours, 0);
         return (
-          <div key={d.date} className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#1E2235]">
-            <div className="flex items-center justify-between border-b border-white/[0.08] px-4 py-3">
-              <div className="flex items-baseline gap-2">
-                <span className="text-[16px] font-medium text-white/[0.92]">{dateObj.getMonth() + 1}月{dateObj.getDate()}日</span>
-                <span className="text-[12px] text-white/[0.40]">{WEEKDAYS_SHORT[dateObj.getDay()]}</span>
-              </div>
-              <span className="text-[12px] text-white/[0.40]">{roleLabel}</span>
-            </div>
-
-            <div className="space-y-4 p-4">
-              {active.map((acc) => (
-                <div key={acc.accountName} className="flex items-center gap-3">
-                  <div className="w-44 shrink-0">
-                    <div className="text-[13px] text-white/[0.92]">{acc.accountName}</div>
-                  </div>
-                  <div className="relative flex-1 overflow-hidden">
-                    {/* 0:00-8:00 背景加深 */}
-                    <div className="absolute inset-y-0 left-0 bg-white/[0.04]" style={{ width: `${(8 / 24) * 100}%` }} />
-                    {/* 时间刻度 */}
-                    <div className="relative flex">
-                      {HOUR_MARKS.slice(0, 24).map((h) => (
-                        <div key={h} className="h-14 flex-1 border-l border-white/[0.04] first:border-l-0" />
-                      ))}
-                    </div>
-                    {/* 人员时间段 */}
-                    <div className="absolute inset-0 flex flex-col justify-center gap-1 px-px">
-                      {acc.personSummary.map((p) =>
-                        p.timeSlots.map((slot) => {
-                          const sh = slotStartHour(slot);
-                          if (sh < 0 || sh > 23) return null;
-                          return (
-                            <div key={`${p.name}-${slot}`} className="group relative h-4">
-                              <div className="absolute top-0 h-4 rounded-sm bg-[#4158D0]" style={{ left: `${(sh / 24) * 100}%`, width: `${100 / 24}%` }} />
-                              <HoverCard person={p} channel={acc.accountName} />
-                            </div>
-                          );
-                        }),
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <DayCard
+            key={d.date}
+            date={d.date}
+            dayHours={dayHours}
+            dayPerson={dayPerson}
+            dayEarly={dayEarly}
+            accounts={active}
+          />
         );
       })}
       {viewDates.length === 0 && <div className="py-10 text-center text-white/[0.40]">所选日期范围内暂无排班数据</div>}
+    </div>
+  );
+}
+
+function DayCard({
+  date,
+  dayHours,
+  dayPerson,
+  dayEarly,
+  accounts,
+}: {
+  date: string;
+  dayHours: number;
+  dayPerson: number;
+  dayEarly: number;
+  accounts: AccountData[];
+}) {
+  const [open, setOpen] = useState(false);
+  const dateObj = parseLocal(date);
+  return (
+    <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#1E2235]">
+      <div className="flex items-center justify-between border-b border-white/[0.08] px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className="text-[16px] font-medium text-white/[0.92]">{dateObj.getMonth() + 1}月{dateObj.getDate()}日</span>
+          <span className="text-[12px] text-white/[0.40]">{WEEKDAYS_SHORT[dateObj.getDay()]}</span>
+        </div>
+        {dayEarly > 0 && (
+          <span className="rounded-full bg-[#FF9F0A]/15 px-2.5 py-0.5 text-[12px] text-[#FF9F0A]">🌙 凌晨班 {dayEarly}h</span>
+        )}
+      </div>
+      <div className="px-4 py-3">
+        <div className="text-[13px] tabular-nums text-white/[0.65]">{dayPerson}人次 · {dayHours}小时</div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {accounts.map((acc) => (
+            <span key={acc.accountName} className="inline-flex items-center gap-1 rounded-lg bg-[#2A2E45] px-2 py-0.5 text-[12px] text-white/[0.92]">
+              {shortChannel(acc.accountName)} {acc.stats.personCount}
+            </span>
+          ))}
+        </div>
+      </div>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex h-9 w-full items-center justify-between border-t border-white/[0.08] px-4 text-[12px] text-white/[0.40] transition hover:text-white/[0.92]"
+      >
+        <span>{open ? '收起明细' : '查看排班明细'}</span>
+        <span className={`transition-transform ${open ? 'rotate-90' : ''}`}>▶</span>
+      </button>
+      {open && (
+        <div className="border-t border-white/[0.08] px-4 py-3">
+          {accounts.map((acc) => (
+            <div key={acc.accountName} className="mb-3 last:mb-0">
+              <div className="mb-1 flex items-center gap-2 text-[13px] text-white/[0.92]">
+                <span className="font-medium">{shortChannel(acc.accountName)}</span>
+                <BrandBadge brand={brandOfChannel(acc.accountName)} />
+              </div>
+              <div className="space-y-1">
+                {acc.personSummary.map((p) => (
+                  <div key={p.name} className="flex items-center gap-3 rounded-lg bg-[#151827] px-3 py-1.5 text-[12px]">
+                    <span className="w-24 text-white/[0.92]">{p.name}</span>
+                    <span className="text-white/[0.40]">{shortChannel(acc.accountName)}</span>
+                    <span className="tabular-nums text-white/[0.65]">{p.totalHours}h</span>
+                    <span className="ml-auto tabular-nums text-white/[0.40]">{personRangeLabel(p.timeSlots) || '-'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

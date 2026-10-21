@@ -316,3 +316,11 @@ src/
 - **数据对账（真实验证）**：`vivo/anchor/2026-09-23~2026-09-28` 接口 globalStats=覆盖6天/32人次/154h/凌晨42h/双播0→常规=112，与文档基准一致（改前改后该接口输出恒等，仅展示方式改了）。iQOO 主播/中控短区间均 success。首页 cost-overview byBrand iQOO-dy+iQOO-ks==iQOO 保持（dy+ks==iQOO 恒等，本次未改 cost 逻辑）。
 - **验证**：ts-check 0 错、lint(改动文件 0 告警)、生产 build(61 页/含 /schedule 静态预渲染)全绿、test_run(lint/ts-check/service_probe=5000 ready + 排班/cost 接口冒烟) pass。回归探测全部 14 个主路由均 200（首页/成本/数据概览/市场/视觉/SOP/工作台/反馈/人员管理/审批/buyin-spike/register）。
 - **验收要点**：缺口判定=某渠道×某天完全无排班(真实空)，不是逗号角标；`全部`品牌为纯前端聚合(展示层)不对任何接口新增统计逻辑；外部合作角色仍由 route 侧 maskExternalBusiness 屏蔽数据，页面仅展示格式占位。
+
+### 排班页两处微调（仅呈现层，承接上文）
+- **仍只改 `src/app/schedule/page.tsx`**，所有统计/口径/接口零改动。`view` 状态由 `week` 更名 `month`（默认 month）；顶部筛选栏改为 `[业务线][角色][起~止日期输入][近7天][本月][搜索][刷新]`，日期输入共用 `startDate/endDate`，直接驱动 `/api/schedule` 的 start/end（删除了原「更多筛选」折叠面板与 `moreOpen` 状态）。
+- **月视图 `MonthView`**（原 WeekView 改名）：删掉 prev/next 周翻页 + 区间标签横条；网格按所选区间动态列（列头 `M/D 周X`，今天 #4158D0 高亮），行=渠道（来自 accounts，动态），蓝色排班块 + HoverCard + #FF9F0A 虚线空档不变，横向可滚动。右上角缺口文案随区间自适应：`isMonthLabel` 状态（点「本月」=true，点「近7天」/手选日期=false）→ `本月缺口 N 处` / `本周期缺口 N 处`，N 算法与 `weekGapCount` 一致。
+- **日视图 `DayView` 恢复逐日卡片**：废弃原 0-24 横轴时间条，改为每日期一张卡：头 `M月D日 周X`；右上角橙色月亮徽章 `🌙 凌晨班 Xh`（该日早班>0 才显示）；信息行 `N人次 · N小时`；渠道中性徽章 `简名 count`（`shortChannel()` 用 `CHANNEL_SHORT_NAMES` 映射：`vivo（大号）`→vivo大号、`vivo官方旗舰店（抖音）`→抖音、`iQOO手机（快手）`→iQOO快手 等，未命中回退原名）；卡片底部「查看排班明细 ▶」展开显示 主播/渠道/时长/起止（personRangeLabel），均为现有接口字段、无新取数。
+- **SummaryGroup 删除 `moon` prop 与月亮图标渲染**（结构-凌晨班卡右上角孤立 icon 移除，顶部「刷新」按钮功能不变）。
+- **数据对账（实测通过）**：vivo/主播近7天 globalStats 仍 32人次/154h/凌晨42h；vivo/主播本月与 iQOO主播/中控近7天均与接口 globalStats 恒等；日视图逐卡[人次/小时/凌晨/渠道角标]加总=globalStats 对应项，月视图块时长和=总时长、块数=总人次；浏览器实测 近7天→«本周期缺口 N 处»、本月→«本月缺口 N 处»、日视图卡 21 张+凌晨徽章+渠道徽章、全部品牌本月 21 动态列，无 JS 错误、无白屏。
+- **验证**：ts-check 0 错、lint(该文件 0 告警)、test_run(静态+service_probe+11 路由 200)全绿；截图存 `/tmp/month_7d.png /tmp/month_all.png /tmp/day.png /tmp/day_expanded.png`。
