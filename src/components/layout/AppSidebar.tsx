@@ -20,6 +20,7 @@ import {
   LogOut,
   TrendingUp,
   Database,
+  LineChart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -39,6 +40,7 @@ const MODULE_ICONS: Record<ModuleKey, React.ReactNode> = {
   personnel: <Users className="h-4 w-4" />,
   approval: <UserCheck className="h-4 w-4" />,
   'buyin-spike': <Database className="h-4 w-4" />,
+  'data-analysis': <LineChart className="h-4 w-4" />,
 };
 
 const MODULE_PATHS: Record<ModuleKey, string> = {
@@ -54,6 +56,7 @@ const MODULE_PATHS: Record<ModuleKey, string> = {
   personnel: '/admin/user-management',
   approval: '/approval',
   'buyin-spike': '/buyin-spike',
+  'data-analysis': '/data-analysis',
 };
 
 const SIDEBAR_ORDER: ModuleKey[] = [
@@ -61,6 +64,7 @@ const SIDEBAR_ORDER: ModuleKey[] = [
   'schedule',
   'cost',
   'data-overview',
+  'data-analysis',
   'market-monitor',
   'visual',
   'sop',
@@ -73,7 +77,7 @@ const SIDEBAR_ORDER: ModuleKey[] = [
 
 // 分组导航（仅分组与样式，各入口 href / 角色可见域与原来完全一致）
 const SIDEBAR_GROUPS: { title: string; modules: ModuleKey[] }[] = [
-  { title: '经营', modules: ['dashboard', 'schedule', 'cost', 'data-overview', 'buyin-spike'] },
+  { title: '经营', modules: ['dashboard', 'schedule', 'cost', 'data-overview', 'data-analysis', 'buyin-spike'] },
   { title: '市场', modules: ['market-monitor', 'visual'] },
   { title: '协同与管理', modules: ['sop', 'workstation', 'problem-feedback', 'personnel', 'approval'] },
 ];

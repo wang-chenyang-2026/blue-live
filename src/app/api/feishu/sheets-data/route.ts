@@ -125,6 +125,142 @@ async function getSheetValues(
   return data.data?.valueRange?.values || [];
 }
 
+/* Caches sheets/v3 grid meta per sheet for a short TTL to avoid re-querying the
+   metadata endpoint repeatedly when the same spreadsheet is read many times. */
+const gridMetaCache = new Map<string, { rowCount: number; colCount: number; at: number }>();
+const GRID_CACHE_TTL = 60_000;
+
+async function getSheetGridMeta(
+  token: string,
+  spreadsheetToken: string,
+  sheetId: string
+): Promise<{ rowCount: number; colCount: number } | null> {
+  const key = `${spreadsheetToken}:${sheetId}`;
+  const cached = gridMetaCache.get(key);
+  if (cached && Date.now() - cached.at < GRID_CACHE_TTL) {
+    return { rowCount: cached.rowCount, colCount: cached.colCount };
+  }
+  try {
+    const url = `https://open.feishu.cn/open-apis/sheets/v3/spreadsheets/${spreadsheetToken}/sheets/query`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    if (data.code !== 0) return null;
+    const sheets: Array<{ sheet_id?: string; grid_properties?: { row_count?: number; column_count?: number } }> =
+      data.data?.sheets || [];
+    const sheet = sheets.find((s) => String(s.sheet_id) === sheetId);
+    if (!sheet || !sheet.grid_properties) return null;
+    const meta = {
+      rowCount: sheet.grid_properties.row_count ?? 0,
+      colCount: sheet.grid_properties.column_count ?? 0,
+    };
+    gridMetaCache.set(key, { ...meta, at: Date.now() });
+    return meta;
+  } catch {
+    return null;
+  }
+}
+
+function colLetter(n: number): string {
+  let s = '';
+  while (n > 0) {
+    s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s || 'A';
+}
+
+interface DailyGridMeta {
+  rowCount: number;
+  colCount: number;
+  rangeRows: number;
+  usedFallback: boolean;
+}
+
+// Reads a main daily-data sheet with a range derived from the sheet's real
+// dimensions (columns >= 10 to cover J; rows = actual row count). If the meta
+// endpoint fails, falls back to a generous A1:J5000 range instead of a small
+// hardcoded window. Returns the raw values plus the grid metadata/request
+// range so callers can run truncation self-checks against grid_properties.
+async function getDailySheetValues(
+  token: string,
+  spreadsheetToken: string,
+  sheetId: string
+): Promise<{ values: string[][]; meta: DailyGridMeta | null }> {
+  const meta = await getSheetGridMeta(token, spreadsheetToken, sheetId);
+  let range = 'A1:J5000';
+  let usedFallback = true;
+  if (meta && (meta.rowCount > 0 || meta.colCount > 0)) {
+    const rows = Math.max(meta.rowCount, 1);
+    const cols = Math.max(meta.colCount, 10);
+    range = `A1:${colLetter(cols)}${rows}`;
+    usedFallback = false;
+  }
+  const values = await getSheetValues(token, spreadsheetToken, sheetId, range);
+  return {
+    values,
+    meta: meta
+      ? { rowCount: meta.rowCount, colCount: meta.colCount, rangeRows: values.length, usedFallback }
+      : null,
+  };
+}
+
+export interface TruncationWarning {
+  type: 'possible_truncation';
+  sheet: string;
+  spreadsheet_token: string;
+  expected: number | null;
+  got: number;
+  reason: 'read_short_of_meta' | 'filled_before_sheet_end' | 'fallback_cap_filled';
+  range_rows: number;
+}
+
+// Self-check for silent data truncation. The read window (values.length, which
+// includes trailing blank rows) is compared against the sheet's grid
+// row_count. Under the dynamic full read both are equal, so no warning fires
+// even when the grid reserves blank rows beyond the data. A warning only fires
+// when the read window was smaller than the grid (a bounded/capped range cut
+// rows off), or the no-meta A1:J5000 fallback window was filled to the last row
+// with content (data likely continues beyond it).
+function detectTruncation(
+  values: string[][],
+  meta: DailyGridMeta | null,
+  spreadsheetToken: string,
+  sheetId: string
+): TruncationWarning | null {
+  const rowsRead = values.length;
+  let lastContent = -1;
+  for (let i = 0; i < rowsRead; i++) {
+    const r = values[i];
+    if (r && r.length && r.some((c) => c !== '' && c !== undefined && c !== null)) lastContent = i;
+  }
+  const boundaryFill = lastContent === rowsRead - 1;
+
+  let reason: TruncationWarning['reason'] | null = null;
+  const expected = meta ? meta.rowCount : null;
+  if (meta && !meta.usedFallback) {
+    const missing = expected! - rowsRead;
+    if (missing > 5) reason = 'read_short_of_meta';
+  } else if (boundaryFill && rowsRead >= 4990) {
+    reason = 'fallback_cap_filled';
+  }
+  if (!reason) return null;
+
+  const warn: TruncationWarning = {
+    type: 'possible_truncation',
+    sheet: sheetId,
+    spreadsheet_token: spreadsheetToken,
+    expected,
+    got: rowsRead,
+    reason,
+    range_rows: rowsRead,
+  };
+  console.error(
+    '[sheets-data] possible_truncation ' +
+      JSON.stringify({ ...warn, at: new Date().toISOString() })
+  );
+  return warn;
+}
+
 /* ========== Data Helpers ========== */
 function excelSerialToDate(serial: number | string): string {
   // If it's already a formatted date string (contains 月 and 日), return as-is
@@ -395,8 +531,38 @@ function parseKpiSheetMulti(
   return result;
 }
 
+type DailyDataRow = ReturnType<typeof parseDailyData>[number];
+type KpiTab = {
+  label: string;
+  items: KpiItem[];
+  overallRate: number | null;
+  monthly: Record<string, { items: KpiItem[]; overallRate: number | null }>;
+};
+export interface BrandDataPayload {
+  brandSummary: { gmv: string; salesCount: string; rawGmv: number; rawSales: number };
+  accountSummaries: Array<{
+    accountName: string;
+    gmv: string;
+    salesCount: string;
+    rawGmv: number;
+    rawSales: number;
+  }>;
+  dailyData: DailyDataRow[];
+  dailySummary: {
+    duration: string;
+    gmv: string;
+    salesBeforeReturn: string;
+    salesAfterReturn: string;
+  };
+  kpiTabs: KpiTab[];
+  accounts: string[];
+  brandLabel: string;
+  color: string;
+  hasData: boolean;
+}
+
 /* ========== Empty Data Fallback ========== */
-function emptyBrandData(brandKey: string) {
+function emptyBrandData(brandKey: string): BrandDataPayload | null {
   const meta = BRAND_META[brandKey];
   if (!meta) return null;
   return {
@@ -419,17 +585,32 @@ function emptyBrandData(brandKey: string) {
 }
 
 /* ========== Fetch Brand Data ========== */
-async function fetchBrandData(accessToken: string, brandKey: string) {
+async function fetchBrandData(
+  accessToken: string,
+  brandKey: string
+): Promise<{ data: BrandDataPayload; warnings: TruncationWarning[] }> {
   const config = BRAND_SHEET_MAP[brandKey];
-  if (!config) return emptyBrandData(brandKey);
+  if (!config) return { data: emptyBrandData(brandKey)!, warnings: [] };
 
-  // 1. Fetch all daily data sheets in parallel, then merge
-  const dailyRawResults = await Promise.all(
-    config.dailySheets.map((src) =>
-      getSheetValues(accessToken, src.spreadsheetToken, src.sheetId, src.range)
-    )
+  // 1. Fetch all daily data sheets in parallel, then merge.
+  //    Main daily sheets are read with a range derived from the sheet's real
+  //    row/column count (see getDailySheetValues) so later rows aren't dropped.
+  //    Each sheet is also self-checked for possible truncation vs grid meta.
+  const dailyWarnings: TruncationWarning[] = [];
+  const dailySheetResults = await Promise.all(
+    config.dailySheets.map(async (src) => {
+      const { values, meta } = await getDailySheetValues(
+        accessToken,
+        src.spreadsheetToken,
+        src.sheetId
+      );
+      const parsed = parseDailyData(values);
+      const warn = detectTruncation(values, meta, src.spreadsheetToken, src.sheetId);
+      if (warn) dailyWarnings.push(warn);
+      return parsed;
+    })
   );
-  const dailyData = dailyRawResults.flatMap((raw) => parseDailyData(raw));
+  const dailyData = dailySheetResults.flat();
 
   // 2. Fetch all KPI sheets in parallel, each becomes a Tab
   // Each sheet needs both main data (A:H) and daily data (H:AL)
@@ -481,20 +662,23 @@ async function fetchBrandData(accessToken: string, brandKey: string) {
   const summarySalesAfter = dailyData.reduce((s, d) => s + d.rawSalesAfter, 0);
 
   return {
-    brandSummary,
-    accountSummaries,
-    dailyData,
-    dailySummary: {
-      duration: `${summaryDuration}小时`,
-      gmv: formatNumber(summaryGmv),
-      salesBeforeReturn: formatNumber(summaryGmv),
-      salesAfterReturn: formatNumber(summarySalesAfter),
+    data: {
+      brandSummary,
+      accountSummaries,
+      dailyData,
+      dailySummary: {
+        duration: `${summaryDuration}小时`,
+        gmv: formatNumber(summaryGmv),
+        salesBeforeReturn: formatNumber(summaryGmv),
+        salesAfterReturn: formatNumber(summarySalesAfter),
+      },
+      kpiTabs: kpiTabResults,
+      accounts: config.accounts,
+      brandLabel: config.brandLabel,
+      color: config.color,
+      hasData: true,
     },
-    kpiTabs: kpiTabResults,
-    accounts: config.accounts,
-    brandLabel: config.brandLabel,
-    color: config.color,
-    hasData: true,
+    warnings: dailyWarnings,
   };
 }
 
@@ -508,11 +692,11 @@ export async function GET(request: NextRequest) {
     if (isExternalRoleRequest(request)) {
       if (brand === 'all') {
         const brandKeys = ['vivo', 'iQOO', 'IOT'] as const;
-        const results: Record<string, Awaited<ReturnType<typeof fetchBrandData>>> = {};
+        const results: Record<string, BrandDataPayload> = {};
         for (const bk of brandKeys) {
-          results[bk] = emptyBrandData(bk) as Awaited<ReturnType<typeof fetchBrandData>>;
+          results[bk] = emptyBrandData(bk)!;
         }
-        return NextResponse.json({ success: true, mode: 'all', data: results });
+        return NextResponse.json({ success: true, mode: 'all', data: results, data_warnings: [] });
       }
       const emptyData = emptyBrandData(brand);
       if (!emptyData) {
@@ -521,19 +705,28 @@ export async function GET(request: NextRequest) {
           { status: 400 }
         );
       }
-      return NextResponse.json({ success: true, mode: 'single', brand, data: emptyData });
+      return NextResponse.json({
+        success: true,
+        mode: 'single',
+        brand,
+        data: emptyData,
+        data_warnings: [],
+      });
     }
 
     if (brand === 'all') {
       const accessToken = await getTenantAccessToken();
       const brandKeys = ['vivo', 'iQOO', 'IOT'];
-      const results: Record<string, Awaited<ReturnType<typeof fetchBrandData>>> = {};
+      const results: Record<string, BrandDataPayload> = {};
+      const allWarnings: TruncationWarning[] = [];
 
       for (const bk of brandKeys) {
         try {
-          results[bk] = await fetchBrandData(accessToken, bk);
+          const r = await fetchBrandData(accessToken, bk);
+          results[bk] = r.data;
+          allWarnings.push(...r.warnings);
         } catch {
-          results[bk] = emptyBrandData(bk) || results[bk];
+          results[bk] = emptyBrandData(bk)!;
         }
       }
 
@@ -541,6 +734,7 @@ export async function GET(request: NextRequest) {
         success: true,
         mode: 'all',
         data: results,
+        data_warnings: allWarnings,
       });
     }
 
@@ -558,13 +752,14 @@ export async function GET(request: NextRequest) {
     }
 
     const accessToken = await getTenantAccessToken();
-    const data = await fetchBrandData(accessToken, brand);
+    const r = await fetchBrandData(accessToken, brand);
 
     return NextResponse.json({
       success: true,
       mode: 'single',
       brand,
-      data,
+      data: r.data,
+      data_warnings: r.warnings,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';

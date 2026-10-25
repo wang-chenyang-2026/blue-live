@@ -1,0 +1,33 @@
+{
+  "total_records": 3873,
+  "date_invalid_excluded_from_date_dim": 53,
+  "time_parse_fail": 15,
+  "slots_by_start_hour": {
+    "上午": 1127,
+    "下午": 1489,
+    "晚间": 1119,
+    "凌晨": 123
+  },
+  "solo_sessions": 3842,
+  "double_sessions": 28,
+  "no_host": 3,
+  "hosts_with_solo": 48,
+  "total_duration_h": 15931.6,
+  "total_gmv": 400108355,
+  "total_refund": 198816566,
+  "total_settle": 201221098,
+  "settle_rate_pct": 50.29,
+  "refund_rate_pct": 49.69,
+  "total_view": 123411573,
+  "avg_view_per_session": 31865,
+  "total_deal": 773177,
+  "view_deal_rate_pct": 0.63,
+  "uv_value": 3.24,
+  "real_uv_value": 1.63,
+  "gpm_simple_avg": 5296,
+  "gpm_n": 3863,
+  "recon_full_rows": 3858,
+  "recon_bad_rows": 34,
+  "neg_settle_rows": 142,
+  "peak_401700_rows": 14
+}

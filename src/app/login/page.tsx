@@ -24,6 +24,7 @@ const MODULE_PATHS: Record<ModuleKey, string> = {
   personnel: '/admin/user-management',
   approval: '/approval',
   'buyin-spike': '/buyin-spike',
+  'data-analysis': '/data-analysis',
 };
 
 export default function LoginPage() {

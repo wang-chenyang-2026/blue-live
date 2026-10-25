@@ -76,7 +76,8 @@ export type ModuleKey =
   | 'problem-feedback'
   | 'personnel'
   | 'approval'
-  | 'buyin-spike';
+  | 'buyin-spike'
+  | 'data-analysis';
 
 // ==================== 排班 ====================
 export type LiveType = '日常直播' | '双人直播' | '法定节假日直播';

@@ -121,6 +121,7 @@ const MODULE_LABELS: Record<ModuleKey, string> = {
   'personnel': '注册人员管理',
   'approval': '用户审批',
   'buyin-spike': '百应数据',
+  'data-analysis': '数据分析',
   
 };
 
@@ -134,6 +135,7 @@ export const ROLES: Role[] = [
       'dashboard',
       'schedule',
       'data-overview',
+      'data-analysis',
       'market-monitor',
       'cost',
       'visual',
@@ -149,7 +151,7 @@ export const ROLES: Role[] = [
   {
     key: '运营',
     label: '运营',
-    modules: ['dashboard', 'schedule', 'data-overview', 'market-monitor', 'visual', 'sop', 'workstation', 'problem-feedback', 'buyin-spike'],
+modules: ['dashboard', 'schedule', 'data-overview', 'data-analysis', 'market-monitor', 'visual', 'sop', 'workstation', 'problem-feedback', 'buyin-spike'],
     brandScopedModules: ['dashboard', 'schedule', 'data-overview', 'workstation'],
     // 无成本核算、注册人员管理、用户审批
   },
@@ -191,6 +193,7 @@ export const PATH_TO_MODULE: Record<string, ModuleKey> = {
   '/admin/user-management': 'personnel',
   '/approval': 'approval',
   '/buyin-spike': 'buyin-spike',
+  '/data-analysis': 'data-analysis',
 };
 
 /** 模块到路径的反向映射 */
@@ -207,6 +210,7 @@ export const MODULE_PATHS: Record<ModuleKey, string> = {
   personnel: '/admin/user-management',
   approval: '/approval',
   'buyin-spike': '/buyin-spike',
+  'data-analysis': '/data-analysis',
 };
 
 // ==================== 直播类型 & 小时费标准 ====================

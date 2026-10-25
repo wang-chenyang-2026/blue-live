@@ -324,3 +324,12 @@ src/
 - **SummaryGroup 删除 `moon` prop 与月亮图标渲染**（结构-凌晨班卡右上角孤立 icon 移除，顶部「刷新」按钮功能不变）。
 - **数据对账（实测通过）**：vivo/主播近7天 globalStats 仍 32人次/154h/凌晨42h；vivo/主播本月与 iQOO主播/中控近7天均与接口 globalStats 恒等；日视图逐卡[人次/小时/凌晨/渠道角标]加总=globalStats 对应项，月视图块时长和=总时长、块数=总人次；浏览器实测 近7天→«本周期缺口 N 处»、本月→«本月缺口 N 处»、日视图卡 21 张+凌晨徽章+渠道徽章、全部品牌本月 21 动态列，无 JS 错误、无白屏。
 - **验证**：ts-check 0 错、lint(该文件 0 告警)、test_run(静态+service_probe+11 路由 200)全绿；截图存 `/tmp/month_7d.png /tmp/month_all.png /tmp/day.png /tmp/day_expanded.png`。
+## 数据分析模块（2026-10，仅 PM/运营）
+- `/data-analysis` 页面（src/app/data-analysis/page.tsx）+ 服务端只读聚合 API `src/app/api/data-analysis/route.ts`（analyze）+ `qa/route.ts`（answerQuestion），数据源 `src/data/records.json`（3.2MB 实时直播记录）+ `aggregates.json`，逻辑在 `src/app/api/data-analysis/lib.ts`（自包含）。
+- `src/lib/types.ts` ModuleKey 新增 `data-analysis`；constants.ts MODULE_LABELS/PATH_TO_MODULE/MODULE_PATHS 增补；**仅 PM 与 运营**的 ROLES.modules 含 data-analysis（PM=项目负责人），中控/主播/外部合作不含；AppSidebar MODULE_ICONS（LineChart）+MODULE_PATHS+SIDEBAR_ORDER 增补（扁平渲染自动出现）；login/page.tsx 的 Record<ModuleKey,string> 补全。
+- 服务端强校验：`data-analysis/route.ts` 与 `qa/route.ts` 顶部 `getRequestRole()`（middleware 注入 x-user-role）判 role，非 {'PM','运营'} 返回 403 `{success:false,code:'FORBIDDEN',error:'无权限访问数据分析'}` 且不返回数据；未登录 middleware 返回 401。前端 AuthGuard 经 PATH_TO_MODULE 自动重定向无权限访问。
+
+## 数据概览主数据表动态读取 + 截断自检（2026-10）
+- `src/app/api/feishu/sheets-data/route.ts` 主数据表（BRAND_SHEET_MAP.dailySheets）原来写死 range（vivo A1:J500、iQOO/IOT A1:J200）导致超行数据丢失。改为：先 `GET /open-apis/sheets/v3/spreadsheets/{token}/sheets/query` 取 grid_properties.row_count/column_count，按真实维度拼 `A1:{列≥J}{行}` 动态读取（getSheetGridMeta 60s 缓存）；元信息失败降级 `A1:J5000`。字段映射不变（D=时长、H=GMV、I=销售退前、J=实销退后），KPI 子表不改。
+- **读取截断自检**：`detectTruncation()` 比对「本次读取窗口行数 values.length」与「grid row_count」——`row_count` 含尾部空行（vivo 689 但数据止于 519），故**不得**用「解析有效行数 vs row_count」判（会每表误报）。`read_short_of_meta`（meta.rowCount - values.length > 5，动态全量时恒 0 不误报；被硬上限截断时差值>5 才报）、`fallback_cap_filled`（meta 缺失但 A1:J5000 打满且末行有内容）。告警进响应顶层 `data_warnings:[{type:'possible_truncation',sheet,spreadsheet_token,expected,got,reason,range_rows}]`（非阻断）+ 服务端 console.error。前端可暂不展示。
+- 回归：vivo 2026-10 = 41 场 / 557.6h / 3063.25 万，data_warnings=[ ]。
