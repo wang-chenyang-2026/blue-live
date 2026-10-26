@@ -333,3 +333,7 @@ src/
 - `src/app/api/feishu/sheets-data/route.ts` 主数据表（BRAND_SHEET_MAP.dailySheets）原来写死 range（vivo A1:J500、iQOO/IOT A1:J200）导致超行数据丢失。改为：先 `GET /open-apis/sheets/v3/spreadsheets/{token}/sheets/query` 取 grid_properties.row_count/column_count，按真实维度拼 `A1:{列≥J}{行}` 动态读取（getSheetGridMeta 60s 缓存）；元信息失败降级 `A1:J5000`。字段映射不变（D=时长、H=GMV、I=销售退前、J=实销退后），KPI 子表不改。
 - **读取截断自检**：`detectTruncation()` 比对「本次读取窗口行数 values.length」与「grid row_count」——`row_count` 含尾部空行（vivo 689 但数据止于 519），故**不得**用「解析有效行数 vs row_count」判（会每表误报）。`read_short_of_meta`（meta.rowCount - values.length > 5，动态全量时恒 0 不误报；被硬上限截断时差值>5 才报）、`fallback_cap_filled`（meta 缺失但 A1:J5000 打满且末行有内容）。告警进响应顶层 `data_warnings:[{type:'possible_truncation',sheet,spreadsheet_token,expected,got,reason,range_rows}]`（非阻断）+ 服务端 console.error。前端可暂不展示。
 - 回归：vivo 2026-10 = 41 场 / 557.6h / 3063.25 万，data_warnings=[ ]。
+
+## 通用日期范围选择器（抽取共享组件）
+- `src/components/ui/date-range-picker.tsx` 导出 `DateRangePicker`（日历图标 + 「M月D日 - M月D日」中文按钮 + 弹出面板选起止 + 应用，深色适配 var：边框 `border-zinc-600`/面板 `bg-zinc-900`）+ 辅助函数 `formatDateDisplay/toDateStr/parseLocalDate/addDays` 与 `DateRange` 类型。`quickOptions?: {key,label,isActive,select}[]` 为可选 prop（渲染进面板）；`onApply(range)` 提交；`today` 作 date input max。快选标记/用户自定义标记由父级自理。
+- 数据概览（data-overview）与数据分析（data-analysis）两页共用此组件。**勿复制各自演化**；新增日期筛选一律复用。数据概览：日期条只在单品牌视图（全部品牌聚合视图无日期条）；数据分析：快捷按钮「全部/近30天/近90天/本年度」在组件外部，双向联动靠受控 start/end——点快捷回填框、框内手选自定义时 `selectedQuick` 按是否命中快选重算（"全部"=start/end 为空→框显「选择日期」）。两页手动选范围经组件内 clamp(≤365天)与起止交换后回传 onApply。

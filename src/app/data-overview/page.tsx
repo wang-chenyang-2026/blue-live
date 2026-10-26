@@ -4,13 +4,18 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  DateRangePicker,
+  type DateRange,
+  toDateStr,
+  addDays,
+} from '@/components/ui/date-range-picker';
 import { useApp } from '@/contexts/AppContext';
 import {
   RefreshCw,
   TrendingUp,
   TrendingDown,
   Trophy,
-  CalendarIcon,
   Database,
 } from 'lucide-react';
 
@@ -94,35 +99,7 @@ const BRAND_TABS = [
 
 type BrandTabId = typeof BRAND_TABS[number]['id'];
 
-/* ========== Date Helpers ========== */
-function toDateStr(d: Date): string {
-  // Use local date parts — toISOString() is UTC and shifts early-morning
-  // local dates (e.g. the 1st of a month, 00:xx in UTC+8) back one day.
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-// Parse a YYYY-MM-DD string as local date (new Date('YYYY-MM-DD') is UTC).
-function parseLocalDate(iso: string): Date {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d || 1);
-}
-
-function addDays(d: Date, n: number): Date {
-  const r = new Date(d);
-  r.setDate(r.getDate() + n);
-  return r;
-}
-
-function formatDisplay(iso: string): string {
-  const [y, m, d] = iso.split('-');
-  return `${parseInt(m)}月${parseInt(d)}日`;
-}
-
-type DateRange = { start: string; end: string };
-
+/* ========== Date Range (shared helpers in date-range-picker) ========== */
 const QUICK_OPTIONS: Array<{ label: string; getRange: () => DateRange }> = [
   {
     label: '本月',
@@ -170,9 +147,6 @@ export default function DataOverviewPage() {
   // Date filter
   const [dateRange, setDateRange] = useState<DateRange>({ start: '', end: '' });
   const [quickLabel, setQuickLabel] = useState('本月');
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [customStart, setCustomStart] = useState('');
-  const [customEnd, setCustomEnd] = useState('');
 
   // Table filter
   const [accountFilter, setAccountFilter] = useState('全部');
@@ -206,8 +180,6 @@ export default function DataOverviewPage() {
       end: toDateStr(now),
     };
     setDateRange(defaultRange);
-    setCustomStart(defaultRange.start);
-    setCustomEnd(defaultRange.end);
     setCompareMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
   }, []);
 
@@ -239,8 +211,6 @@ export default function DataOverviewPage() {
         // 起始日期强制为当月1号，防止上月末尾数据混入本月统计
         const adjustedStart = toDateStr(new Date(maxDataDate.getFullYear(), maxDataDate.getMonth(), 1));
         setDateRange({ start: adjustedStart, end: adjustedEnd });
-        setCustomStart(adjustedStart);
-        setCustomEnd(adjustedEnd);
         setCompareMonth(`${maxDataDate.getFullYear()}-${String(maxDataDate.getMonth() + 1).padStart(2, '0')}`);
         const now = new Date();
         if (maxDataDate.getFullYear() === now.getFullYear() && maxDataDate.getMonth() === now.getMonth()) {
@@ -622,27 +592,11 @@ export default function DataOverviewPage() {
     return summaries;
   }, [brandDataMap, dateRange, compareMonth]);
 
-  const applyCustomRange = () => {
-    if (!customStart || !customEnd) return;
-    let s = parseLocalDate(customStart);
-    let e = parseLocalDate(customEnd);
-    const maxEnd = addDays(s, 365);
-    if (e > maxEnd) e = maxEnd;
-    if (s > e) [s, e] = [e, s];
-    setDateRange({ start: toDateStr(s), end: toDateStr(e) });
-    setQuickLabel('自定义');
-    setUserSelectedRange(true);
-    setShowDatePicker(false);
-  };
-
   const handleQuickSelect = (opt: typeof QUICK_OPTIONS[number]) => {
     const range = opt.getRange();
     setDateRange(range);
-    setCustomStart(range.start);
-    setCustomEnd(range.end);
     setQuickLabel(opt.label);
     setUserSelectedRange(true);
-    setShowDatePicker(false);
   };
 
   const fmt = (n: number) => n.toLocaleString('zh-CN');
@@ -924,61 +878,21 @@ export default function DataOverviewPage() {
         {/* Date Filter + Account Filter + Refresh */}
         <div className="flex flex-wrap items-center gap-3">
           {/* Date Range Selector */}
-          <div className="relative">
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 border-zinc-600 text-zinc-300 hover:bg-zinc-800"
-              onClick={() => setShowDatePicker(!showDatePicker)}
-            >
-              <CalendarIcon className="h-4 w-4" />
-              {dateRange.start && dateRange.end
-                ? `${formatDisplay(dateRange.start)} - ${formatDisplay(dateRange.end)}`
-                : '选择日期'}
-            </Button>
-            {showDatePicker && (
-              <div className="absolute top-full left-0 mt-2 z-50 bg-zinc-900 border border-zinc-700 rounded-lg p-4 shadow-xl min-w-[280px]">
-                {/* Quick Options */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {QUICK_OPTIONS.map((opt) => (
-                    <Button
-                      key={opt.label}
-                      variant={quickLabel === opt.label ? 'default' : 'outline'}
-                      size="sm"
-                      className={quickLabel === opt.label ? 'bg-[#4158D0]' : 'border-zinc-600 text-zinc-300'}
-                      onClick={() => handleQuickSelect(opt)}
-                    >
-                      {opt.label}
-                    </Button>
-                  ))}
-                </div>
-                {/* Custom Range */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-zinc-400 w-12">开始</label>
-                    <input
-                      type="date"
-                      value={customStart}
-                      onChange={(e) => setCustomStart(e.target.value)}
-                      className="bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-sm text-zinc-200 flex-1"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-zinc-400 w-12">结束</label>
-                    <input
-                      type="date"
-                      value={customEnd}
-                      onChange={(e) => setCustomEnd(e.target.value)}
-                      className="bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-sm text-zinc-200 flex-1"
-                    />
-                  </div>
-                  <Button size="sm" className="w-full bg-[#4158D0] mt-2" onClick={applyCustomRange}>
-                    应用
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
+          <DateRangePicker
+            start={dateRange.start}
+            end={dateRange.end}
+            quickOptions={QUICK_OPTIONS.map((opt) => ({
+              key: opt.label,
+              label: opt.label,
+              isActive: quickLabel === opt.label,
+              select: () => handleQuickSelect(opt),
+            }))}
+            onApply={(range) => {
+              setDateRange(range);
+              setQuickLabel('自定义');
+              setUserSelectedRange(true);
+            }}
+          />
 
           <div className="h-5 w-px bg-zinc-700" />
 

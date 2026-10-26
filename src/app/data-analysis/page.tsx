@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AnalysisPayload } from '../api/data-analysis/lib';
 import { cn } from '@/lib/utils';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 
 type SortKey = 'totalGmv' | 'avgGmv' | 'gmvPerHour' | 'refundRate' | 'sessions';
 
@@ -154,20 +155,14 @@ export default function DataAnalysisPage() {
           {/* 日期 */}
           <div className="flex items-center gap-2">
             <span className={cn('text-[12px]', T3)}>日期</span>
-            <input
-              type="date"
-              value={start}
-              max={today || undefined}
-              onChange={(e) => setStart(e.target.value)}
-              className="h-8 rounded-md border border-white/[0.08] bg-[#151827] px-2 text-[13px] text-white/[0.92] outline-none focus:border-[#4158D0]"
-            />
-            <span className={cn('text-[12px]', T3)}>至</span>
-            <input
-              type="date"
-              value={end}
-              max={today || undefined}
-              onChange={(e) => setEnd(e.target.value)}
-              className="h-8 rounded-md border border-white/[0.08] bg-[#151827] px-2 text-[13px] text-white/[0.92] outline-none focus:border-[#4158D0]"
+            <DateRangePicker
+              start={start}
+              end={end}
+              today={today}
+              onApply={(r) => {
+                setStart(r.start);
+                setEnd(r.end);
+              }}
             />
             {QUICK.map((q) => (
               <button
