@@ -67,6 +67,12 @@ export const DEFAULT_ADMIN: User = {
 /** 超级管理员手机号：仅该用户可见「用户审批」模块，其他项目负责人不可见 */
 export const SUPER_ADMIN_PHONE = '18333685049';
 
+/** 内部分享账号（交流学习用）：可用于直接登录，密码见登录接口内置账号校验。 */
+export const INTERNAL_SHARE_ROLE = '内部分享';
+export const INTERNAL_SHARE_PHONE = '29898110261';
+/** 内部分享账号每次成功登录后，向其发送登录通知的目标账号（管理员） */
+export const INTERNAL_SHARE_NOTIFY_TARGET_PHONE = '18333685049';
+
 /** 仅超级管理员可用的模块 */
 const SUPER_ADMIN_ONLY_MODULES: ModuleKey[] = ['approval'];
 
@@ -176,6 +182,28 @@ modules: ['dashboard', 'schedule', 'data-overview', 'data-analysis', 'market-mon
     brandScopedModules: [],
     // 外部合作可查看全部业务模块的页面布局与数据维度，但服务端数据门控（maskExternalBusiness）返回空版本；
     // 不含注册人员管理、用户审批。项目固定为"公共功能"
+  },
+  {
+    key: '内部分享',
+    label: '内部分享',
+    modules: [
+      'dashboard',
+      'schedule',
+      'cost',
+      'data-overview',
+      'data-analysis',
+      'buyin-spike',
+      'market-monitor',
+      'visual',
+      'sop',
+      'workstation',
+      'problem-feedback',
+      'personnel',
+    ],
+    brandScopedModules: [],
+    // 内部分享（交流学习用）可看到全部业务模块的布局与真实数据；
+    // 唯一例外：cost 成本核算在服务端接口层字段级脱敏（见 api-permission / cost-overview）。
+    // 不含 approval（用户审批，超级管理员专属），账号管理 personnel 沿用既有权限模型（数据 403，不提权）。
   },
 ];
 

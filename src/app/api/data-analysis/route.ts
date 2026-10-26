@@ -4,9 +4,9 @@ import { getRequestRole } from '@/lib/api-permission';
 
 export const runtime = 'nodejs';
 
-const ALLOWED_ROLES = new Set(['PM', '运营']);
+const ALLOWED_ROLES = new Set(['PM', '运营', '内部分享']);
 
-/** 数据分析仅对 PM、运营开放；其余角色（含外部合作）一律 403 且不返回任何数据。 */
+/** 数据分析对 PM、运营、内部分享开放；其余角色（含外部合作）一律 403 且不返回任何数据。 */
 function requireDataAnalysisRole(req: NextRequest): NextResponse | null {
   const role = getRequestRole(req);
   if (!ALLOWED_ROLES.has(role)) {

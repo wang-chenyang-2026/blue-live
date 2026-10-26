@@ -2,7 +2,7 @@
 
 import { useApp } from '@/contexts/AppContext';
 import { AppSidebar } from '@/components/layout/AppSidebar';
-import { Bell } from 'lucide-react';
+import { NotificationBell } from '@/components/layout/NotificationBell';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { isClient, isAuthenticated } = useApp();
@@ -42,9 +42,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <header className="flex h-14 items-center justify-end border-b border-border bg-card px-6">
           <div className="flex items-center gap-3">
             <div className="h-5 w-px bg-border" />
-            <button className="relative rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
-              <Bell className="h-4 w-4" />
-            </button>
+            <NotificationBell />
           </div>
         </header>
 

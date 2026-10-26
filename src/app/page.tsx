@@ -73,6 +73,8 @@ export default function DashboardPage() {
   const [costByBrand, setCostByBrand] = useState<Record<string, number>>({});
   const [costLoading, setCostLoading] = useState(true);
   const [costError, setCostError] = useState<string>('');
+  // 内部分享角色：成本数据在服务端已脱敏，首页成本相关数字统一显示为 *
+  const [costMasked, setCostMasked] = useState(false);
 
   useEffect(() => {
     const now = new Date();
@@ -145,6 +147,7 @@ export default function DashboardPage() {
       .then((res) => {
         if (cancelled) return;
         if (res.success && res.data?.byBrand) {
+          setCostMasked(res.data.masked === true);
           const map: Record<string, number> = {};
           Object.entries(res.data.byBrand as Record<string, number>).forEach(([k, v]) => {
             map[k.toLowerCase()] = Number(v) || 0;
@@ -295,7 +298,7 @@ export default function DashboardPage() {
       {/* 利润率卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {profitCards.map((card) => (
-          <ProfitCard key={card.id} data={card} costLoading={costLoading} costError={costError} />
+          <ProfitCard key={card.id} data={card} costLoading={costLoading} costError={costError} costMasked={costMasked} />
         ))}
       </div>
 
@@ -304,9 +307,9 @@ export default function DashboardPage() {
 }
 
 // 利润卡片组件
-function ProfitCard({ data, costLoading, costError }: { data: ProfitCardData; costLoading?: boolean; costError?: string }) {
+function ProfitCard({ data, costLoading, costError, costMasked = false }: { data: ProfitCardData; costLoading?: boolean; costError?: string; costMasked?: boolean }) {
   console.log('[ProfitCard]', data.id, 'totalCost:', data.totalCost, 'costLoading:', costLoading, 'costError:', costError);
-  const rate = (data.profitRate * 100).toFixed(1);
+  const rate = costMasked ? null : (data.profitRate * 100).toFixed(1);
   const isPositive = data.profitRate >= 0;
 
   return (
@@ -345,10 +348,16 @@ function ProfitCard({ data, costLoading, costError }: { data: ProfitCardData; co
                 isPositive ? 'text-[#F5483B]' : 'text-[#34C759]'
               )}
             >
-              {rate}%
+              {rate === null ? (
+                <span className="text-muted-foreground font-normal">——</span>
+              ) : (
+                <>
+                  {rate}%
+                </>
+              )}
             </p>
           </div>
-          {isPositive ? (
+          {costMasked ? null : isPositive ? (
             <TrendingUp className="h-5 w-5 text-[#F5483B]" />
           ) : (
             <TrendingDown className="h-5 w-5 text-[#34C759]" />
@@ -359,13 +368,15 @@ function ProfitCard({ data, costLoading, costError }: { data: ProfitCardData; co
           <div className="rounded-md bg-secondary p-2">
             <p className="text-muted-foreground">服务费收入</p>
             <p className="font-medium text-foreground">
-              ¥{data.revenue.toLocaleString()}
+              {costMasked ? '***' : `¥${data.revenue.toLocaleString()}`}
             </p>
           </div>
           <div className="rounded-md bg-secondary p-2">
             <p className="text-muted-foreground">总成本</p>
             <p className="font-medium text-foreground">
-              {costLoading ? (
+              {costMasked ? (
+                '***'
+              ) : costLoading ? (
                 <span className="text-muted-foreground text-[11px]">加载中...</span>
               ) : costError ? (
                 <span className="text-destructive text-[11px]">{costError}</span>

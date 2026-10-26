@@ -41,6 +41,11 @@ export function isExternalRoleRequest(request: NextRequest | Request): boolean {
   return getRequestRole(request) === '外部合作';
 }
 
+/** 是否「内部分享」角色（成本模块脱敏门控的唯一判定条件）。 */
+export function isInternalShareRequest(request: NextRequest | Request): boolean {
+  return getRequestRole(request) === '内部分享';
+}
+
 // —— 外部合作角色的服务端数据门控 ——
 // 对 8 个业务模块返回经营数值/明细的数据 API，当请求来自「外部合作」时返回
 // HTTP 200 + 与该接口正常成功时相同 JSON 结构的「空版本」（列表 []、数值 0），

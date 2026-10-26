@@ -55,7 +55,7 @@ export interface Staff {
 }
 
 // ==================== 角色 & 权限 ====================
-export type RoleKey = 'PM' | '运营' | '中控' | '主播' | '外部合作';
+export type RoleKey = 'PM' | '运营' | '中控' | '主播' | '外部合作' | '内部分享';
 
 export interface Role {
   key: RoleKey;

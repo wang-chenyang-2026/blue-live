@@ -5,6 +5,7 @@ import { useApp } from '@/contexts/AppContext';
 import { BRANDS, COST_CATEGORIES } from '@/lib/constants';
 import { getKPIList, updateKPIItem } from '@/lib/store';
 import type { KPIItem } from '@/lib/types';
+import { deepZeroNumbers } from '@/lib/cost-mask';
 import { cn } from '@/lib/utils';
 import { useSafeMonth } from '@/lib/hooks';
 import {
@@ -218,6 +219,13 @@ export default function CostPageOps() {
   const [quickRange, setQuickRange] = useState<string>('');
   const [activeBrand, setActiveBrand] = useState('all');
   const [feishuData, setFeishuData] = useState<FeishuData | null>(null);
+  // 内部分享角色：成本数据在服务端已字段级脱敏（masked=true），前端统一渲染为 *
+  const [masked, setMasked] = useState(false);
+  // 脱敏时把所有 number 归零，避免利润率/占比运算得到 NaN（显示仍由 masked 门控为 *）
+  const costData = useMemo(
+    () => (masked && feishuData ? deepZeroNumbers(feishuData) : feishuData),
+    [feishuData, masked]
+  );
   const [feishuLoading, setFeishuLoading] = useState(false);
   const [kpis, setKpis] = useState<KPIItem[]>([]);
   const [activeTab, setActiveTab] = useState<'cost' | 'kpi'>('cost');
@@ -271,6 +279,7 @@ export default function CostPageOps() {
       const data = await res.json();
       if (data.success) {
         setFeishuData(data.data);
+        setMasked(data.data?.masked === true);
       }
     } catch (error) {
       console.error('Failed to fetch cost data:', error);
@@ -287,9 +296,9 @@ export default function CostPageOps() {
 
   // 成本分类计算
   const categoryData = useMemo(() => {
-    if (!feishuData) return [];
-    const dims = feishuData.dimensions;
-    const totalCost = feishuData.totalCost || 1; // 避免除零
+    if (!costData) return [];
+    const dims = costData.dimensions;
+    const totalCost = costData.totalCost || 1; // 避免除零
 
     const items = COST_CATEGORIES.map((cat) => {
       const config = CATEGORY_CONFIG[cat];
@@ -326,7 +335,7 @@ export default function CostPageOps() {
     });
 
     return items;
-  }, [feishuData]);
+  }, [costData]);
 
   // 总人数
   const totalPeople = useMemo(() => {
@@ -335,19 +344,19 @@ export default function CostPageOps() {
 
   // 环比（简化：用 totalCost 与 mock 上期对比）
   const momChange = useMemo(() => {
-    if (!feishuData) return 0;
+    if (!costData) return 0;
     // 使用 mock 上期数据做简单环比
-    const lastMonthCost = feishuData.totalCost * 0.92; // 模拟环比下降8%
-    return ((feishuData.totalCost - lastMonthCost) / lastMonthCost) * 100;
-  }, [feishuData]);
+    const lastMonthCost = costData.totalCost * 0.92; // 模拟环比下降8%
+    return ((costData.totalCost - lastMonthCost) / lastMonthCost) * 100;
+  }, [costData]);
 
   // 表格数据
   const tableRows = useMemo((): TableRow[] => {
-    if (!feishuData) return [];
+    if (!costData) return [];
     const rows: TableRow[] = [];
 
     // 兼职主播
-    feishuData.dimensions.anchor.details.forEach((d, i) => {
+    costData.dimensions.anchor.details.forEach((d, i) => {
       rows.push({
         id: `anchor-${i}`,
         category: '兼职主播成本',
@@ -359,7 +368,7 @@ export default function CostPageOps() {
     });
 
     // 兼职中控
-    feishuData.dimensions.control.details.forEach((d, i) => {
+    costData.dimensions.control.details.forEach((d, i) => {
       rows.push({
         id: `control-${i}`,
         category: '兼职中控成本',
@@ -371,8 +380,8 @@ export default function CostPageOps() {
     });
 
     // 设计分摊成本
-    if (feishuData.dimensions.design?.details) {
-      (feishuData.dimensions.design.details as Array<{ project: string; monthlyRate: number; days: number; amount: number }>).forEach((d, i) => {
+    if (costData.dimensions.design?.details) {
+      (costData.dimensions.design.details as Array<{ project: string; monthlyRate: number; days: number; amount: number }>).forEach((d, i) => {
         rows.push({
           id: `design-${i}`,
           category: '设计费分摊',
@@ -385,7 +394,7 @@ export default function CostPageOps() {
     }
 
     // 全职
-    feishuData.dimensions.fulltime.details.forEach((d, i) => {
+    costData.dimensions.fulltime.details.forEach((d, i) => {
       let cat = '全职中控成本';
       if (d.role === '主播') cat = '全职主播成本';
       else if (d.role === '运营') cat = '全职运营成本';
@@ -400,7 +409,7 @@ export default function CostPageOps() {
     });
 
     // 日常物料
-    (feishuData.dimensions.purchase.details as Array<{ name?: string; amount?: number; date?: string }>).forEach((d, i) => {
+    (costData.dimensions.purchase.details as Array<{ name?: string; amount?: number; date?: string }>).forEach((d, i) => {
       rows.push({
         id: `purchase-${i}`,
         category: '日常物料成本',
@@ -412,7 +421,7 @@ export default function CostPageOps() {
     });
 
     return rows;
-  }, [feishuData]);
+  }, [costData]);
 
   // 过滤后的表格数据
   const filteredRows = useMemo(() => {
@@ -613,7 +622,7 @@ export default function CostPageOps() {
           <div>
             <p className="text-xs mb-1" style={{ color: 'var(--muted-foreground)' }}>总成本</p>
             <p className="font-bold" style={{ color: 'var(--foreground)', fontSize: '52px', lineHeight: 1.1 }}>
-              {formatCurrency(feishuData?.totalCost ?? 0)}
+              {masked ? '***' : formatCurrency(feishuData?.totalCost ?? 0)}
             </p>
             <div className="flex items-center gap-2 mt-2">
               <span
@@ -623,7 +632,7 @@ export default function CostPageOps() {
                   color: momChange >= 0 ? '#F5483B' : '#34C759',
                 }}
               >
-                {momChange >= 0 ? '↑' : '↓'} {Math.abs(momChange).toFixed(1)}%
+                {masked ? '—' : `${momChange >= 0 ? '↑' : '↓'} ${Math.abs(momChange).toFixed(1)}%`}
               </span>
               <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>环比上月</span>
             </div>
@@ -666,7 +675,7 @@ export default function CostPageOps() {
                       border: `1px solid ${(BRAND_COLORS[brand.toLowerCase()] || '#6B7280')}30`,
                     }}
                   >
-                    {brand} {formatCurrency(cost)}
+                    {brand} {masked ? '***' : formatCurrency(cost)}
                   </span>
                 ))}
               </div>
@@ -689,14 +698,14 @@ export default function CostPageOps() {
             className="lg:col-span-2 rounded-2xl p-6 flex flex-col items-center justify-center"
             style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
           >
-            <DonutChart data={categoryData} brandColor={brandColor} total={feishuData.totalCost} />
+            <DonutChart data={categoryData} brandColor={brandColor} total={costData?.totalCost ?? 0} masked={masked} />
           </div>
 
           {/* 右栏：2×3 成本分类卡片网格 */}
           <div className="lg:col-span-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {categoryData.map((item) => (
-                <CategoryCard key={item.key} item={item} total={feishuData.totalCost} brandColor={brandColor} />
+                <CategoryCard key={item.key} item={item} total={costData?.totalCost ?? 0} brandColor={brandColor} masked={masked} />
               ))}
             </div>
           </div>
@@ -867,18 +876,18 @@ export default function CostPageOps() {
                               })()}
                             </td>
                             <td className="p-3 text-right font-mono font-medium" style={{ color: 'var(--foreground)' }}>
-                              {formatCurrency(row.amount)}
+                              {masked ? '***' : formatCurrency(row.amount)}
                             </td>
                             <td className="p-3 hidden md:table-cell">
                               <div className="flex items-center gap-2">
                                 <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--border)' }}>
                                   <div
                                     className="h-full rounded-full"
-                                    style={{ width: `${Math.min(ratio, 100)}%`, backgroundColor: config.text }}
+                                    style={{ width: `${masked ? 0 : Math.min(ratio, 100)}%`, backgroundColor: config.text }}
                                   />
                                 </div>
                                 <span className="text-xs w-12 text-right" style={{ color: 'var(--muted-foreground)' }}>
-                                  {ratio.toFixed(1)}%
+                                  {masked ? '—' : `${ratio.toFixed(1)}%`}
                                 </span>
                               </div>
                             </td>
@@ -915,7 +924,7 @@ export default function CostPageOps() {
                     {selectedRows.size > 0 && ` · 已选 ${selectedRows.size} 条`}
                   </span>
                   <span className="text-sm font-bold" style={{ color: 'var(--foreground)' }}>
-                    合计 {formatCurrency(filteredRows.reduce((s, r) => s + r.amount, 0))}
+                    合计 {masked ? '***' : formatCurrency(filteredRows.reduce((s, r) => s + r.amount, 0))}
                   </span>
                 </div>
               )}
@@ -991,10 +1000,12 @@ function DonutChart({
   data,
   brandColor,
   total,
+  masked = false,
 }: {
   data: Array<{ key: string; label: string; cost: number; config: (typeof CATEGORY_CONFIG)[string] }>;
   brandColor: string;
   total: number;
+  masked?: boolean;
 }) {
   const validData = data.filter((d) => d.cost > 0);
   const cx = 100;
@@ -1040,7 +1051,7 @@ function DonutChart({
         ))}
         {/* 中心文字 */}
         <text x={cx} y={cy - 8} textAnchor="middle" fill="#9CA3AF" fontSize="14" fontWeight="bold">
-          {formatCurrency(total)}
+          {masked ? '***' : formatCurrency(total)}
         </text>
         <text x={cx} y={cy + 12} textAnchor="middle" fill="#9CA3AF" fontSize="10">
           总成本
@@ -1055,7 +1066,7 @@ function DonutChart({
               {item.label}
             </span>
             <span className="text-xs ml-auto" style={{ color: 'var(--foreground)' }}>
-              {((item.cost / total) * 100).toFixed(0)}%
+              {masked ? '—' : `${((item.cost / total) * 100).toFixed(0)}%`}
             </span>
           </div>
         ))}
@@ -1069,10 +1080,12 @@ function CategoryCard({
   item,
   total,
   brandColor,
+  masked = false,
 }: {
   item: { key: string; label: string; cost: number; count: number; ratio: number; config: (typeof CATEGORY_CONFIG)[string] };
   total: number;
   brandColor: string;
+  masked?: boolean;
 }) {
   const isZero = item.cost === 0;
   const pct = total > 0 ? (item.cost / total) * 100 : 0;
@@ -1098,11 +1111,11 @@ function CategoryCard({
           </span>
         </div>
         <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: item.config.tagBg, color: item.config.tagText }}>
-          {pct.toFixed(1)}%
+          {masked ? '**' : `${pct.toFixed(1)}%`}
         </span>
       </div>
       <div className="text-xl font-bold mb-1" style={{ color: isZero ? 'var(--muted-foreground)' : 'var(--foreground)' }}>
-        {isZero ? '—' : formatCurrency(item.cost)}
+        {masked ? '***' : isZero ? '—' : formatCurrency(item.cost)}
       </div>
       <div className="text-xs mb-3" style={{ color: 'var(--muted-foreground)' }}>
         {isZero ? '暂无数据' : `${item.count} 人`}

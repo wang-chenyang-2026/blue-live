@@ -5,7 +5,8 @@ import {
   resolveScheduleSheet,
   type SheetRole,
 } from "@/lib/feishu-sheets";
-import { maskExternalBusiness } from "@/lib/api-permission";
+import { maskExternalBusiness, isInternalShareRequest } from "@/lib/api-permission";
+import { deepMaskNumbers } from "@/lib/cost-mask";
 
 // Salary management table for nickname → real name mapping
 const NICKNAME_SHEET_TOKEN = "QmESw57otiab5WkLVqdcblCmnue";
@@ -1011,6 +1012,14 @@ async function calcPurchaseCost(
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const responseCache = new Map<string, { data: unknown; expireAt: number }>();
 
+/** 内部分享角色：把成本数据在服务端字段级脱敏（所有 number → "***"），并标记 masked。 */
+function applyInternalShareMask(request: NextRequest, data: unknown): unknown {
+  if (!isInternalShareRequest(request)) return data;
+  const masked = deepMaskNumbers(data) as Record<string, unknown>;
+  masked.masked = true;
+  return masked;
+}
+
 function normalizeBrand(input: string): string {
   const raw = input.trim();
   const lower = raw.toLowerCase();
@@ -1065,7 +1074,8 @@ export async function GET(request: NextRequest) {
   const cacheKey = `${month}::${brand}::${rangeKey}`;
   const cached = responseCache.get(cacheKey);
   if (cached && cached.expireAt > Date.now()) {
-    return NextResponse.json({ success: true, data: cached.data, cached: true });
+    const data = applyInternalShareMask(request, cached.data);
+    return NextResponse.json({ success: true, data, cached: true });
   }
 
   try {
@@ -1133,7 +1143,8 @@ export async function GET(request: NextRequest) {
     };
 
     responseCache.set(cacheKey, { data: responseData, expireAt: Date.now() + CACHE_TTL_MS });
-    return NextResponse.json({ success: true, data: responseData });
+    const data = applyInternalShareMask(request, responseData);
+    return NextResponse.json({ success: true, data });
   } catch (error) {
     console.error("Cost overview error:", error);
     return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
