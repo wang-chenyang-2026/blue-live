@@ -19,6 +19,7 @@ type Rec = {
   settle_amt: number;
   refund_rate: number | null;
   conv_rate: number | null;
+  phone_orders: number | null;
   view_persons: number | null;
   deal_persons: number | null;
   gpm: number | null;
@@ -397,24 +398,226 @@ function buildInsights(p: {
   return arr;
 }
 
-// Q&A: 简单规则解析，返回结构化结论
+// —— 数据问答：简单规则引擎（纯本地计算，不接任何 AI / 外部接口） ——
+// Q&A 返回体：type/title/body/rows + suggestions（未命中时给可点击示例）
+
+const MAX_DATE = (() => {
+  let m = '';
+  for (const r of RECORDS) if (r.date && r.date_valid && r.date > m) m = r.date;
+  return m || '2026-10-21';
+})();
+
+const COMPARE_WORDS = /(对比|比较|vs|pk|比拼|对打|总和对比|和.*?比|跟.*?比|谁赢|谁厉害|谁更高|谁更好|谁强|谁猛)/i;
+
+// 效率类意图的同义词/口语词表
+const EFF_WORDS = {
+  settle: /(结算效率|产出效率|效率最高|每小时\s*gmv|单小时\s*gmv|单位时长产出|单位时间产出|每小时产出|单位产出最高)/i,
+  avg: /(场均\s*gmv|场均|单场产出|每场\s*gmv|平均产出|场均产出|单场gmv)/i,
+  conv: /(转化效率|卖货效率|台数效率|每场台数|台数产出)/i,
+  refundQ: /(退货质量|退款控制|退货控制|退款控制最好|售后最好|质量最好)/i,
+};
+
+// 时段口语词（映射到既有 SPOT slot）
+const SLOT_SYN: { key: (typeof SLOTS)[number]; re: RegExp }[] = [
+  { key: '凌晨', re: /凌晨|深夜|半夜|零时|0点到6点/i },
+  { key: '上午', re: /上午|早上|早晨|早班/i },
+  { key: '下午', re: /下午|午后|中午以后/i },
+  { key: '晚间', re: /晚间|晚上|黄金档|黄金时间|晚班|夜间/i },
+];
+
+const RANK_LIMIT = /top\s*(\d{1,2})|前\s*(\d{1,2})|排行前\s*(\d{1,2})/i;
+
+function addDaysStr(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
+// 时间范围：本月 / 近N天。未命中返回 null（沿用问答默认=全量）。
+function parseTimeRange(q: string): { start: string; end: string; label: string } | null {
+  const y = MAX_DATE.slice(0, 4);
+  const m = MAX_DATE.slice(5, 7);
+  if (/今月|本月|这个月/.test(q)) return { start: `${y}-${m}-01`, end: MAX_DATE, label: '本月' };
+  const g = /近\s*(\d{1,3})\s*天/.exec(q);
+  if (g) {
+    const n = Math.min(parseInt(g[1], 10), 730);
+    return { start: addDaysStr(MAX_DATE, -n), end: MAX_DATE, label: `近${n}天` };
+  }
+  if (/近(三十|30)天|最近(三十|30)天/.test(q)) return { start: addDaysStr(MAX_DATE, -30), end: MAX_DATE, label: '近30天' };
+  if (/近(七|7)天|最近(七|7)天/.test(q)) return { start: addDaysStr(MAX_DATE, -7), end: MAX_DATE, label: '近7天' };
+  return null;
+}
+
+// 主播匹配：先精确子串；若无法唯一命中，收集 2 字前/后缀候选（用于澄清反问）
+function findHosts(q: string): { matched: string[]; ambiguous: string[] } {
+  const hosts = allHosts();
+  const core = q.replace(/[\s,，。.!！?？、;；:：“”"'（）()]/g, '');
+  const exact = hosts.filter((h) => core.includes(h));
+  if (exact.length) return { matched: exact, ambiguous: [] };
+  const amb = new Set<string>();
+  for (const h of hosts) {
+    if (h.length >= 2 && (core.includes(h.slice(0, 2)) || core.includes(h.slice(-2)))) amb.add(h);
+  }
+  return { matched: [], ambiguous: Array.from(amb) };
+}
+
+interface EffRow {
+  name: string;
+  sessions: number;
+  gmv: number;
+  dur: number;
+  orders: number;
+  refundRate: number;
+  settle: number | null;
+  avg: number | null;
+  conv: number | null;
+  quality: number | null;
+}
+
+// 效率数据：与《主播数据》同一口径聚合（只含 GMV/时长/场次/台数/退款率，绝不引入成本字段）
+function effData(list: Rec[], onlyHost?: string): EffRow[] {
+  const map = new Map<string, { name: string; sessions: number; gmv: number; dur: number; orders: number }>();
+  const ensure = (h: string) => {
+    if (!map.has(h)) map.set(h, { name: h, sessions: 0, gmv: 0, dur: 0, orders: 0 });
+  };
+  if (onlyHost) ensure(onlyHost);
+  for (const r of list) {
+    for (const h of r.hosts || []) {
+      if (onlyHost && h !== onlyHost) continue;
+      ensure(h);
+      const d = map.get(h)!;
+      d.sessions += 1;
+      d.gmv += r.gmv;
+      d.dur += r.duration_h;
+      d.orders += r.phone_orders || 0;
+    }
+  }
+  return Array.from(map.values()).map((d) => {
+    let g = 0;
+    let rf = 0;
+    for (const r of list) {
+      if ((r.hosts || []).includes(d.name)) { g += r.gmv; rf += r.refund_amt; }
+    }
+    const rate = g ? rf / g : 0;
+    return {
+      ...d,
+      refundRate: rate,
+      settle: d.dur ? d.gmv / d.dur : null,
+      avg: d.sessions ? d.gmv / d.sessions : null,
+      conv: d.sessions ? d.orders / d.sessions : null,
+      quality: g ? 1 - rate : null,
+    };
+  });
+}
+
+type EffKind = 'settle' | 'avg' | 'conv' | 'refundQ';
+const EFF_META: Record<EffKind, { label: string; serial: string; val: (d: EffRow) => string; tip: string }> = {
+  settle: {
+    label: '结算效率',
+    serial: '结算效率=总GMV÷总直播时长',
+    val: (d) => (d.settle != null ? `${w(d.settle)}/小时` : '样本不足'),
+    tip: '其单位直播时长带来的产出最高，适合把黄金时段资源向其倾斜',
+  },
+  avg: {
+    label: '场均GMV',
+    serial: '场均GMV=总GMV÷总场次',
+    val: (d) => (d.avg != null ? `${w(d.avg)}/场` : '样本不足'),
+    tip: '其场均产出领先，单场转化能力强',
+  },
+  conv: {
+    label: '转化效率',
+    serial: '转化效率=销售台数÷总场次（台数按订单量近似）',
+    val: (d) => (d.conv != null ? `${round1(d.conv)}台/场` : '样本不足'),
+    tip: '其平均每场卖出台数最多，带货转化最扎实',
+  },
+  refundQ: {
+    label: '退货质量',
+    serial: '退货质量=1−退款率',
+    val: (d) => (d.quality != null ? `${pct(d.quality)}·退款率${pct(d.refundRate)}` : '样本不足'),
+    tip: '其退款控制最好，成交质量高、售后风险低',
+  },
+};
+
+function effMetricValue(kind: EffKind, d: EffRow): number {
+  return kind === 'settle' ? (d.settle ?? 0) : kind === 'avg' ? (d.avg ?? 0) : kind === 'conv' ? (d.conv ?? 0) : (d.quality ?? 0);
+}
+
 export function answerQuestion(q: string): {
   type: string;
   title: string;
   body: string;
   rows?: { label: string; value: string }[];
+  suggestions?: string[];
 } {
-  const hosts = allHosts();
   const qq = q.trim();
-  const found = hosts.filter((h) => qq.includes(h));
-  const isCompare = /(对比|比较|vs|和.*比|pk)/i.test(qq);
+  if (!qq) {
+    return { type: 'guide', title: '未识别问题', body: '请输入要查询的问题。', suggestions: ['哪个主播结算效率最高', '场均GMV排行', '漫漫 vs 芙芙'] };
+  }
+  const { matched, ambiguous } = findHosts(qq);
+  const isCompare = COMPARE_WORDS.test(qq);
   const isRefundRank = /(退款率|退款).*?(排行|排名|top|最高|最低)/i.test(qq) || /(排行|排名).*?退款/i.test(qq);
-  const isSlot = SLOTS.filter((s) => qq.includes(s));
-  const isDouble = /(双播|连麦|组合)/.test(qq);
+  const slotsHit = SLOTS.filter((s) => qq.includes(s));
+  const slotSynHit = SLOT_SYN.filter((x) => x.re.test(qq));
+  const isDouble = /(双播|连麦|组合|对播)/.test(qq);
+  const tr = parseTimeRange(qq);
+  const scoped = tr ? RECORDS.filter((r) => r.date && r.date_valid && r.date >= tr.start && r.date <= tr.end) : RECORDS;
 
-  // 双播参与场次
-  if (found.length === 1 && isDouble && !isCompare) {
-    const h = found[0];
+  // —— 效率/质量类（新增意图）。注意：具体词表必须先于泛化词（如"效率最高"）判定。 ——
+  let effKind: EffKind | null = null;
+  if (EFF_WORDS.conv.test(qq)) effKind = 'conv';
+  else if (EFF_WORDS.refundQ.test(qq)) effKind = 'refundQ';
+  else if (EFF_WORDS.avg.test(qq)) effKind = 'avg';
+  else if (EFF_WORDS.settle.test(qq)) effKind = 'settle';
+  if (effKind) {
+    const meta = EFF_META[effKind];
+    const makeClarify = (names: string[]) => ({
+      type: 'clarify',
+      title: '请明确主播',
+      body: `您的问题同时命中「${names.join('、')}」，无法唯一确定。请明确指定其中一位（如只保留一位主播名）。`,
+      suggestions: [...names.slice(0, 4).map((h) => `${h} ${meta.label}`), ...(names.length >= 2 ? [`${names[0]} vs ${names[1]}`] : [])],
+    });
+    if (matched.length > 1) return makeClarify(matched);
+    if (ambiguous.length > 1) return makeClarify(ambiguous);
+    const single = matched.length === 1 ? matched[0] : ambiguous.length === 1 ? ambiguous[0] : undefined;
+
+    if (single) {
+      const d = effData(scoped, single)[0];
+      if (!d || !d.sessions) {
+        return { type: 'efficiency', title: `${single} ${meta.label}`, body: `当前口径下「${single}」样本不足，无法计算${meta.label}（${meta.serial}）。` };
+      }
+      let line = '';
+      if (effKind === 'settle') line = `${w(d.gmv)}总GMV ÷ ${round1(d.dur)}h = ${meta.val(d)}`;
+      else if (effKind === 'avg') line = `${w(d.gmv)}总GMV ÷ ${d.sessions}场 = ${meta.val(d)}`;
+      else if (effKind === 'conv') line = `${d.orders}台 ÷ ${d.sessions}场 = ${meta.val(d)}`;
+      else line = ` 退货质量 = ${meta.val(d)}`;
+      return { type: 'efficiency', title: `${single} ${meta.label}`, body: `${single} 参与 ${d.sessions} 场、总GMV ${w(d.gmv)}；${line}。` };
+    }
+
+    const rows = effData(scoped);
+    const ranked = rows.filter((d) => d.sessions > 0 && effMetricValue(effKind, d) > 0 && (effKind !== 'settle' || d.settle != null) && (effKind !== 'avg' || d.avg != null) && (effKind !== 'conv' || d.conv != null) && (effKind !== 'refundQ' || d.quality != null));
+    ranked.sort((a, b) => effMetricValue(effKind, b) - effMetricValue(effKind, a));
+    const g = RANK_LIMIT.exec(qq);
+    const lim = g ? Math.min(Math.max(parseInt(g[1] || g[2] || g[3], 10), 1), 10) : 5;
+    const top = ranked.slice(0, lim);
+    const range = tr ? `（${tr.label}）` : '';
+    if (!top.length) {
+      return { type: 'efficiency', title: `${meta.label}排行`, body: `当前口径下没有可计算${meta.label}的主播，请换个时间范围或问题再试。` };
+    }
+    const first = top[0];
+    return {
+      type: 'efficiency',
+      title: `${meta.label}排行 Top${Math.min(top.length, lim)}`,
+      body: `${meta.label}排行（${meta.serial}，排序${range}）：${first.name} 居首，${meta.val(first)}，${meta.tip}。`,
+      rows: top.map((d) => ({ label: d.name, value: `${meta.val(d)} · ${d.sessions}场` })),
+    };
+  }
+
+  // 双播参与场次（原有类）
+  if (matched.length === 1 && isDouble && !isCompare) {
+    const h = matched[0];
     const d = RECORDS.filter((r) => r.is_double && (r.hosts || []).includes(h));
     return {
       type: 'host_double_sessions',
@@ -423,9 +626,9 @@ export function answerQuestion(q: string): {
     };
   }
 
-  // 主播间对比
-  if (isCompare && found.length >= 2) {
-    const rows = found.slice(0, 2).map((h) => {
+  // 主播间对比（原有类，扩展词表）
+  if (isCompare && matched.length >= 2) {
+    const rows = matched.slice(0, 2).map((h) => {
       const list = RECORDS.filter((r) => (r.hosts || []).includes(h));
       const g = sum(list.map((r) => r.gmv));
       const rf = sum(list.map((r) => r.refund_amt));
@@ -437,8 +640,8 @@ export function answerQuestion(q: string): {
         )}`,
       };
     });
-    const a = found[0];
-    const b = found[1];
+    const a = matched[0];
+    const b = matched[1];
     const la = RECORDS.filter((r) => (r.hosts || []).includes(a));
     const lb = RECORDS.filter((r) => (r.hosts || []).includes(b));
     const ga = sum(la.map((r) => r.gmv));
@@ -453,7 +656,7 @@ export function answerQuestion(q: string): {
     };
   }
 
-  // 退款率排行
+  // 退款率排行（原有类，输出不变）
   if (isRefundRank) {
     const rows = [...hostRankRank()]
       .slice(0, 5)
@@ -466,9 +669,9 @@ export function answerQuestion(q: string): {
     };
   }
 
-  // 时段查询
-  if (isSlot.length) {
-    const s = isSlot[0];
+  // 时段查询（原有类，扩展口语词）
+  if (slotsHit.length) {
+    const s = slotsHit[0];
     const list = RECORDS.filter((r) => r.slot === s);
     const g = sum(list.map((r) => r.gmv));
     const rf = sum(list.map((r) => r.refund_amt));
@@ -478,9 +681,20 @@ export function answerQuestion(q: string): {
       body: `${s}档共 ${list.length} 场，GMV ${w(g)}（占比 ${pct(g / (sum(RECORDS.map((r) => r.gmv)) || 1))}），退款率 ${pct(g ? rf / g : 0)}。`,
     };
   }
+  if (slotSynHit.length) {
+    const s = slotSynHit[0].key;
+    const list = RECORDS.filter((r) => r.slot === s);
+    const g = sum(list.map((r) => r.gmv));
+    const rf = sum(list.map((r) => r.refund_amt));
+    return {
+      type: 'slot_query',
+      title: `${s}档查询`,
+      body: `${s}档共 ${list.length} 场，GMV ${w(g)}、退款率 ${pct(g ? rf / g : 0)}。`,
+    };
+  }
 
-  // 双播 vs 常规
-  if (isDouble && !found.length) {
+  // 双播 vs 常规（原有类）
+  if (isDouble && !matched.length) {
     const d = RECORDS.filter((r) => r.is_double);
     const s = RECORDS.filter((r) => !r.is_double && (r.hosts || []).length > 0);
     const dg = sum(d.map((r) => r.gmv));
@@ -494,9 +708,9 @@ export function answerQuestion(q: string): {
     };
   }
 
-  // 单主播概览
-  if (found.length === 1) {
-    const h = found[0];
+  // 单主播概览（原有类）
+  if (matched.length === 1) {
+    const h = matched[0];
     const list = RECORDS.filter((r) => (r.hosts || []).includes(h));
     const g = sum(list.map((r) => r.gmv));
     const rf = sum(list.map((r) => r.refund_amt));
@@ -510,11 +724,28 @@ export function answerQuestion(q: string): {
     };
   }
 
-  // 时段 vs 双播等未命中 → 引导
+  // 多主播但非对比 → 澄清
+  if (matched.length >= 2 && !isCompare) {
+    return {
+      type: 'clarify',
+      title: '请明确问题',
+      body: `您的问题同时提到「${matched.join('、')}」，不确定是想对比还是只看某一位。`,
+      suggestions: [`${matched[0]} vs ${matched[1]}`, matched[0], matched[1]],
+    };
+  }
+
+  // 未命中 → 引导（复述理解 + 可点击示例）
+  const guess: string[] = [];
+  if (matched.length === 1) guess.push(`您在问「${matched[0]}」的数据`);
+  if (ambiguous.length) guess.push(`检测到可能的主播「${ambiguous.join('、')}」，请明确指定其中一位`);
+  if (isDouble) guess.push('您似乎想问双播相关');
+  if (isCompare) guess.push('您似乎想对比主播表现');
+  const head = guess.length ? `${guess.join('；')}，但未能完整识别，请换个问法。` : '目前无法识别这个问题。';
   return {
     type: 'guide',
     title: '未识别问题',
-    body: '请尝试输入以下问题：主播间对比（如"漫漫 vs 芙芙"）、退款率排行、某时段查询（如"凌晨"）、双播 vs 常规、某主播双播参与场次（如"漫漫 双播几场"）、单主播数据概览（如"漫漫"）。',
+    body: `${head}可点击下方相近示例问题：`,
+    suggestions: ['哪个主播结算效率最高', '场均GMV排行', '漫漫 vs 芙芙', '退款率排行', '凌晨', '双播 vs 常规', '漫漫 双播几场', '漫漫'],
   };
 }
 

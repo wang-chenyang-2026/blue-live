@@ -776,9 +776,9 @@ function Insights({ d }: { d: AnalysisPayload }) {
 }
 
 // —— 数据问答 ——
-type QAItem = { type: string; title: string; body: string; rows?: { label: string; value: string }[] };
+type QAItem = { type: string; title: string; body: string; rows?: { label: string; value: string }[]; suggestions?: string[] };
 
-const EXAMPLES = ['漫漫 vs 芙芙', '退款率排行', '凌晨', '双播 vs 常规', '漫漫 双播几场', '漫漫'];
+const EXAMPLES = ['哪个主播结算效率最高', '场均GMV排行', '漫漫 vs 芙芙', '退款率排行', '凌晨', '双播 vs 常规', '漫漫 双播几场', '漫漫'];
 
 function QaSection() {
   const [q, setQ] = useState('');
@@ -877,6 +877,22 @@ function QaSection() {
                 </li>
               ))}
             </ul>
+          )}
+          {ans.suggestions && (
+            <div className="mt-3">
+              <div className={cn('mb-1 text-[12px]', T3)}>相近示例：</div>
+              <div className="flex flex-wrap gap-1.5">
+                {ans.suggestions.map((sg) => (
+                  <button
+                    key={sg}
+                    onClick={() => ask(sg)}
+                    className="rounded-md border border-[#4158D0]/40 px-2 py-0.5 text-[12px] text-[#8Aa2ff] hover:bg-[#4158D0]/10"
+                  >
+                    {sg}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}

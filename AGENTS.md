@@ -329,6 +329,15 @@ src/
 - `src/lib/types.ts` ModuleKey 新增 `data-analysis`；constants.ts MODULE_LABELS/PATH_TO_MODULE/MODULE_PATHS 增补；**仅 PM 与 运营**的 ROLES.modules 含 data-analysis（PM=项目负责人），中控/主播/外部合作不含；AppSidebar MODULE_ICONS（LineChart）+MODULE_PATHS+SIDEBAR_ORDER 增补（扁平渲染自动出现）；login/page.tsx 的 Record<ModuleKey,string> 补全。
 - 服务端强校验：`data-analysis/route.ts` 与 `qa/route.ts` 顶部 `getRequestRole()`（middleware 注入 x-user-role）判 role，非 {'PM','运营'} 返回 403 `{success:false,code:'FORBIDDEN',error:'无权限访问数据分析'}` 且不返回数据；未登录 middleware 返回 401。前端 AuthGuard 经 PATH_TO_MODULE 自动重定向无权限访问。
 
+## 数据问答（答案引擎增强 v1，纯规则，不接 LLM）
+- `answerQuestion` 在 `src/app/api/data-analysis/lib.ts`（自包含纯本地计算）；返回体加 `suggestions?: string[]`（未命中时给可点击示例，前端 `page.tsx` QaSection 渲染为 chips 按钮、EXAMPLES 也加了效率问法）。
+- **意图扩充**：同义词表 `COMPARE_WORDS`/`EFF_WORDS`/`SLOT_SYN`/`RANK_LIMIT`。时段支持口语（晚上/黄金档/凌晨…→映射 slot）。
+- **新增效率类 4 指标**（`effData` 复用《主播数据》同口径，只含 GMV/时长/场次/台数/退款率，严禁引入成本字段）：结算效率=总GMV÷总时长(万/h)、场均GMV=÷总场次(万/场)、转化效率=台数÷场次(台/场，台数用 `phone_orders` 订单量近似，records 无独立台数字段)、退货质量=1−退款率。默认 Top5、问"最高"报第1名；分母0/样本不足跳过显"样本不足"不显 NaN。单主播+效率词=该主播单值。
+- **效率判定顺序坑**：具体词（转化效率/场均/退货质量）必须先于泛化词"效率最高"判定，否则"转化效率最高"会被 settle 的"效率最高"抢占（已按 conv→refundQ→avg→settle 排序）。
+- **时间范围**：`parseTimeRange` 支持"本月/近30天/近7天/近N天"限定（对效率类生效；原有6类沿用全量口径保回归）。
+- **主播澄清**：`findHosts` 精确子串匹配；命中多主播（非对比）→ `type:'clarify'` 反问"你指的是…还是…"；引导类给出可点击相近示例。
+- **回归边界**：原有6类（漫漫 vs 芙芙 / 退款率排行 / 凌晨 / 双播 vs 常规 / 漫漫 双播几场 / 漫漫）输出保持与旧版完全一致，不得改动。
+
 ## 数据概览主数据表动态读取 + 截断自检（2026-10）
 - `src/app/api/feishu/sheets-data/route.ts` 主数据表（BRAND_SHEET_MAP.dailySheets）原来写死 range（vivo A1:J500、iQOO/IOT A1:J200）导致超行数据丢失。改为：先 `GET /open-apis/sheets/v3/spreadsheets/{token}/sheets/query` 取 grid_properties.row_count/column_count，按真实维度拼 `A1:{列≥J}{行}` 动态读取（getSheetGridMeta 60s 缓存）；元信息失败降级 `A1:J5000`。字段映射不变（D=时长、H=GMV、I=销售退前、J=实销退后），KPI 子表不改。
 - **读取截断自检**：`detectTruncation()` 比对「本次读取窗口行数 values.length」与「grid row_count」——`row_count` 含尾部空行（vivo 689 但数据止于 519），故**不得**用「解析有效行数 vs row_count」判（会每表误报）。`read_short_of_meta`（meta.rowCount - values.length > 5，动态全量时恒 0 不误报；被硬上限截断时差值>5 才报）、`fallback_cap_filled`（meta 缺失但 A1:J5000 打满且末行有内容）。告警进响应顶层 `data_warnings:[{type:'possible_truncation',sheet,spreadsheet_token,expected,got,reason,range_rows}]`（非阻断）+ 服务端 console.error。前端可暂不展示。
