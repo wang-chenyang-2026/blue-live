@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { MODULE_LABELS, getAccessibleModules, SUPER_ADMIN_PHONE } from '@/lib/constants';
+import { MODULE_LABELS, getAccessibleModules } from '@/lib/constants';
 import type { ModuleKey, ProblemFeedback, FeedbackAttachment } from '@/lib/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -107,11 +107,11 @@ export default function FeedbackPage() {
   const [submitError, setSubmitError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isSuperAdmin = currentUser?.phone === SUPER_ADMIN_PHONE;
+  const isSuperAdmin = !!currentUser?.isSuperAdmin;
 
   /** 当前用户权限内可反馈的模块 */
   const moduleOptions = useMemo(() => {
-    const keys = getAccessibleModules(currentUser?.role, currentUser?.phone) as ModuleKey[];
+    const keys = getAccessibleModules(currentUser?.role, currentUser?.isSuperAdmin) as ModuleKey[];
     return keys
       .filter((k) => k !== 'approval' || isSuperAdmin) // approval 仅超管（getAccessibleModules 已处理，双保险）
       .map((k) => ({ key: k, label: MODULE_LABELS[k] }));

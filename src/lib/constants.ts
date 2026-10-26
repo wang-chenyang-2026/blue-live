@@ -1,4 +1,4 @@
-import type { Brand, Role, ModuleKey, RoleKey, User } from './types';
+import type { Brand, Role, ModuleKey, RoleKey } from './types';
 
 // ==================== 品牌与账号（级联分组结构） ====================
 // 业务线标识统一为中性徽章色（不再用颜色区分品牌）
@@ -52,43 +52,23 @@ export const BRANDS: Brand[] = [
   },
 ];
 
-// ==================== 默认管理员 ====================
-export const DEFAULT_ADMIN: User = {
-  id: 'admin-default',
-  name: '王晨阳',
-  phone: '18333685049',
-  password: 'wcy861937877',
-  projectScope: 'all',
-  role: 'PM',
-  status: 'approved',
-  createdAt: '2025-01-01',
-};
-
-/** 超级管理员手机号：仅该用户可见「用户审批」模块，其他项目负责人不可见 */
-export const SUPER_ADMIN_PHONE = '18333685049';
-
-/** 内部分享账号（交流学习用）：可用于直接登录，密码见登录接口内置账号校验。 */
+// ==================== 内部分享角色 ====================
+// 角色名非敏感，前端渲染需要，保留在此；手机号等敏感常量已迁移至
+// `src/lib/server/internal-share.ts`（server-only），不得在此或任何客户端文件出现。
 export const INTERNAL_SHARE_ROLE = '内部分享';
-export const INTERNAL_SHARE_PHONE = '29898110261';
-/** 内部分享账号每次成功登录后，向其发送登录通知的目标账号（管理员） */
-export const INTERNAL_SHARE_NOTIFY_TARGET_PHONE = '18333685049';
 
-/** 仅超级管理员可用的模块 */
+/** 仅超级管理员可用的模块（超管身份由服务端下发 isSuperAdmin，见 getAccessibleModules） */
 const SUPER_ADMIN_ONLY_MODULES: ModuleKey[] = ['approval'];
 
-/** 判断用户是否为超级管理员 */
-export function isSuperAdmin(phone?: string | null): boolean {
-  return phone === SUPER_ADMIN_PHONE;
-}
-
 /**
- * 根据角色 + 用户手机号计算实际可访问模块。
- * 超级管理员专属模块（用户审批）对其他同角色用户隐藏。
+ * 根据角色 + 服务端下发的 isSuperAdmin 计算实际可访问模块。
+ * 超级管理员专属模块（用户审批）对非超管隐藏。
+ * isSuperAdmin 由登录/me 接口在服务端判定并随 user 返回，客户端不携带任何超管手机号字面量。
  */
-export function getAccessibleModules(roleKey: RoleKey | undefined | null, phone?: string | null): ModuleKey[] {
+export function getAccessibleModules(roleKey: RoleKey | undefined | null, isSuperAdmin = false): ModuleKey[] {
   const roleConfig = ROLES.find((r) => r.key === roleKey);
   const modules = roleConfig?.modules ? [...roleConfig.modules] : [];
-  if (!isSuperAdmin(phone)) {
+  if (!isSuperAdmin) {
     return modules.filter((m) => !SUPER_ADMIN_ONLY_MODULES.includes(m));
   }
   return modules;

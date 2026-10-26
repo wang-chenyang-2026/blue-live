@@ -2,14 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { hashPassword, verifyPassword } from '@/lib/password';
 import { signToken, AUTH_COOKIE_NAME } from '@/lib/auth-token';
+import { INTERNAL_SHARE_ROLE } from '@/lib/constants';
 import {
+  SUPER_ADMIN_PHONE,
   INTERNAL_SHARE_PHONE,
-  INTERNAL_SHARE_ROLE,
   INTERNAL_SHARE_NOTIFY_TARGET_PHONE,
-} from '@/lib/constants';
+} from '@/lib/server/internal-share';
 import { insertNotification } from '@/lib/notify';
 
-const ADMIN_PHONE = '18333685049';
+const ADMIN_PHONE = SUPER_ADMIN_PHONE;
 const ADMIN_PASSWORD = 'wcy861937877';
 
 /** 内部分享账号登录成功后的站内通知（仅该账号触发，防止刷屏）。 */
@@ -82,6 +83,7 @@ export async function POST(request: NextRequest) {
           status: newUser.status,
           remark: newUser.remark || '',
           createdAt: (newUser.created_at || '').slice(0, 10),
+          isSuperAdmin: newUser.phone === SUPER_ADMIN_PHONE,
         };
         const token = signToken({
           userId: newUser.id,
@@ -126,6 +128,7 @@ export async function POST(request: NextRequest) {
           status: newUser.status,
           remark: newUser.remark || '',
           createdAt: (newUser.created_at || '').slice(0, 10),
+          isSuperAdmin: newUser.phone === SUPER_ADMIN_PHONE,
         };
         const token = signToken({
           userId: newUser.id,
@@ -176,6 +179,7 @@ export async function POST(request: NextRequest) {
       status: u.status,
       remark: u.remark || '',
       createdAt: (u.created_at || '').slice(0, 10),
+      isSuperAdmin: u.phone === SUPER_ADMIN_PHONE,
     };
     const token = signToken({
       userId: u.id,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SUPER_ADMIN_PHONE } from '@/lib/constants';
+import { SUPER_ADMIN_PHONE } from '@/lib/server/internal-share';
 import { FEEDBACK_APP_TOKEN, FEEDBACK_TABLE_ID, updateBitableRecord } from '@/lib/feishu-bitable';
 
 /**

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken, AUTH_COOKIE_NAME } from "@/lib/auth-token";
+import { SUPER_ADMIN_PHONE } from "@/lib/server/internal-share";
 
 export const runtime = "nodejs";
 
@@ -30,6 +31,7 @@ export async function GET(request: NextRequest) {
       phone: payload.phone,
       role: payload.role,
       name: payload.name || "",
+      isSuperAdmin: payload.phone === SUPER_ADMIN_PHONE,
     },
   });
 }

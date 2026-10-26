@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SUPER_ADMIN_PHONE } from '@/lib/constants';
+import { SUPER_ADMIN_PHONE } from '@/lib/server/internal-share';
 
 /**
  * 从请求头读取登录用户手机号（由 middleware 注入，已鉴权）。

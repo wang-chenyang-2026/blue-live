@@ -33,6 +33,8 @@ export interface User {
   role: RoleKey;
   status: UserStatus;
   createdAt: string;
+  /** 服务端判定下发的超管标志（登录/me 返回，客户端不用手机号字面量比较） */
+  isSuperAdmin?: boolean;
 }
 
 /** 将 projectScope 字符串解析为品牌ID数组 */

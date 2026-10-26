@@ -91,7 +91,7 @@ export function AppSidebar() {
   const roleConfig = ROLES.find((r) => r.key === resolvedRole);
 
   // 防御：如果角色配置找不到，显示提示而非错误模块
-  const allowedModules: ModuleKey[] = getAccessibleModules(resolvedRole, currentUser?.phone);
+  const allowedModules: ModuleKey[] = getAccessibleModules(resolvedRole, currentUser?.isSuperAdmin);
   const visibleModules = SIDEBAR_ORDER.filter((m) => allowedModules.includes(m));
 
   return (

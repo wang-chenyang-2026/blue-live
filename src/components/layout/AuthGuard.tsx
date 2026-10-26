@@ -14,7 +14,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isClient, isAuthenticated, currentRole, currentUser } = useApp();
 
   const resolvedRole = currentRole || currentUser?.role;
-  const allowedModules = getAccessibleModules(resolvedRole, currentUser?.phone);
+  const allowedModules = getAccessibleModules(resolvedRole, currentUser?.isSuperAdmin);
 
   // 路径匹配：先精确匹配，再前缀匹配（处理子路由如 /market-monitor/ecommerce）
   const getModuleForPath = (path: string) => {
