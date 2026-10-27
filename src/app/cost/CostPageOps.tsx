@@ -345,10 +345,11 @@ export default function CostPageOps() {
   // 环比（简化：用 totalCost 与 mock 上期对比）
   const momChange = useMemo(() => {
     if (!costData) return 0;
+    if (masked) return 0; // 脱敏时不做环比计算，避免 0/0 产生 NaN
     // 使用 mock 上期数据做简单环比
     const lastMonthCost = costData.totalCost * 0.92; // 模拟环比下降8%
     return ((costData.totalCost - lastMonthCost) / lastMonthCost) * 100;
-  }, [costData]);
+  }, [costData, masked]);
 
   // 表格数据
   const tableRows = useMemo((): TableRow[] => {
@@ -362,7 +363,7 @@ export default function CostPageOps() {
         category: '兼职主播成本',
         name: d.name,
         amount: d.cost,
-        remark: d.remark || `${d.hours || 0}h × ¥${d.rate || 0}/h`,
+        remark: d.remark || (masked ? '***' : `${d.hours || 0}h × ¥${d.rate || 0}/h`),
         source: 'feishu',
       });
     });
@@ -387,7 +388,7 @@ export default function CostPageOps() {
           category: '设计费分摊',
           name: d.project,
           amount: d.amount,
-          remark: `¥${d.monthlyRate.toFixed(0)}/月 ÷ ${d.days}天`,
+          remark: masked ? '***' : `¥${d.monthlyRate.toFixed(0)}/月 ÷ ${d.days}天`,
           source: 'feishu',
         });
       });
@@ -421,7 +422,7 @@ export default function CostPageOps() {
     });
 
     return rows;
-  }, [costData]);
+  }, [costData, masked]);
 
   // 过滤后的表格数据
   const filteredRows = useMemo(() => {
@@ -466,8 +467,8 @@ export default function CostPageOps() {
     const csvRows = filteredRows.map((r) => [
       r.category,
       r.name,
-      r.amount,
-      r.remark,
+      masked ? '***' : r.amount,
+      masked ? '***' : r.remark,
       r.source,
     ]);
     const csvContent = [headers, ...csvRows]
@@ -481,7 +482,7 @@ export default function CostPageOps() {
     a.download = `成本明细_${selectedMonth || 'export'}_${activeBrand}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [filteredRows, selectedMonth, activeBrand]);
+  }, [filteredRows, selectedMonth, activeBrand, masked]);
 
   // KPI品牌过滤
   const brandKPIs = useMemo(() => {
@@ -632,7 +633,7 @@ export default function CostPageOps() {
                   color: momChange >= 0 ? '#F5483B' : '#34C759',
                 }}
               >
-                {masked ? '—' : `${momChange >= 0 ? '↑' : '↓'} ${Math.abs(momChange).toFixed(1)}%`}
+                {masked ? '***' : `${momChange >= 0 ? '↑' : '↓'} ${Math.abs(momChange).toFixed(1)}%`}
               </span>
               <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>环比上月</span>
             </div>
@@ -643,7 +644,7 @@ export default function CostPageOps() {
             <div className="flex items-center gap-4">
               <div className="text-center">
                 <p className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
-                  {categoryData.filter((c) => c.cost > 0).length}
+                  {categoryData.filter((c) => c.cost > 0 || c.count > 0).length}
                 </p>
                 <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>成本分类</p>
               </div>
@@ -887,12 +888,12 @@ export default function CostPageOps() {
                                   />
                                 </div>
                                 <span className="text-xs w-12 text-right" style={{ color: 'var(--muted-foreground)' }}>
-                                  {masked ? '—' : `${ratio.toFixed(1)}%`}
+                                  {masked ? '***' : `${ratio.toFixed(1)}%`}
                                 </span>
                               </div>
                             </td>
                             <td className="p-3 text-xs hidden lg:table-cell" style={{ color: 'var(--muted-foreground)' }}>
-                              {row.remark || '—'}
+                              {masked ? '***' : row.remark || '—'}
                             </td>
                             <td className="p-3 text-center">
                               <a
@@ -1057,6 +1058,9 @@ function DonutChart({
           总成本
         </text>
       </svg>
+      {masked && (
+        <p className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>数据已加密</p>
+      )}
       {/* 图例 */}
       <div className="grid grid-cols-2 gap-x-6 gap-y-2">
         {validData.map((item) => (
@@ -1066,7 +1070,7 @@ function DonutChart({
               {item.label}
             </span>
             <span className="text-xs ml-auto" style={{ color: 'var(--foreground)' }}>
-              {masked ? '—' : `${((item.cost / total) * 100).toFixed(0)}%`}
+              {masked ? '***' : `${((item.cost / total) * 100).toFixed(0)}%`}
             </span>
           </div>
         ))}
@@ -1111,7 +1115,7 @@ function CategoryCard({
           </span>
         </div>
         <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: item.config.tagBg, color: item.config.tagText }}>
-          {masked ? '**' : `${pct.toFixed(1)}%`}
+          {masked ? '***' : `${pct.toFixed(1)}%`}
         </span>
       </div>
       <div className="text-xl font-bold mb-1" style={{ color: isZero ? 'var(--muted-foreground)' : 'var(--foreground)' }}>
