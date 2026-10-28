@@ -832,8 +832,8 @@ export default function CostPageOps() {
                     ) : (
                       filteredRows.map((row) => {
                         const config = CATEGORY_CONFIG[row.category];
-                        const ratio = feishuData?.totalCost
-                          ? (row.amount / feishuData.totalCost * 100)
+                        const ratio = costData?.totalCost
+                          ? (row.amount / costData.totalCost * 100)
                           : 0;
                         return (
                           <tr
@@ -943,6 +943,7 @@ export default function CostPageOps() {
           <KPITab
             kpis={brandKPIs}
             brandColor={brandColor}
+            masked={masked}
             onToggleDeduction={(kpi) => {
               const updated = { ...kpi, isDeducted: !kpi.isDeducted };
               updateKPIItem(updated);
@@ -1142,10 +1143,12 @@ function CategoryCard({
 const KPITab = memo(function KPITab({
   kpis,
   brandColor,
+  masked,
   onToggleDeduction,
 }: {
   kpis: KPIItem[];
   brandColor: string;
+  masked: boolean;
   onToggleDeduction: (kpi: KPIItem) => void;
 }) {
   const allAccounts = BRANDS.flatMap((b) => b.accounts);
@@ -1164,6 +1167,11 @@ const KPITab = memo(function KPITab({
 
   return (
     <div className="mt-4 space-y-4">
+      {masked && (
+        <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+          数据已加密，KPI 指标数值已隐藏。
+        </p>
+      )}
       {kpis.map((kpi) => {
         const account = allAccounts.find((a) => a.id === kpi.accountId);
         const metrics = [
@@ -1186,7 +1194,14 @@ const KPITab = memo(function KPITab({
                 <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                   {account?.name || kpi.accountId}
                 </span>
-                {kpi.isDeducted ? (
+                {masked ? (
+                  <span
+                    className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}
+                  >
+                    数据已加密
+                  </span>
+                ) : kpi.isDeducted ? (
                   <span
                     className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
                     style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#F5483B' }}
@@ -1216,8 +1231,8 @@ const KPITab = memo(function KPITab({
             {/* 指标网格 */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               {metrics.map((m) => {
-                const passed = m.actual >= m.target;
-                const ratio = m.target > 0 ? (m.actual / m.target) * 100 : 0;
+                const passed = masked ? false : m.actual >= m.target;
+                const ratio = masked ? 0 : m.target > 0 ? (m.actual / m.target) * 100 : 0;
                 return (
                   <div
                     key={m.label}
@@ -1227,20 +1242,20 @@ const KPITab = memo(function KPITab({
                     <p className="text-[10px] mb-1" style={{ color: 'var(--muted-foreground)' }}>{m.label}</p>
                     <p
                       className="text-lg font-bold"
-                      style={{ color: passed ? '#34C759' : '#F5483B' }}
+                      style={{ color: masked ? 'var(--foreground)' : passed ? '#34C759' : '#F5483B' }}
                     >
-                      {m.actual}{m.unit}
+                      {masked ? '***' : m.actual + (m.unit || '')}
                     </p>
                     <p className="text-[10px] mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
-                      目标 {m.target}{m.unit}
+                      {masked ? '***' : `目标 ${m.target}${m.unit || ''}`}
                     </p>
                     {/* 微型进度条 */}
                     <div className="mt-2 h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--border)' }}>
                       <div
                         className="h-full rounded-full transition-all"
                         style={{
-                          width: `${Math.min(ratio, 100)}%`,
-                          backgroundColor: passed ? '#34C759' : '#F5483B',
+                          width: `${masked ? 0 : Math.min(ratio, 100)}%`,
+                          backgroundColor: masked ? 'var(--muted)' : passed ? '#34C759' : '#F5483B',
                         }}
                       />
                     </div>
