@@ -300,6 +300,30 @@ function formatNumber(num: number | string): string {
   return n.toLocaleString('zh-CN');
 }
 
+/**
+ * Unified numeric cell sanitizer. Feishu renders large numbers as e.g.
+ * "1,149.11" (half-width comma) and users may paste "，", spaces, "%", or a
+ * trailing "万". Strip all of those and parse; placeholders (-/--//) and empty
+ * parse to 0. Never throws, never returns NaN.
+ */
+function sanitizeNum(v: unknown): number {
+  if (v === null || v === undefined) return 0;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  const s = String(v)
+    .replace(/[\s,，]/g, '') // half-width + full-width comma + whitespace
+    .replace(/[％%]/g, '')
+    .replace(/万$/, '');
+  if (!s || s === '-' || s === '--' || s === '/') return 0;
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** True when a raw cell is a pure placeholder (-/--// or blank), not a real 0. */
+function isPlaceholderNum(v: unknown): boolean {
+  const t = String(v ?? '').replace(/[\s,，％%,]/g, '');
+  return t === '' || t === '-' || t === '--' || t === '/';
+}
+
 /* ========== Parse Daily Data from Raw Sheet ========== */
 function parseDailyData(raw: string[][]): Array<{
   date: string;
@@ -344,10 +368,10 @@ function parseDailyData(raw: string[][]): Array<{
     //   D(3) = 直播时长汇总, E(4) = 常规时长, F(5) = 双播时长, G(6) = 法定节假日时长
     //   H(7) = GMV(W), I(8) = 销售台数(退前), J(9) = 实销台数(退后)
     // Always read D for total duration, H/I/J for GMV/sales — no columnOffset.
-    const duration = parseFloat(row[3]) || 0;
-    const gmv = parseFloat(row[7]) || 0;
-    const salesBefore = parseFloat(row[8]) || 0;
-    const salesAfter = parseFloat(row[9]) || 0;
+    const duration = sanitizeNum(row[3]);
+    const gmv = sanitizeNum(row[7]);
+    const salesBefore = sanitizeNum(row[8]);
+    const salesAfter = sanitizeNum(row[9]);
 
     result.push({
       date: excelSerialToDate(dateSerial),
@@ -375,8 +399,11 @@ function calcAverageFromDaily(dailyRow: string[]): number {
   // All cells are numeric values (or empty/None for future dates).
   // Do NOT skip any cells — every numeric value is a valid daily data point.
   const nums = dailyRow
-    .map((v) => parseFloat(String(v)))
-    .filter((v) => !isNaN(v));
+    .map((v) => {
+      const s = String(v ?? '');
+      return s.trim() ? sanitizeNum(s) : NaN; // skip empty/future cells like before
+    })
+    .filter((v) => !Number.isNaN(v));
   return nums.length === 0 ? 0 : nums.reduce((s, v) => s + v, 0) / nums.length;
 }
 
@@ -402,9 +429,10 @@ type KpiItem = {
 function cellNumber(v: unknown, asPercent: boolean): number | null {
   const raw = String(v ?? '').trim();
   if (!raw) return null;
-  const isPct = raw.includes('%');
-  const n = parseFloat(raw.replace(/[%,]/g, ''));
-  if (isNaN(n)) return null;
+  if (isPlaceholderNum(raw)) return null; // -/--// placeholders -> skip (null), not 0
+  const isPct = raw.includes('%') || raw.includes('％');
+  const n = sanitizeNum(raw);
+  if (!Number.isFinite(n)) return null;
   if (asPercent) {
     if (isPct) return n;            // "2.20%" -> 2.2 percentage points
     if (n !== 0 && Math.abs(n) < 1) return n * 100; // 0.0065 ratio -> 0.65 points
@@ -561,6 +589,54 @@ export interface BrandDataPayload {
   hasData: boolean;
 }
 
+/* ========== GMV Anomaly Self-check ========== */
+/**
+ * Warn (not modify) when a single day's GMV far exceeds an account's recent
+ * daily baseline (currently: > 10x the median of its last 30 days, excluding
+ * the candidate day). A robust median (not the mean) is used so that other
+ * legitimately huge live-sale days inside the 30-day window do not inflate the
+ * baseline and hide a second spike behind the first. Large live-sale spikes are
+ * legitimate — we only surface them so the finance side can verify the source
+ * sheet; values are never changed.
+ */
+function medianOf(nums: number[]): number {
+  if (nums.length === 0) return 0;
+  const s = nums.slice().sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+function formatWan(v: number): string {
+  return v.toFixed(2).replace(/\.?0+$/, '');
+}
+function buildGmvAnomalyWarnings(dailyData: Array<{ date: string; rawDate: string; accountName: string; rawGmv: number }>): string[] {
+  const byAcct = new Map<string, Array<{ date: string; rawDate: string; rawGmv: number }>>();
+  for (const d of dailyData) {
+    if (!d.accountName) continue;
+    const arr = byAcct.get(d.accountName) || [];
+    arr.push({ date: d.date, rawDate: d.rawDate, rawGmv: d.rawGmv });
+    byAcct.set(d.accountName, arr);
+  }
+  const warns: string[] = [];
+  const byDateKey = (a: { rawDate: string }, b: { rawDate: string }) =>
+    a.rawDate < b.rawDate ? -1 : a.rawDate > b.rawDate ? 1 : 0;
+  for (const [acct, rows] of byAcct) {
+    const sorted = rows.slice().sort(byDateKey);
+    for (const r of sorted) {
+      const others = sorted.filter((x) => x !== r);
+      if (others.length === 0) continue;
+      const last30 = others.slice(-30).map((x) => x.rawGmv);
+      const base = medianOf(last30);
+      if (base <= 0) continue;
+      if (r.rawGmv > base * 10) {
+        warns.push(
+          `${acct} ${r.date} GMV 异常：${formatWan(r.rawGmv)}万（日均约 ${formatWan(base)} 万），请核实源表`
+        );
+      }
+    }
+  }
+  return warns;
+}
+
 /* ========== Empty Data Fallback ========== */
 function emptyBrandData(brandKey: string): BrandDataPayload | null {
   const meta = BRAND_META[brandKey];
@@ -588,7 +664,7 @@ function emptyBrandData(brandKey: string): BrandDataPayload | null {
 async function fetchBrandData(
   accessToken: string,
   brandKey: string
-): Promise<{ data: BrandDataPayload; warnings: TruncationWarning[] }> {
+): Promise<{ data: BrandDataPayload; warnings: Array<TruncationWarning | string> }> {
   const config = BRAND_SHEET_MAP[brandKey];
   if (!config) return { data: emptyBrandData(brandKey)!, warnings: [] };
 
@@ -596,7 +672,7 @@ async function fetchBrandData(
   //    Main daily sheets are read with a range derived from the sheet's real
   //    row/column count (see getDailySheetValues) so later rows aren't dropped.
   //    Each sheet is also self-checked for possible truncation vs grid meta.
-  const dailyWarnings: TruncationWarning[] = [];
+  const dailyWarnings: Array<TruncationWarning | string> = [];
   const dailySheetResults = await Promise.all(
     config.dailySheets.map(async (src) => {
       const { values, meta } = await getDailySheetValues(
@@ -678,7 +754,7 @@ async function fetchBrandData(
       color: config.color,
       hasData: true,
     },
-    warnings: dailyWarnings,
+    warnings: [...dailyWarnings, ...buildGmvAnomalyWarnings(dailyData)],
   };
 }
 
@@ -718,7 +794,7 @@ export async function GET(request: NextRequest) {
       const accessToken = await getTenantAccessToken();
       const brandKeys = ['vivo', 'iQOO', 'IOT'];
       const results: Record<string, BrandDataPayload> = {};
-      const allWarnings: TruncationWarning[] = [];
+      const allWarnings: Array<TruncationWarning | string> = [];
 
       for (const bk of brandKeys) {
         try {
