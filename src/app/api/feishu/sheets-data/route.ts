@@ -373,6 +373,13 @@ function parseDailyData(raw: string[][]): Array<{
     const salesBefore = sanitizeNum(row[8]);
     const salesAfter = sanitizeNum(row[9]);
 
+    // Skip "zero-duration ghost rows" (pre-scheduled but never started): the
+    // sheet may carry rows with only a year/date/account where duration, GMV,
+    // sales-before and sales-after are all empty/0. They are all-zero so
+    // skipping them does not change any aggregate — it only fixes over-counted
+    // session totals.
+    if (duration === 0 && gmv === 0 && salesBefore === 0 && salesAfter === 0) continue;
+
     result.push({
       date: excelSerialToDate(dateSerial),
       rawDate: excelSerialToISO(dateSerial),
