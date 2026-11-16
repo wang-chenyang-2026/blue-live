@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveScheduleSheet, safeFeishuFetch } from '@/lib/feishu-sheets';
-import { maskExternalBusiness } from '@/lib/api-permission';
+import { maskExternalBusiness, isInternalShareRequest } from '@/lib/api-permission';
 
 // 多品牌排班表格配置（sheet ID 运行时动态解析，不再硬编码）
 interface TableAccount {
@@ -380,6 +380,19 @@ export async function GET(request: NextRequest) {
       totalDays: dates.length,
     };
 
+    // 内部分享账号：人员姓名打码，只保留排班结构（前端据此把统计数值也渲染为 *）
+    const masked = isInternalShareRequest(request);
+    if (masked) {
+      datesData.forEach((d) => {
+        d.accounts.forEach((acc) => {
+          acc.personSummary = (acc.personSummary || []).map((p) => ({
+            ...p,
+            name: '***',
+          }));
+        });
+      });
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -387,6 +400,7 @@ export async function GET(request: NextRequest) {
         globalStats,
         brand,
         role,
+        masked,
       },
     });
   } catch (error) {

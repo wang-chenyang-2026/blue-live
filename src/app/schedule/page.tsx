@@ -148,11 +148,11 @@ function shortChannel(name: string): string {
 }
 
 // ===== 悬浮详情 =====
-function HoverCard({ person, channel }: { person: PersonSummary; channel: string }) {
+function HoverCard({ person, channel, masked }: { person: PersonSummary; channel: string; masked?: boolean }) {
   const rows: { label: string; node: React.ReactNode }[] = [
     { label: '主播', node: <span className="text-white/[0.92]">{person.name}</span> },
     { label: '起止时段', node: <span className="text-white/[0.92]">{personRangeLabel(person.timeSlots)}</span> },
-    { label: '实际时长', node: <span className="text-white/[0.92]">{person.totalHours}h</span> },
+    { label: '实际时长', node: <span className="text-white/[0.92]">{masked ? '*' : `${person.totalHours}h`}</span> },
     { label: '账号渠道', node: <span className="text-white/[0.92]">{channel}</span> },
     { label: '业务线', node: <BrandBadge brand={brandOfChannel(channel)} /> },
   ];
@@ -175,6 +175,8 @@ function HoverCard({ person, channel }: { person: PersonSummary; channel: string
 export default function SchedulePage() {
   const { getVisibleBrands, currentRole } = useApp();
   const isExternal = currentRole === '外部合作';
+  // 内部分享账号：人员姓名由服务端打码为 ***，统计数值统一渲染为 *
+  const isMasked = currentRole === '内部分享';
 
   // 品牌（含「全部」聚合选项）与角色
   const [brandFilter, setBrandFilter] = useState<'全部' | 'vivo' | 'iQOO'>('vivo');
@@ -362,7 +364,7 @@ export default function SchedulePage() {
   const todayStr = getToday();
   // 仅当区间恰为「当月1号 ~ 今天」时显示「本月缺口」，否则一律「本周期缺口」（依实际区间判定，兼容快捷钮与手填）
   const isMonthRange = startDate === `${todayStr.slice(0, 7)}-01` && endDate === todayStr;
-  const gapLabel = `${isMonthRange ? '本月' : '本周期'}缺口 ${weekGapCount} 处`;
+  const gapLabel = `${isMonthRange ? '本月' : '本周期'}缺口 ${isMasked ? '*' : weekGapCount} 处`;
   const roleLabel = role === 'anchor' ? '主播' : '中控';
 
   // 一周视图内某天某渠道的排班对象（过滤后）
@@ -493,12 +495,12 @@ export default function SchedulePage() {
         {/* ===== 汇总六项（两组） ===== */}
         {summary && (
           <div className="space-y-4">
-            <SummaryGroup title="规模" items={[
+            <SummaryGroup masked={isMasked} title="规模" items={[
               { name: '覆盖天数', value: summary.totalDays, unit: '天' },
               { name: '排班人次', value: summary.totalPersonDays, unit: '人次' },
               { name: '总时长', value: summary.totalHours, unit: 'h' },
             ]} />
-            <SummaryGroup title="结构" items={[
+            <SummaryGroup masked={isMasked} title="结构" items={[
               { name: '常规班', value: summary.regularHours, unit: 'h' },
               { name: '凌晨班', value: summary.earlyMorningHours, unit: 'h' },
               { name: '双播', value: summary.dualBroadcastHours, unit: 'h' },
@@ -548,9 +550,10 @@ export default function SchedulePage() {
                 gapLabel={gapLabel}
                 personsOf={personsOf}
                 unfilteredPersonsOf={unfilteredPersonsOf}
+                masked={isMasked}
               />
             ) : (
-              <DayView viewDates={viewDates} />
+              <DayView viewDates={viewDates} masked={isMasked} />
             )}
             {view === 'month' && weekDays.length === 0 && !loading && !error && (
               <div className="py-10 text-center text-white/[0.40]">所选日期范围内暂无排班数据</div>
@@ -570,9 +573,11 @@ export default function SchedulePage() {
 function SummaryGroup({
   title,
   items,
+  masked,
 }: {
   title: string;
   items: { name: string; value: number; unit: string }[];
+  masked?: boolean;
 }) {
   return (
     <div className="grid grid-cols-3 gap-4">
@@ -582,7 +587,7 @@ function SummaryGroup({
           <div className="mt-1">
             <div className="text-[13px] text-white/[0.65]">{it.name}</div>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-[20px] font-semibold tabular-nums text-white/[0.92]">{it.value}</span>
+              <span className="text-[20px] font-semibold tabular-nums text-white/[0.92]">{masked ? '*' : it.value}</span>
               <span className="text-[12px] text-white/[0.40]">{it.unit}</span>
             </div>
           </div>
@@ -598,6 +603,7 @@ function MonthView({
   weekDays,
   todayStr,
   gapLabel,
+  masked,
   personsOf,
   unfilteredPersonsOf,
 }: {
@@ -605,6 +611,7 @@ function MonthView({
   weekDays: string[];
   todayStr: string;
   gapLabel: string;
+  masked?: boolean;
   personsOf: (day: string, channel: string) => PersonSummary[];
   unfilteredPersonsOf: (day: string, channel: string) => PersonSummary[];
 }) {
@@ -662,13 +669,13 @@ function MonthView({
                     {blocks.length === 0 ? (
                       <div className="text-[11px] text-white/[0.40]">—</div>
                     ) : (
-                      blocks.map((p) => (
-                        <div key={p.name} className="group relative flex min-h-[34px] flex-col justify-center rounded-md bg-[#4158D0] px-2 py-1">
+                      blocks.map((p, idx) => (
+                        <div key={idx} className="group relative flex min-h-[34px] flex-col justify-center rounded-md bg-[#4158D0] px-2 py-1">
                           <div className="text-[12px] font-medium leading-tight text-white">{p.name}</div>
                           <div className="text-[10px] leading-tight text-white/85 tabular-nums">
-                            {personRangeLabel(p.timeSlots) || '-'} · {p.totalHours}h
+                            {personRangeLabel(p.timeSlots) || '-'} · {masked ? '*' : `${p.totalHours}h`}
                           </div>
-                          <HoverCard person={p} channel={ch} />
+                          <HoverCard person={p} channel={ch} masked={masked} />
                         </div>
                       ))
                     )}
@@ -684,7 +691,7 @@ function MonthView({
 }
 
 // ===== 日视图（逐日卡片列表，可展开查看明细） =====
-function DayView({ viewDates }: { viewDates: DateData[] }) {
+function DayView({ viewDates, masked }: { viewDates: DateData[]; masked?: boolean }) {
   return (
     <div className="space-y-4">
       {viewDates.map((d) => {
@@ -701,6 +708,7 @@ function DayView({ viewDates }: { viewDates: DateData[] }) {
             dayPerson={dayPerson}
             dayEarly={dayEarly}
             accounts={active}
+            masked={masked}
           />
         );
       })}
@@ -715,12 +723,14 @@ function DayCard({
   dayPerson,
   dayEarly,
   accounts,
+  masked,
 }: {
   date: string;
   dayHours: number;
   dayPerson: number;
   dayEarly: number;
   accounts: AccountData[];
+  masked?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const dateObj = parseLocal(date);
@@ -732,15 +742,15 @@ function DayCard({
           <span className="text-[12px] text-white/[0.40]">{WEEKDAYS_SHORT[dateObj.getDay()]}</span>
         </div>
         {dayEarly > 0 && (
-          <span className="rounded-full bg-[#FF9F0A]/15 px-2.5 py-0.5 text-[12px] text-[#FF9F0A]">🌙 凌晨班 {dayEarly}h</span>
+          <span className="rounded-full bg-[#FF9F0A]/15 px-2.5 py-0.5 text-[12px] text-[#FF9F0A]">🌙 凌晨班 {masked ? '*' : `${dayEarly}h`}</span>
         )}
       </div>
       <div className="px-4 py-3">
-        <div className="text-[13px] tabular-nums text-white/[0.65]">{dayPerson}人次 · {dayHours}小时</div>
+        <div className="text-[13px] tabular-nums text-white/[0.65]">{masked ? '*' : dayPerson}人次 · {masked ? '*' : dayHours}小时</div>
         <div className="mt-2 flex flex-wrap gap-2">
           {accounts.map((acc) => (
             <span key={acc.accountName} className="inline-flex items-center gap-1 rounded-lg bg-[#2A2E45] px-2 py-0.5 text-[12px] text-white/[0.92]">
-              {shortChannel(acc.accountName)} {acc.stats.personCount}
+              {shortChannel(acc.accountName)} {masked ? '*' : acc.stats.personCount}
             </span>
           ))}
         </div>
@@ -761,11 +771,11 @@ function DayCard({
                 <BrandBadge brand={brandOfChannel(acc.accountName)} />
               </div>
               <div className="space-y-1">
-                {acc.personSummary.map((p) => (
-                  <div key={p.name} className="flex items-center gap-3 rounded-lg bg-[#151827] px-3 py-1.5 text-[12px]">
+                {acc.personSummary.map((p, idx) => (
+                  <div key={idx} className="flex items-center gap-3 rounded-lg bg-[#151827] px-3 py-1.5 text-[12px]">
                     <span className="w-24 text-white/[0.92]">{p.name}</span>
                     <span className="text-white/[0.40]">{shortChannel(acc.accountName)}</span>
-                    <span className="tabular-nums text-white/[0.65]">{p.totalHours}h</span>
+                    <span className="tabular-nums text-white/[0.65]">{masked ? '*' : `${p.totalHours}h`}</span>
                     <span className="ml-auto tabular-nums text-white/[0.40]">{personRangeLabel(p.timeSlots) || '-'}</span>
                   </div>
                 ))}

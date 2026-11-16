@@ -85,6 +85,8 @@ const SIDEBAR_GROUPS: { title: string; modules: ModuleKey[] }[] = [
 export function AppSidebar() {
   const pathname = usePathname();
   const { currentRole, currentUser, pendingCount, handleLogout } = useApp();
+  // 内部分享账号：侧边栏不展示真实姓名与手机号
+  const isMasked = currentRole === '内部分享';
 
   // 先从 context 的 currentRole 查找，再 fallback 到 currentUser.role
   const resolvedRole = currentRole || currentUser?.role;
@@ -118,8 +120,8 @@ export function AppSidebar() {
           </div>
           {currentUser && (
             <div className="space-y-1">
-              <div className="text-sm font-semibold text-white/[0.92]">{currentUser.name || '-'}</div>
-              <div className="text-[11px] text-white/[0.40]">{currentUser.phone || '未绑定手机'}</div>
+              <div className="text-sm font-semibold text-white/[0.92]">{isMasked ? '*' : (currentUser.name || '-')}</div>
+              <div className="text-[11px] text-white/[0.40]">{isMasked ? '*' : (currentUser.phone || '未绑定手机')}</div>
             </div>
           )}
         </div>
@@ -182,11 +184,11 @@ export function AppSidebar() {
             <div className="px-4 py-3 space-y-2.5 text-xs">
               <div className="flex items-start justify-between gap-3">
                 <span className="text-muted-foreground shrink-0">姓名</span>
-                <span className="text-foreground font-medium text-right break-all">{currentUser?.name || '-'}</span>
+                <span className="text-foreground font-medium text-right break-all">{isMasked ? '*' : (currentUser?.name || '-')}</span>
               </div>
               <div className="flex items-start justify-between gap-3">
                 <span className="text-muted-foreground shrink-0">手机号</span>
-                <span className="text-foreground font-medium text-right break-all">{currentUser?.phone || '-'}</span>
+                <span className="text-foreground font-medium text-right break-all">{isMasked ? '*' : (currentUser?.phone || '-')}</span>
               </div>
               <div className="flex items-start justify-between gap-3">
                 <span className="text-muted-foreground shrink-0">角色</span>
