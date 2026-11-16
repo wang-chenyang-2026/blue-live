@@ -421,6 +421,8 @@ function calcAverageFromDaily(dailyRow: string[]): number {
  *   data rows : one row per KPI dimension
  * Daily values are aligned by absolute row index with the full-range daily read.
  */
+type KpiDailyPoint = { date: string; value: number | null };
+
 type KpiItem = {
   dimension: string;
   target: string;
@@ -428,6 +430,12 @@ type KpiItem = {
   rate: string;
   rawRate: number;
   isLow: boolean;
+  /** 目标原始数值，与 daily[].value 同口径，用于趋势图目标线 */
+  rawTarget: number;
+  /** 数值单位，前端据此格式化坐标轴 */
+  unit: 'percent' | 'second' | 'gpm' | 'count';
+  /** 当月每日实际值；未到的日期为 null（折线断开，不补 0） */
+  daily: KpiDailyPoint[];
 };
 
 // Parse a Feishu cell into a number. For percentage-formatted cells the API
@@ -466,6 +474,25 @@ function parseKpiBlock(
 ): KpiItem[] {
   const targetIdx = hasOverallRate ? 4 : 3;
   const items: KpiItem[] = [];
+
+  // 每日数据列：block 的 header 行第 0 列是本月 1 号，之后每列 +1 天。
+  // 单元格返回的是 FormattedValue（"6月1日"），优先用列自身的表头解析，
+  // 解析不出来时按首列日期顺延，避免个别列没填表头导致整段丢失。
+  const headerRow = dailyRaw[blockStart] || [];
+  const blockDates: string[] = [];
+  const baseIso = excelSerialToISO(String(headerRow[0] ?? ''));
+  const baseTime = baseIso ? Date.parse(`${baseIso}T00:00:00Z`) : NaN;
+  for (let c = 0; c < headerRow.length; c++) {
+    const own = excelSerialToISO(String(headerRow[c] ?? ''));
+    if (own) {
+      blockDates.push(own);
+    } else if (Number.isFinite(baseTime)) {
+      blockDates.push(new Date(baseTime + c * 86400000).toISOString().slice(0, 10));
+    } else {
+      blockDates.push('');
+    }
+  }
+  const monthPrefix = blockDates[0] ? blockDates[0].slice(0, 7) : '';
 
   for (let i = blockStart + 1; i < blockEnd; i++) {
     const row = mainRaw[i];
@@ -512,6 +539,14 @@ function parseKpiBlock(
       achievedDisplay = `${achievedVal.toFixed(2)}次`;
     }
 
+    // 该维度的每日序列，口径与上面的平均值完全一致
+    const daily: KpiDailyPoint[] = [];
+    for (let c = 0; c < blockDates.length; c++) {
+      const date = blockDates[c];
+      if (monthPrefix && date.slice(0, 7) !== monthPrefix) continue;
+      daily.push({ date, value: cellNumber(dailyRow[c], isPctDim) });
+    }
+
     items.push({
       dimension,
       target: targetDisplay,
@@ -519,6 +554,9 @@ function parseKpiBlock(
       rate: `${(rateVal * 100).toFixed(2)}%`,
       rawRate: rateVal,
       isLow: rateVal < 1,
+      rawTarget: targetVal,
+      unit: isPctDim ? 'percent' : isDuration ? 'second' : isGpm ? 'gpm' : 'count',
+      daily,
     });
   }
 

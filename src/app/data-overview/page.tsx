@@ -12,6 +12,16 @@ import {
 } from '@/components/ui/date-range-picker';
 import { useApp } from '@/contexts/AppContext';
 import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ReferenceLine,
+} from 'recharts';
+import {
   RefreshCw,
   TrendingUp,
   TrendingDown,
@@ -40,6 +50,12 @@ interface KpiRow {
   rate: string;
   rawRate: number;
   isLow: boolean;
+  /** 目标原始数值，与 daily[].value 同口径 */
+  rawTarget?: number;
+  /** 数值单位，用于趋势图坐标轴与悬浮提示 */
+  unit?: 'percent' | 'second' | 'gpm' | 'count';
+  /** 当月每日实际值，未到的日期为 null */
+  daily?: Array<{ date: string; value: number | null }>;
 }
 
 interface KpiMonthlyData {
@@ -153,6 +169,11 @@ export default function DataOverviewPage() {
 
   // KPI tab - index into kpiTabs array
   const [kpiTabIndex, setKpiTabIndex] = useState(0);
+
+  // KPI 视图：平均数据表格 / 每日趋势折线图
+  const [kpiView, setKpiView] = useState<'avg' | 'trend'>('avg');
+  // 趋势图当前查看的维度（空字符串表示跟随第一个维度）
+  const [kpiDimension, setKpiDimension] = useState('');
 
   // Sort
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -340,6 +361,64 @@ export default function DataOverviewPage() {
     }
     return { ...tab, items: [], overallRate: null };
   }, [currentBrandData, kpiTabIndex, compareMonth]);
+
+  // KPI 可选月份：汇总当前品牌所有 KPI tab 的月度块，最新月份排前面
+  const kpiMonthOptions = useMemo(() => {
+    const keys = new Set<string>();
+    (currentBrandData?.kpiTabs || []).forEach((tab) => {
+      Object.keys(tab.monthly || {}).forEach((k) => keys.add(k));
+    });
+    return Array.from(keys).sort().reverse();
+  }, [currentBrandData]);
+
+  // 趋势图当前维度：默认第一个维度
+  const activeKpiItem = useMemo((): KpiRow | null => {
+    const items = currentKpiTab?.items || [];
+    if (items.length === 0) return null;
+    return items.find((i) => i.dimension === kpiDimension) || items[0];
+  }, [currentKpiTab, kpiDimension]);
+
+  // 趋势图数据点：日期取 M/D，值保留原口径
+  const kpiTrendSeries = useMemo(() => {
+    const daily = activeKpiItem?.daily || [];
+    return daily.map((p) => ({
+      date: p.date,
+      label: `${parseInt(p.date.slice(5, 7), 10)}/${parseInt(p.date.slice(8, 10), 10)}`,
+      value: p.value,
+    }));
+  }, [activeKpiItem]);
+
+  // 趋势图汇总：有效天数、达标天数、均值、极值
+  const kpiTrendStats = useMemo(() => {
+    const points = (activeKpiItem?.daily || []).filter(
+      (p): p is { date: string; value: number } => p.value !== null
+    );
+    const target = activeKpiItem?.rawTarget;
+    if (points.length === 0 || target === undefined) return null;
+    const dimension = activeKpiItem?.dimension || '';
+    // 违规/失误类是越低越好
+    const lowerIsBetter = dimension.includes('违规') || dimension.includes('失误');
+    const passed = points.filter((p) =>
+      lowerIsBetter ? p.value <= target : p.value >= target
+    ).length;
+    const values = points.map((p) => p.value);
+    return {
+      days: points.length,
+      passed,
+      avg: values.reduce((s, v) => s + v, 0) / values.length,
+      max: Math.max(...values),
+      min: Math.min(...values),
+      lowerIsBetter,
+    };
+  }, [activeKpiItem]);
+
+  // 按单位格式化数值
+  const formatKpiValue = useCallback((value: number, unit?: KpiRow['unit']) => {
+    if (unit === 'percent') return `${value.toFixed(2)}%`;
+    if (unit === 'second') return `${value.toFixed(0)}秒`;
+    if (unit === 'gpm') return value.toFixed(0);
+    return value.toFixed(2);
+  }, []);
 
   // Overall KPI rate from current tab (use server-provided value)
   const overallKpiRate = useMemo(() => {
@@ -1062,9 +1141,45 @@ export default function DataOverviewPage() {
         {currentBrandData.kpiTabs && currentBrandData.kpiTabs.length > 0 && (
           <Card className="bg-zinc-900/80 border-zinc-700/50">
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center gap-3">
                 <CardTitle className="text-base text-zinc-200">KPI完成情况</CardTitle>
-                <div className="flex gap-2">
+                {/* 视图切换：平均数据 / 每日趋势 */}
+                <div className="flex gap-1 rounded-lg bg-zinc-800/70 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setKpiView('avg')}
+                    className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                      kpiView === 'avg' ? 'bg-[#4158D0] text-white' : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    平均KPI数据
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setKpiView('trend')}
+                    className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                      kpiView === 'trend' ? 'bg-[#4158D0] text-white' : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    KPI趋势
+                  </button>
+                </div>
+                <div className="ml-auto flex flex-wrap items-center gap-2">
+                  {/* 月份筛选，默认当月 */}
+                  {kpiMonthOptions.length > 0 && (
+                    <select
+                      value={compareMonth}
+                      onChange={(e) => setCompareMonth(e.target.value)}
+                      aria-label="KPI 月份"
+                      className="h-8 rounded-md border border-zinc-600 bg-zinc-800 px-2 text-xs text-zinc-200 outline-none focus:border-[#4158D0]"
+                    >
+                      {kpiMonthOptions.map((m) => (
+                        <option key={m} value={m} className="bg-zinc-800 text-zinc-200">
+                          {parseInt(m.slice(5), 10)}月
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   {currentBrandData.kpiTabs.map((tab, idx) => (
                     <Button
                       key={idx}
@@ -1080,6 +1195,9 @@ export default function DataOverviewPage() {
               </div>
             </CardHeader>
             <CardContent>
+              {/* 平均KPI数据视图：原有内容保持不变 */}
+              {kpiView === 'avg' && (
+              <>
               {currentKpiTab && currentKpiTab.items.length > 0 && (
                 <>
                   {/* Overall Completion Rate Card */}
@@ -1148,6 +1266,130 @@ export default function DataOverviewPage() {
               )}
               {currentKpiTab && currentKpiTab.items.length === 0 && (
                 <div className="text-center py-8 text-zinc-500">暂无KPI数据</div>
+              )}
+              </>
+              )}
+
+              {/* KPI趋势视图：单张大折线图 + 维度切换 + 目标虚线 */}
+              {kpiView === 'trend' && (
+                <>
+                  {currentKpiTab && currentKpiTab.items.length > 0 ? (
+                    <>
+                      <div className="mb-4 flex flex-wrap items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-zinc-400">维度</span>
+                          <select
+                            value={activeKpiItem?.dimension || ''}
+                            onChange={(e) => setKpiDimension(e.target.value)}
+                            aria-label="KPI 维度"
+                            className="h-8 rounded-md border border-zinc-600 bg-zinc-800 px-2 text-xs text-zinc-200 outline-none focus:border-[#4158D0]"
+                          >
+                            {currentKpiTab.items.map((kpi) => (
+                              <option key={kpi.dimension} value={kpi.dimension} className="bg-zinc-800 text-zinc-200">
+                                {kpi.dimension}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        {activeKpiItem && (
+                          <>
+                            <div className="text-xs text-zinc-400">
+                              目标 <span className="font-medium text-zinc-200">{activeKpiItem.target}</span>
+                            </div>
+                            <div className="text-xs text-zinc-400">
+                              月均 <span className="font-medium text-zinc-200">{activeKpiItem.achieved}</span>
+                            </div>
+                            {kpiTrendStats && (
+                              <>
+                                <div className="text-xs text-zinc-400">
+                                  达标{' '}
+                                  <span
+                                    className={`font-medium ${
+                                      kpiTrendStats.passed === kpiTrendStats.days ? 'text-[#34C759]' : 'text-[#FF9F0A]'
+                                    }`}
+                                  >
+                                    {kpiTrendStats.passed}/{kpiTrendStats.days} 天
+                                  </span>
+                                </div>
+                                <div className="text-xs text-zinc-400">
+                                  区间{' '}
+                                  <span className="font-medium text-zinc-200">
+                                    {formatKpiValue(kpiTrendStats.min, activeKpiItem.unit)} ~{' '}
+                                    {formatKpiValue(kpiTrendStats.max, activeKpiItem.unit)}
+                                  </span>
+                                </div>
+                              </>
+                            )}
+                          </>
+                        )}
+                      </div>
+
+                      {kpiTrendStats ? (
+                        <div className="h-[320px] w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={kpiTrendSeries} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
+                              <XAxis dataKey="label" stroke="#a1a1aa" fontSize={12} tickMargin={8} />
+                              <YAxis
+                                stroke="#a1a1aa"
+                                fontSize={12}
+                                width={68}
+                                domain={['auto', 'auto']}
+                                tickFormatter={(v) => formatKpiValue(Number(v), activeKpiItem?.unit)}
+                              />
+                              <Tooltip
+                                contentStyle={{
+                                  backgroundColor: '#18181b',
+                                  border: '1px solid #3f3f46',
+                                  borderRadius: 8,
+                                  fontSize: 12,
+                                }}
+                                labelStyle={{ color: '#a1a1aa' }}
+                                formatter={(value) => [
+                                  formatKpiValue(Number(value), activeKpiItem?.unit),
+                                  activeKpiItem?.dimension || 'KPI',
+                                ]}
+                                labelFormatter={(label) =>
+                                  `${compareMonth ? parseInt(compareMonth.slice(5), 10) : ''}月${String(label).split('/')[1] || ''}日`
+                                }
+                              />
+                              {activeKpiItem?.rawTarget !== undefined && (
+                                <ReferenceLine
+                                  y={activeKpiItem.rawTarget}
+                                  stroke="#FF9F0A"
+                                  strokeDasharray="6 4"
+                                  strokeWidth={1.5}
+                                  label={{
+                                    value: `目标 ${activeKpiItem.target}`,
+                                    position: 'insideTopRight',
+                                    fill: '#FF9F0A',
+                                    fontSize: 11,
+                                  }}
+                                />
+                              )}
+                              <Line
+                                type="monotone"
+                                dataKey="value"
+                                name={activeKpiItem?.dimension || 'KPI'}
+                                stroke="#4158D0"
+                                strokeWidth={2}
+                                dot={{ r: 3, fill: '#4158D0' }}
+                                activeDot={{ r: 5 }}
+                                connectNulls={false}
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      ) : (
+                        <div className="py-12 text-center text-sm text-zinc-500">
+                          该月暂无每日数据（飞书表里这个月还没填每日列）
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-center py-8 text-zinc-500">暂无KPI数据</div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
