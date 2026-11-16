@@ -420,6 +420,20 @@ export default function DataOverviewPage() {
     return value.toFixed(2);
   }, []);
 
+  // Y 轴范围：把目标值一起纳入，否则目标虚线可能落到可视区外
+  const kpiYDomain = useMemo((): [number, number] => {
+    const values = kpiTrendSeries
+      .map((p) => p.value)
+      .filter((v): v is number => v !== null);
+    if (values.length === 0) return [0, 1];
+    const target = activeKpiItem?.rawTarget;
+    const lo = Math.min(...values, target ?? Number.POSITIVE_INFINITY);
+    const hi = Math.max(...values, target ?? Number.NEGATIVE_INFINITY);
+    const span = hi - lo;
+    const pad = span > 0 ? span * 0.12 : Math.abs(hi) * 0.1 || 1;
+    return [lo - pad, hi + pad];
+  }, [kpiTrendSeries, activeKpiItem]);
+
   // Overall KPI rate from current tab (use server-provided value)
   const overallKpiRate = useMemo(() => {
     if (!currentKpiTab) return 0;
@@ -1334,7 +1348,7 @@ export default function DataOverviewPage() {
                                 stroke="#a1a1aa"
                                 fontSize={12}
                                 width={68}
-                                domain={['auto', 'auto']}
+                                domain={kpiYDomain}
                                 tickFormatter={(v) => formatKpiValue(Number(v), activeKpiItem?.unit)}
                               />
                               <Tooltip
