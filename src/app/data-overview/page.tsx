@@ -172,8 +172,8 @@ export default function DataOverviewPage() {
 
   // KPI 视图：平均数据表格 / 每日趋势折线图
   const [kpiView, setKpiView] = useState<'avg' | 'trend'>('avg');
-  // 趋势图当前查看的维度（空字符串表示跟随第一个维度）
-  const [kpiDimension, setKpiDimension] = useState('');
+  // 趋势图当前查看的维度下标（按索引取，避免同名维度选不中）
+  const [kpiDimIndex, setKpiDimIndex] = useState(0);
 
   // Sort
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -375,8 +375,9 @@ export default function DataOverviewPage() {
   const activeKpiItem = useMemo((): KpiRow | null => {
     const items = currentKpiTab?.items || [];
     if (items.length === 0) return null;
-    return items.find((i) => i.dimension === kpiDimension) || items[0];
-  }, [currentKpiTab, kpiDimension]);
+    const idx = Math.min(Math.max(kpiDimIndex, 0), items.length - 1);
+    return items[idx] || items[0];
+  }, [currentKpiTab, kpiDimIndex]);
 
   // 趋势图数据点：日期取 M/D，值保留原口径
   const kpiTrendSeries = useMemo(() => {
@@ -1200,7 +1201,10 @@ export default function DataOverviewPage() {
                       variant={kpiTabIndex === idx ? 'default' : 'outline'}
                       size="sm"
                       className={kpiTabIndex === idx ? 'bg-[#4158D0]' : 'border-zinc-600 text-zinc-300'}
-                      onClick={() => setKpiTabIndex(idx)}
+                      onClick={() => {
+                        setKpiTabIndex(idx);
+                        setKpiDimIndex(0);
+                      }}
                     >
                       {tab.label}
                     </Button>
@@ -1293,13 +1297,15 @@ export default function DataOverviewPage() {
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-zinc-400">维度</span>
                           <select
-                            value={activeKpiItem?.dimension || ''}
-                            onChange={(e) => setKpiDimension(e.target.value)}
+                            value={String(
+                              Math.min(kpiDimIndex, (currentKpiTab?.items.length || 1) - 1)
+                            )}
+                            onChange={(e) => setKpiDimIndex(Number(e.target.value))}
                             aria-label="KPI 维度"
                             className="h-8 rounded-md border border-zinc-600 bg-zinc-800 px-2 text-xs text-zinc-200 outline-none focus:border-[#4158D0]"
                           >
-                            {currentKpiTab.items.map((kpi) => (
-                              <option key={kpi.dimension} value={kpi.dimension} className="bg-zinc-800 text-zinc-200">
+                            {currentKpiTab.items.map((kpi, idx) => (
+                              <option key={`${kpi.dimension}-${idx}`} value={String(idx)} className="bg-zinc-800 text-zinc-200">
                                 {kpi.dimension}
                               </option>
                             ))}
