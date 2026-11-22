@@ -92,6 +92,16 @@ function isRateLimitError(msg: string): boolean {
   return /KEY_RPM_EXCEEDED|rpm|rate.?limit|too many requests/i.test(msg);
 }
 
+/**
+ * 上游偶发返回空响应体（content-type 为 json 但 body 为空），
+ * 表现为 Python 侧 json 解析报 "Expecting value: line 1 column 1 (char 0)"。
+ * 这类错误与参数无关，短暂等待后重试通常即可恢复。
+ */
+function isTransientUpstreamError(msg: string): boolean {
+  if (!msg) return false;
+  return /Expecting value|JSONDecodeError|Expecting property name/i.test(msg);
+}
+
 async function mcpPostOnce<T = unknown>(
   body: Record<string, unknown>,
   sessionId?: string,
@@ -177,14 +187,19 @@ async function mcpPostOnce<T = unknown>(
   }
   if (envelope.error) {
     const msg = `MCP error ${envelope.error.code ?? ''}: ${envelope.error.message || 'unknown'}`;
-    const err = new Error(msg) as Error & { rateLimited?: boolean };
+    const err = new Error(msg) as Error & { rateLimited?: boolean; transient?: boolean };
     err.rateLimited = isRateLimitError(msg);
+    err.transient = isTransientUpstreamError(msg);
     throw err;
   }
   if (envelope.result?.isError) {
     const txt = envelope.result.content?.[0]?.text || 'tool error';
-    const err = new Error(`MCP tool error: ${txt}`) as Error & { rateLimited?: boolean };
+    const err = new Error(`MCP tool error: ${txt}`) as Error & {
+      rateLimited?: boolean;
+      transient?: boolean;
+    };
     err.rateLimited = isRateLimitError(txt);
+    err.transient = isTransientUpstreamError(txt);
     throw err;
   }
 
@@ -216,12 +231,18 @@ async function mcpPost<T = unknown>(
         return { data: r.data, sessionId: r.sessionId };
       } catch (e) {
         lastErr = e instanceof Error ? e : new Error(String(e));
-        const isRl = (lastErr as Error & { rateLimited?: boolean }).rateLimited;
-        if (isRl && attempt < 3) {
+        const meta = lastErr as Error & { rateLimited?: boolean; transient?: boolean };
+        if (meta.rateLimited && attempt < 3) {
           // 指数退避：3s, 8s, 15s
           const backoff = [3000, 8000, 15000][attempt];
           console.warn(`[crawler-mcp] 触发限流，${backoff}ms 后重试 (${attempt + 1}/3)`);
           await sleep(backoff);
+          continue;
+        }
+        // 上游偶发空响应：短暂等待后重试一次，避免整页报错
+        if (meta.transient && attempt < 1) {
+          console.warn(`[crawler-mcp] 上游瞬时错误，2000ms 后重试 (1/1)：${meta.message.slice(0, 120)}`);
+          await sleep(2000);
           continue;
         }
         throw lastErr;
