@@ -239,10 +239,13 @@ async function mcpPost<T = unknown>(
           await sleep(backoff);
           continue;
         }
-        // 上游偶发空响应：短暂等待后重试一次，避免整页报错
-        if (meta.transient && attempt < 1) {
-          console.warn(`[crawler-mcp] 上游瞬时错误，2000ms 后重试 (1/1)：${meta.message.slice(0, 120)}`);
-          await sleep(2000);
+        // 上游偶发空响应（缓存重建竞态）：实测间隔 1~2s 重试即可恢复，最多重试 2 次
+        if (meta.transient && attempt < 2) {
+          const backoff = [2000, 4000][attempt];
+          console.warn(
+            `[crawler-mcp] 上游瞬时错误，${backoff}ms 后重试 (${attempt + 1}/2)：${meta.message.slice(0, 120)}`,
+          );
+          await sleep(backoff);
           continue;
         }
         throw lastErr;

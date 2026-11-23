@@ -77,6 +77,8 @@ export async function GET(req: NextRequest) {
 
   const categoryList: [string, string, string] = [l1, l2, l3 || ''];
   const key = cacheKey(categoryList, fullView);
+  // 先留住上一份缓存：本次拉取失败时用它兜底，避免整页 500
+  const prevEntry = cache.get(key);
 
   try {
     let entry = cache.get(key);
@@ -139,6 +141,27 @@ export async function GET(req: NextRequest) {
     console.error('[brand/crawler]', msg);
     // 失败时清除缓存，避免坏 Promise 被持续复用
     cache.delete(key);
+    // 兜底：上游偶发空响应时回退上一份成功缓存，让页面先有数据可看
+    if (prevEntry) {
+      try {
+        const raw = await prevEntry.promise;
+        const columns = raw.headers || [];
+        const data = raw.rows || [];
+        if (data.length > 0) {
+          const ageSec = Math.round((Date.now() - prevEntry.ts) / 1000);
+          console.warn(`[brand/crawler] 拉取失败，回退 ${ageSec}s 前的缓存数据`);
+          return NextResponse.json({
+            success: true,
+            data: { ...raw, columns, data },
+            cached: true,
+            stale: true,
+            staleAgeSec: ageSec,
+          });
+        }
+      } catch {
+        /* 旧缓存也不可用，忽略 */
+      }
+    }
     return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }
